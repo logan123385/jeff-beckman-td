@@ -1,0 +1,55 @@
+import { vec } from '../../core/vec';
+import type { MapDef } from '../types';
+import { grp, wave } from './helpers';
+
+export const RADIANT_FLOOR: MapDef = {
+  id: 'radiantFloor',
+  name: 'Radiant Floor Ruckus',
+  subtitle: 'Service Call #3',
+  blurb: 'A snaking radiant loop under a kitchen floor. Frozen Mains freeze your towers solid — keep them warm with a Radiant Loop Coil.',
+  paths: [
+    [
+      vec(-30, 80),
+      vec(880, 80),
+      vec(880, 220),
+      vec(80, 220),
+      vec(80, 360),
+      vec(880, 360),
+      vec(880, 500),
+      vec(-30, 500),
+    ],
+  ],
+  slots: [
+    vec(200, 150),
+    vec(440, 150),
+    vec(680, 150),
+    vec(200, 290),
+    vec(440, 290),
+    vec(680, 290),
+    vec(200, 430),
+    vec(440, 430),
+    vec(680, 430),
+    vec(940, 150),
+    vec(20, 290),
+    vec(940, 430),
+  ],
+  jeffStart: vec(320, 290),
+  startMoney: 290,
+  lives: 20,
+  allowedTowers: ['torch', 'washer', 'barricade', 'expansion', 'radiant'],
+  waves: [
+    wave(grp('drip', 10, 0.9)),
+    wave(grp('sludge', 3, 3), grp('drip', 8, 0.9, 4)),
+    wave(grp('frozenMain', 1, 1), grp('drip', 10, 0.8, 6)),
+    wave(grp('scaleCrab', 5, 2.2), grp('airlock', 3, 2.5, 6)),
+    wave(grp('frozenMain', 2, 8), grp('drip', 12, 0.7, 4)),
+    wave(grp('pressureSpike', 3, 2.5), grp('sludge', 4, 2.5, 6)),
+    wave(grp('airlock', 6, 2), grp('frozenMain', 2, 6, 8)),
+    wave(grp('drip', 18, 0.6), grp('scaleCrab', 6, 2, 8)),
+    wave(grp('frozenMain', 3, 5), grp('pressureSpike', 3, 2, 10)),
+    wave(grp('sludge', 6, 2.5), grp('airlock', 6, 2, 5), grp('drip', 12, 0.7, 12)),
+    wave(grp('scaleCrab', 10, 1.5), grp('frozenMain', 3, 5, 6)),
+    wave(grp('frozenMain', 4, 4), grp('drip', 20, 0.5, 6), grp('pressureSpike', 5, 1.8, 14), grp('sludge', 5, 2.5, 20)),
+  ],
+  palette: { bg: '#26221f', wall: '#3a332d', pipe: '#8c6f5a', pipeDark: '#5c4a3d', accent: '#ff7043' },
+};

@@ -1,0 +1,56 @@
+import { vec } from '../../core/vec';
+import type { MapDef } from '../types';
+import { grp, wave } from './helpers';
+
+export const BOILER_ROOM: MapDef = {
+  id: 'boilerRoom',
+  name: 'Boiler Room Blues',
+  subtitle: 'Service Call #2',
+  blurb: 'Mineral scale has grown legs. Wrenches bounce off armor — bring the torch. The Expansion Tank keeps everything running smooth.',
+  paths: [
+    [
+      vec(480, -30),
+      vec(480, 110),
+      vec(200, 110),
+      vec(200, 300),
+      vec(720, 300),
+      vec(720, 470),
+      vec(300, 470),
+      vec(300, 630),
+    ],
+  ],
+  slots: [
+    vec(410, 50),
+    vec(550, 60),
+    vec(340, 180),
+    vec(135, 210),
+    vec(270, 220),
+    vec(400, 370),
+    vec(560, 240),
+    vec(560, 370),
+    vec(790, 380),
+    vec(650, 400),
+    vec(230, 540),
+    vec(400, 540),
+    vec(150, 420),
+  ],
+  jeffStart: vec(460, 210),
+  startMoney: 270,
+  lives: 20,
+  allowedTowers: ['torch', 'washer', 'barricade', 'expansion'],
+  waves: [
+    wave(grp('drip', 8, 1.0)),
+    wave(grp('scaleCrab', 3, 3), grp('drip', 6, 1, 4)),
+    wave(grp('drip', 12, 0.8), grp('scaleCrab', 3, 2.5, 8)),
+    wave(grp('sludge', 3, 3), grp('scaleCrab', 4, 2.5, 6)),
+    wave(grp('airlock', 4, 2.5), grp('drip', 10, 0.8, 5)),
+    wave(grp('scaleCrab', 6, 2), grp('pressureSpike', 2, 3, 10)),
+    wave(grp('drip', 16, 0.6), grp('airlock', 5, 2, 8)),
+    wave(grp('sludge', 5, 2.5), grp('scaleCrab', 6, 2, 4), grp('pressureSpike', 2, 2, 16)),
+    wave(grp('airlock', 8, 1.8), grp('drip', 14, 0.7, 6)),
+    wave(grp('scaleCrab', 10, 1.6), grp('sludge', 4, 3, 8)),
+    wave(grp('drip', 20, 0.5), grp('pressureSpike', 4, 2, 8), grp('airlock', 6, 2, 12)),
+    wave(grp('scaleCrab', 12, 1.4), grp('sludge', 6, 2.5, 6), grp('airlock', 8, 1.5, 12), grp('pressureSpike', 4, 1.5, 22)),
+  ],
+  palette: { bg: '#1f2429', wall: '#2c343b', pipe: '#7a7f85', pipeDark: '#4f5559', accent: '#ff9f43' },
+};

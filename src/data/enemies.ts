@@ -1,0 +1,165 @@
+import type { EnemyDef, EnemyId } from './types';
+
+export const ENEMIES: Record<EnemyId, EnemyDef> = {
+  drip: {
+    id: 'drip',
+    name: 'Drip',
+    fantasy: 'Fast, fragile, and never alone. One drip is a nuisance; forty is a flood.',
+    counters: 'Pressure Washer splash, barricades to bunch them up.',
+    hp: 40,
+    speed: 75,
+    armor: 0,
+    flying: false,
+    bounty: 4,
+    livesCost: 1,
+    dps: 4,
+    radius: 8,
+    damageMult: { water: 1.5 },
+    traits: [],
+    color: '#5dade2',
+  },
+  sludge: {
+    id: 'sludge',
+    name: 'Sludge Slug',
+    fantasy: 'Slow, thick, and soggy. Fire just steams off the top layer.',
+    counters: 'Sustained physical / water damage. Torch does half damage.',
+    hp: 260,
+    speed: 32,
+    armor: 0,
+    flying: false,
+    bounty: 12,
+    livesCost: 1,
+    dps: 8,
+    radius: 14,
+    damageMult: { fire: 0.5 },
+    traits: [],
+    color: '#7d6b3a',
+  },
+  scaleCrab: {
+    id: 'scaleCrab',
+    name: 'Scale Crab',
+    fantasy: 'Mineral buildup with legs. Wrenches bounce right off the shell.',
+    counters: 'Soldering Torch ignores armor. Jeff shreds armor with each hit.',
+    hp: 160,
+    speed: 50,
+    armor: 0.6,
+    flying: false,
+    bounty: 10,
+    livesCost: 1,
+    dps: 8,
+    radius: 11,
+    traits: [],
+    color: '#c8b88a',
+  },
+  steamWisp: {
+    id: 'steamWisp',
+    name: 'Steam Wisp',
+    fantasy: 'Escaped vapor that floats right over your barricades.',
+    counters: 'Vent Stack. Torch and Jeff can reach it; washers and barricades cannot.',
+    hp: 70,
+    speed: 85,
+    armor: 0,
+    flying: true,
+    bounty: 8,
+    livesCost: 1,
+    dps: 0,
+    radius: 9,
+    traits: [],
+    color: '#e0f7fa',
+  },
+  pressureSpike: {
+    id: 'pressureSpike',
+    name: 'Pressure Spike',
+    fantasy: 'A surge with somewhere to be. Hammers barricades on the way through.',
+    counters: 'Jeff\u2019s Pipe Clamp, Expansion Tank shields, kill it before it reaches the valve.',
+    hp: 120,
+    speed: 130,
+    armor: 0.2,
+    flying: false,
+    bounty: 10,
+    livesCost: 1,
+    dps: 12,
+    barricadeMult: 6,
+    radius: 10,
+    traits: ['damagesBarricades'],
+    color: '#f06292',
+  },
+  airlock: {
+    id: 'airlock',
+    name: 'Airlock Bubble',
+    fantasy: 'Trapped air that phases out of the water column every few seconds.',
+    counters: 'Time damage between phases. Jeff\u2019s Wrench Tap stun pops the phase.',
+    hp: 110,
+    speed: 65,
+    armor: 0,
+    flying: false,
+    bounty: 10,
+    livesCost: 1,
+    dps: 5,
+    radius: 10,
+    traits: ['phases'],
+    color: '#ce93d8',
+  },
+  frozenMain: {
+    id: 'frozenMain',
+    name: 'Frozen Main',
+    fantasy: 'A block of ice with a grudge. Freezes nearby towers solid as it passes.',
+    counters: 'Radiant Loop Coil (irony intended) keeps towers thawed and melts it twice as fast.',
+    hp: 420,
+    speed: 28,
+    armor: 0.3,
+    flying: false,
+    bounty: 20,
+    livesCost: 1,
+    dps: 10,
+    radius: 15,
+    damageMult: { heat: 2 },
+    traits: ['freezes'],
+    color: '#81d4fa',
+  },
+  rogueBoiler: {
+    id: 'rogueBoiler',
+    name: 'Rogue Boiler',
+    fantasy: 'The boss. Three pressure phases, summons drips, and vents at anything blocking it.',
+    counters: 'Full kit. Save Emergency Shutoff for a phase change.',
+    hp: 3200,
+    speed: 26,
+    armor: 0.4,
+    flying: false,
+    bounty: 150,
+    livesCost: 5,
+    dps: 30,
+    barricadeMult: 2,
+    radius: 22,
+    traits: ['boss', 'damagesBarricades'],
+    color: '#8d6e63',
+  },
+};
+
+export const ENEMY_ORDER: EnemyId[] = [
+  'drip',
+  'sludge',
+  'scaleCrab',
+  'steamWisp',
+  'pressureSpike',
+  'airlock',
+  'frozenMain',
+  'rogueBoiler',
+];
+
+/** Airlock Bubble phase cycle. */
+export const PHASE_VISIBLE_SECONDS = 3;
+export const PHASE_HIDDEN_SECONDS = 1;
+
+/** Frozen Main pulse. */
+export const FREEZE_INTERVAL = 6;
+export const FREEZE_RADIUS = 100;
+export const FREEZE_DURATION = 2.5;
+
+/** Rogue Boiler. */
+export const BOSS_PHASE_THRESHOLDS = [0.66, 0.33];
+export const BOSS_SUMMON_COUNT = 6;
+export const BOSS_VENT_INTERVAL = 8;
+export const BOSS_VENT_RADIUS = 110;
+export const BOSS_VENT_DAMAGE = 180;
+export const BOSS_PHASE_SPEED_BONUS = 0.25;

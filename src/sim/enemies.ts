@@ -1,0 +1,151 @@
+import { dist } from '../core/vec';
+import {
+  BOSS_VENT_DAMAGE,
+  BOSS_VENT_INTERVAL,
+  BOSS_VENT_RADIUS,
+  FREEZE_DURATION,
+  FREEZE_INTERVAL,
+  FREEZE_RADIUS,
+  PHASE_HIDDEN_SECONDS,
+  PHASE_VISIBLE_SECONDS,
+} from '../data/enemies';
+import { JEFF } from '../data/jeff';
+import type { Game } from './game';
+import type { Enemy } from './state';
+import { damageBarricade, releaseHeldBy, towerHasFreezeProtection } from './towers';
+
+export function updateEnemies(game: Game, dt: number): void {
+  for (const e of game.enemies) {
+    if (e.dead || e.escaped) continue;
+    tickTimers(game, e, dt);
+    validateHold(game, e);
+    if (e.heldBy === null && e.stun <= 0) {
+      const speed = e.def.speed * e.speedMult * (1 - e.slow);
+      e.progress += speed * dt;
+      e.wobble += dt * 6;
+    }
+    const path = game.paths[e.pathIdx]!;
+    if (e.progress >= path.length) {
+      e.escaped = true;
+      e.heldBy = null;
+      game.lives -= e.def.livesCost;
+      game.stats.escaped++;
+      game.addEffect({ kind: 'text', pos: { x: e.pos.x - 30, y: e.pos.y - 20 }, text: `-${e.def.livesCost} life`, color: '#ff5252', ttl: 1.2, max: 1.2 });
+      continue;
+    }
+    const base = path.pointAt(e.progress);
+    const dir = path.directionAt(e.progress);
+    e.pos = { x: base.x - dir.y * e.lane, y: base.y + dir.x * e.lane };
+    if (e.heldBy !== null) attackHolder(game, e, dt);
+  }
+}
+
+function tickTimers(game: Game, e: Enemy, dt: number): void {
+  if (e.stun > 0) e.stun -= dt;
+  if (e.shredTimer > 0) {
+    e.shredTimer -= dt;
+    if (e.shredTimer <= 0) e.armorShred = 0;
+  }
+  if (e.def.traits.includes('phases')) {
+    if (e.stun > 0 && e.phased) {
+      e.phased = false;
+      e.phaseTimer = PHASE_VISIBLE_SECONDS;
+    } else {
+      e.phaseTimer -= dt;
+      if (e.phaseTimer <= 0) {
+        e.phased = !e.phased;
+        e.phaseTimer = e.phased ? PHASE_HIDDEN_SECONDS : PHASE_VISIBLE_SECONDS;
+        if (e.phased) e.heldBy = null;
+      }
+    }
+  }
+  if (e.def.traits.includes('freezes')) {
+    e.freezeTimer -= dt;
+    if (e.freezeTimer <= 0) {
+      e.freezeTimer = FREEZE_INTERVAL;
+      freezePulse(game, e);
+    }
+  }
+  if (e.def.traits.includes('boss')) {
+    e.ventTimer -= dt;
+    if (e.ventTimer <= 0) {
+      e.ventTimer = BOSS_VENT_INTERVAL;
+      bossVent(game, e);
+    }
+  }
+}
+
+/** Drop a hold whose holder has moved, broken, or died. */
+function validateHold(game: Game, e: Enemy): void {
+  const h = e.heldBy;
+  if (h === null) return;
+  if (e.def.flying) {
+    e.heldBy = null;
+    return;
+  }
+  switch (h.kind) {
+    case 'tower': {
+      const t = game.towers.find((x) => x.id === h.id);
+      if (!t || t.rebuild > 0 || t.frozen > 0 || dist(t.rally, e.pos) > t.def.levels[t.level].range + e.def.radius + 6) e.heldBy = null;
+      return;
+    }
+    case 'hero': {
+      const hero = game.hero;
+      if (!game.heroEnabled || hero.downed > 0 || hero.dest !== null || dist(hero.pos, e.pos) > JEFF.reach + e.def.radius + 6) e.heldBy = null;
+      return;
+    }
+    case 'clamp': {
+      if (!game.clamp || dist(game.clamp.pos, e.pos) > JEFF.clamp.radius + e.def.radius) e.heldBy = null;
+      return;
+    }
+    default: {
+      const _exhaustive: never = h;
+      return _exhaustive;
+    }
+  }
+}
+
+function attackHolder(game: Game, e: Enemy, dt: number): void {
+  e.attackTimer -= dt;
+  if (e.attackTimer > 0 || e.def.dps <= 0) return;
+  e.attackTimer = 1;
+  const h = e.heldBy;
+  if (h === null) return;
+  switch (h.kind) {
+    case 'tower': {
+      const t = game.towers.find((x) => x.id === h.id);
+      if (t) damageBarricade(game, t, e.def.dps * (e.def.barricadeMult ?? 1));
+      return;
+    }
+    case 'hero': {
+      game.damageHero(e.def.dps);
+      return;
+    }
+    case 'clamp':
+      return;
+    default: {
+      const _exhaustive: never = h;
+      return _exhaustive;
+    }
+  }
+}
+
+function freezePulse(game: Game, e: Enemy): void {
+  game.addEffect({ kind: 'ring', pos: { ...e.pos }, radius: FREEZE_RADIUS, color: '#81d4fa', ttl: 0.7, max: 0.7 });
+  for (const t of game.towers) {
+    if (dist(t.pos, e.pos) > FREEZE_RADIUS) continue;
+    if (towerHasFreezeProtection(game, t)) continue;
+    if (game.consumeShield(t)) continue;
+    t.frozen = Math.max(t.frozen, FREEZE_DURATION);
+    if (t.def.kind === 'barricade') releaseHeldBy(game, t);
+  }
+}
+
+function bossVent(game: Game, boss: Enemy): void {
+  game.addEffect({ kind: 'ring', pos: { ...boss.pos }, radius: BOSS_VENT_RADIUS, color: '#ffab91', ttl: 0.6, max: 0.6 });
+  for (const t of game.towers) {
+    if (t.def.kind !== 'barricade' || dist(t.rally, boss.pos) > BOSS_VENT_RADIUS) continue;
+    if (game.consumeShield(t)) continue;
+    damageBarricade(game, t, BOSS_VENT_DAMAGE);
+  }
+}
