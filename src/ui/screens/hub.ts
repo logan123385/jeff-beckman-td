@@ -1,5 +1,5 @@
 import { DIFFICULTIES, DIFFICULTY_ORDER } from '../../data/difficulty';
-import { MAPS, NIGHT_SHIFT } from '../../data/maps';
+import { MAPS, SERVICE_CALL } from '../../data/maps';
 import { REMASTER_ORDER, REMASTERS } from '../../data/remasters';
 import { TOWERS } from '../../data/towers';
 import { levelFromXp } from '../../data/xp';
@@ -16,7 +16,7 @@ export function renderHub(app: App): ScreenView {
   const render = () => {
     clear(el);
     const diff = DIFFICULTIES[save.data.difficulty];
-    const nightOpen = save.nightShiftUnlocked();
+    const nightOpen = save.serviceCallUnlocked();
     const xp = levelFromXp(save.data.jeffXp);
     const metaLocked = !save.hasAnyProgress();
     const metaTip = 'Clear a job first — the truck unlocks after your first call.';
@@ -35,8 +35,8 @@ export function renderHub(app: App): ScreenView {
             {
               class: 'lede',
               text: metaLocked
-                ? 'First call is Crawlspace Chaos — take the job below. Talents, locker, and stars open after you clear a call.'
-                : `Lv ${xp.level} · pack five tools before each job. First clears drop chests and XP. Night Shift opens after the first four calls — later jobs teach new tools for the truck.`,
+                ? 'First call is Crawlspace Chaos — take the job below. Talents, locker, and 90’s open after you clear a call.'
+                : `Lv ${xp.level} · pack five tools before each job. First clears drop chests and XP. The Neverending Service Call opens after the first four calls — later jobs teach new tools for the truck.`,
             },
           ),
         ),
@@ -45,7 +45,7 @@ export function renderHub(app: App): ScreenView {
           { class: 'hub-actions' },
           metaBtn(app, 'talents', 'Talent tree', `${save.talentPoints()} pts`, metaLocked, metaTip),
           metaBtn(app, 'locker', 'Locker', `${save.data.inventory.length}`, metaLocked, metaTip),
-          metaBtn(app, 'skills', '★ Stars', `${save.availableStars()} to spend`, metaLocked, metaTip),
+          metaBtn(app, 'skills', '90’s Perks', `${save.availableStars()} to spend`, metaLocked, metaTip),
           h('button', { class: 'btn', text: 'Encyclopedia', onClick: () => app.go({ kind: 'encyclopedia' }) }),
           h('button', { class: 'btn link', text: 'Title', onClick: () => app.go({ kind: 'title' }) }),
         ),
@@ -140,7 +140,7 @@ function campaignCard(app: App, map: MapDef, index: number, unlocked: boolean, f
       h(
         'div',
         { class: 'map-foot' },
-        h('div', {}, stars(best), h('span', { class: 'small muted', text: onDiff > 0 ? ` · ${onDiff}★ on ${DIFFICULTIES[save.data.difficulty].name}` : best > 0 ? ` · not yet on ${DIFFICULTIES[save.data.difficulty].name}` : '' })),
+        h('div', {}, stars(best), h('span', { class: 'small muted', text: onDiff > 0 ? ` · ${onDiff} 90’s on ${DIFFICULTIES[save.data.difficulty].name}` : best > 0 ? ` · not yet on ${DIFFICULTIES[save.data.difficulty].name}` : '' })),
         unlocked
           ? h('button', {
               class: `btn primary ${featured ? 'big' : ''}`,
@@ -179,26 +179,26 @@ function toolLabel(name: string): string {
 }
 
 function nightCard(app: App, open: boolean, featured: boolean): HTMLElement {
-  const best = app.save.data.nightShiftBest;
+  const best = app.save.data.serviceCallBest;
   return h(
     'article',
     { class: `map-card job-ticket sheet night ${featured ? 'featured' : ''} ${open ? '' : 'locked'}` },
-    h('div', { class: 'map-swatch', style: { background: NIGHT_SHIFT.palette.bg, borderColor: NIGHT_SHIFT.palette.accent } }, mapThumb(NIGHT_SHIFT)),
+    h('div', { class: 'map-swatch', style: { background: SERVICE_CALL.palette.bg, borderColor: SERVICE_CALL.palette.accent } }, mapThumb(SERVICE_CALL)),
     h(
       'div',
       { class: 'map-body' },
       h(
         'div',
         { class: 'ticket-top' },
-        h('div', { class: 'eyebrow', text: featured ? 'Endgame' : NIGHT_SHIFT.subtitle }),
+        h('div', { class: 'eyebrow', text: featured ? 'Endgame' : SERVICE_CALL.subtitle }),
         h('span', { class: 'call-stamp', text: open ? (best > 0 ? `Wave ${best}` : 'Open') : 'Locked' }),
       ),
-      h('h3', { text: NIGHT_SHIFT.name }),
-      h('p', { class: 'small', text: NIGHT_SHIFT.blurb }),
+      h('h3', { text: SERVICE_CALL.name }),
+      h('p', { class: 'small', text: SERVICE_CALL.blurb }),
       h(
         'div',
         { class: 'map-meta' },
-        h('span', { class: 'small muted', text: best > 0 ? `Longest night: wave ${best}` : 'No record yet' }),
+        h('span', { class: 'small muted', text: best > 0 ? `Longest service call: wave ${best}` : 'No record yet' }),
         h('span', { class: 'small muted', text: 'Mutators · milestone crates · soft clock-out' }),
       ),
       h(
@@ -206,7 +206,7 @@ function nightCard(app: App, open: boolean, featured: boolean): HTMLElement {
         { class: 'map-foot' },
         h('span', { class: 'small muted', text: 'Same kit as the campaign. Gear you find here works everywhere.' }),
         open
-          ? h('button', { class: 'btn primary', text: 'Clock in', onClick: () => app.go({ kind: 'loadout', mapId: NIGHT_SHIFT.id, remaster: 'classic' }) })
+          ? h('button', { class: 'btn primary', text: 'Clock in', onClick: () => app.go({ kind: 'loadout', mapId: SERVICE_CALL.id, remaster: 'classic' }) })
           : h('span', { class: 'pill', text: 'Clear the first four service calls' }),
       ),
     ),
@@ -226,7 +226,9 @@ function mapThumb(map: MapDef): HTMLCanvasElement {
   ctx.scale(dpr, dpr);
   ctx.save();
   ctx.filter = 'brightness(1.18) saturate(1.12)';
-  ctx.scale(w / 960, hgt / 600);
+  const zoom = Math.min(w / 960, hgt / 600);
+  ctx.translate((w - 960 * zoom) / 2, (hgt - 600 * zoom) / 2);
+  ctx.scale(zoom, zoom);
   paintYard(ctx, map);
   ctx.filter = 'none';
   ctx.fillStyle = map.palette.accent;

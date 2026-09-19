@@ -19,7 +19,7 @@ export function renderTalents(app: App): ScreenView {
         'header',
         { class: 'screen-header sheet' },
         h('button', { class: 'btn link', text: '← Van', onClick: () => app.go({ kind: 'hub' }) }),
-        h('h1', { text: 'Jeff’s Talent Tree' }),
+        h('h1', { text: 'Hero Talent Tree' }),
         h('span', { class: 'pill big', text: `Lv ${xp.level} · ${save.talentPoints()} point${save.talentPoints() === 1 ? '' : 's'}` }),
         h('button', {
           class: 'btn',
@@ -31,7 +31,7 @@ export function renderTalents(app: App): ScreenView {
           },
         }),
       ),
-      h('p', { class: 'lede', text: 'Jeff levels after every job and every Night Shift. One talent point per level. Towers never grind XP — this tree is just Jeff.' }),
+      h('p', { class: 'lede', text: 'All heroes share crew XP, gear, and this talent tree. Earn one point per crew level. Wrench Tap and tool-belt repair perks apply specifically to Jeff; general stat perks apply to your selected hero.' }),
       h('div', { class: 'xp-bar' }, h('div', { class: 'fill', style: { width: `${xp.level >= JEFF_LEVEL_CAP ? 100 : (xp.into / xp.need) * 100}%` } }), h('span', { class: 'small', text: xpBarCopy(xp) })),
       h(
         'div',

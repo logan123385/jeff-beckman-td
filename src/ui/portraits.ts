@@ -1,3 +1,5 @@
+import { artReady, ENEMY_ART, heroFrame, paintedSprite, TOWER_ART } from '../render/art';
+import { HEROES, type HeroId } from '../data/heroes';
 import { ENEMIES } from '../data/enemies';
 import { JEFF } from '../data/jeff';
 import { TOWERS } from '../data/towers';
@@ -18,8 +20,26 @@ function makeCanvas(w: number, hgt: number): { canvas: HTMLCanvasElement; ctx: C
 }
 
 /** Static Jeff portrait for menus and the HUD. */
-export function jeffPortrait(size = 72): HTMLCanvasElement {
+export function heroPortrait(id: HeroId, size = 72): HTMLCanvasElement {
+  if (id === 'jeff') return jeffPortrait(size, size > 90);
   const { canvas, ctx } = makeCanvas(size, size);
+  ctx.translate(size / 2, size - 3);
+  if (!heroFrame(ctx, id, 0, 0, size - 6)) {
+    ctx.fillStyle = HEROES[id].color; ctx.font = `bold ${size * .5}px serif`; ctx.textAlign = 'center'; ctx.fillText(HEROES[id].name[0]!, 0, -size * .2);
+  }
+  return canvas;
+}
+
+export function jeffPortrait(size = 72, fullBody = false): HTMLCanvasElement {
+  const { canvas, ctx } = makeCanvas(size, size);
+  if (!fullBody && artReady('unitsAdvanced')) {
+    paintedSprite(ctx, 'unitsAdvanced', 10, size / 2, size, size - 2, size);
+    return canvas;
+  }
+  if (artReady('units')) {
+    paintedSprite(ctx, 'units', 0, size / 2, fullBody ? size - 4 : size * 1.65, fullBody ? size - 8 : size * 1.63, fullBody ? size : size * 1.5);
+    return canvas;
+  }
   const hero: Hero = {
     pos: { x: size / 2, y: size / 2 + 12 },
     anchor: { x: 0, y: 0 },
@@ -54,6 +74,11 @@ export function jeffPortrait(size = 72): HTMLCanvasElement {
 /** Enemy portrait; `silhouette` renders a dark unknown shape for the encyclopedia. */
 export function enemyPortrait(id: EnemyId, size = 64, silhouette = false): HTMLCanvasElement {
   const { canvas, ctx } = makeCanvas(size, size);
+  if (ENEMY_ART[id] !== undefined && artReady(ENEMY_ART[id]! >= 16 ? 'unitsAdvanced' : 'units')) {
+    if (silhouette) ctx.filter = 'brightness(0.15)';
+    paintedSprite(ctx, 'units', ENEMY_ART[id]!, size / 2, size - 4, size - 8, size - 8);
+    return canvas;
+  }
   const def = ENEMIES[id];
   const e: Enemy = {
     id: 0,
@@ -101,6 +126,13 @@ export function enemyPortrait(id: EnemyId, size = 64, silhouette = false): HTMLC
 /** Static tool portrait for the loadout screen. */
 export function towerPortrait(id: TowerId, size = 72): HTMLCanvasElement {
   const { canvas, ctx } = makeCanvas(size, size);
+  if (TOWER_ART[id] !== undefined && artReady(TOWER_ART[id]! >= 12 ? 'towersAdvanced' : 'towers')) {
+    paintedSprite(ctx, 'towers', TOWER_ART[id]!, size / 2, size - 3, size - 6, size - 4);
+    return canvas;
+  }
+  if (['apprentices','jayjay','cbjDoni'].includes(id) && artReady('recruitTowers')) {
+    paintedSprite(ctx, 'recruitTowers', (id === 'apprentices' ? 0 : id === 'jayjay' ? 4 : 8), size / 2, size - 3, size - 6, size - 4); return canvas;
+  }
   const def = TOWERS[id];
   const t: Tower = {
     id: 0,

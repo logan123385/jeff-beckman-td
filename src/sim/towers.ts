@@ -1,8 +1,9 @@
+import { updateHeroAura, updateHeroZones } from './heroPowers';
 import { dist } from '../core/vec';
 import { PHASE_VISIBLE_SECONDS } from '../data/enemies';
 import { BARRICADE_REBUILD_SECONDS, BARRICADE_REGEN_PER_SEC, MINERAL_ENEMIES } from '../data/towers';
 import type { EnemyId } from '../data/types';
-import { applyDamage, isTargetable, pickTarget } from './combat';
+import { applyDamage, isTargetable, matchesTargetMode, pickTarget } from './combat';
 import type { Game } from './game';
 import type { Enemy, Tower } from './state';
 
@@ -21,8 +22,12 @@ export function updateAuras(game: Game, dt: number): void {
   for (const e of game.enemies) {
     e.slow = game.globalSlowTimer > 0 ? game.globalSlow : 0;
     e.marked = false;
+    e.markBonus = 0;
     e.haste = 0;
   }
+
+  updateHeroAura(game, dt);
+  updateHeroZones(game, dt);
 
   // Buff pads first so zone tools and Jeff haste read this frame's auras.
   for (const t of game.towers) {
@@ -65,6 +70,7 @@ function applySupportAura(game: Game, t: Tower): void {
     case 'zoneValve':
     case 'torch':
     case 'washer':
+    case 'apprentices': case 'jayjay': case 'cbjDoni':
     case 'barricade':
     case 'vent':
     case 'pipeSnake':
@@ -119,6 +125,7 @@ function applyZoneAura(game: Game, t: Tower, dt: number): void {
     case 'thermostat':
     case 'torch':
     case 'washer':
+    case 'apprentices': case 'jayjay': case 'cbjDoni':
     case 'barricade':
     case 'vent':
     case 'pipeSnake':
@@ -137,7 +144,7 @@ function applyZoneAura(game: Game, t: Tower, dt: number): void {
 }
 
 function applyExpansion(game: Game, t: Tower): void {
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const range = game.effectiveRange(t);
   for (const other of game.towers) {
     if (other.id === t.id || dist(other.pos, t.pos) > range) continue;
@@ -149,7 +156,7 @@ function applyExpansion(game: Game, t: Tower): void {
 }
 
 function applyHeatZone(game: Game, t: Tower, dt: number, source: 'radiant' | 'boiler' | 'glycol' | 'mixingValve'): void {
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const range = game.effectiveRange(t);
   t.cooldown -= dt;
   const tick = t.cooldown <= 0;
@@ -175,7 +182,7 @@ function applyGlycol(game: Game, t: Tower, dt: number): void {
 }
 
 function applySump(game: Game, t: Tower, dt: number): void {
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const range = game.effectiveRange(t);
   t.cooldown -= dt;
   if (t.cooldown > 0) return;
@@ -200,7 +207,7 @@ function applySump(game: Game, t: Tower, dt: number): void {
 
 function applyMixingValve(game: Game, t: Tower, dt: number): void {
   applyHeatZone(game, t, dt, 'mixingValve');
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const range = game.effectiveRange(t);
   for (const e of game.enemies) {
     if (!isTargetable(e) || e.def.flying || dist(e.pos, t.pos) > range + e.def.radius) continue;
@@ -214,7 +221,7 @@ function applyMixingValve(game: Game, t: Tower, dt: number): void {
 }
 
 function applyAirSeparator(game: Game, t: Tower, dt: number): void {
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const range = game.effectiveRange(t);
   t.cooldown -= dt;
   const tick = t.cooldown <= 0;
@@ -233,7 +240,7 @@ function applyAirSeparator(game: Game, t: Tower, dt: number): void {
 }
 
 function applyThermostat(game: Game, t: Tower): void {
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const range = game.effectiveRange(t);
   for (const other of game.towers) {
     if (other.id === t.id || dist(other.pos, t.pos) > range) continue;
@@ -244,7 +251,7 @@ function applyThermostat(game: Game, t: Tower): void {
 }
 
 function applyZoneValve(game: Game, t: Tower, dt: number): void {
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const range = game.effectiveRange(t);
   t.cooldown -= dt;
   if (t.cooldown > 0) return;
@@ -263,6 +270,7 @@ function applyCamera(game: Game, t: Tower): void {
   for (const e of game.enemies) {
     if (e.dead || e.escaped || dist(e.pos, t.pos) > range + e.def.radius) continue;
     e.marked = true;
+    e.markBonus = Math.max(e.markBonus ?? 0, t.specialization === 'power' ? 0.38 : 0.2);
     if (e.phased) {
       e.phased = false;
       e.phaseTimer = PHASE_VISIBLE_SECONDS;
@@ -271,7 +279,7 @@ function applyCamera(game: Game, t: Tower): void {
 }
 
 function applyCirculator(game: Game, t: Tower): void {
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const range = game.effectiveRange(t);
   game.projSpeedMult = Math.max(game.projSpeedMult, lvl.projSpeed ?? 1);
   if (dist(game.hero.pos, t.pos) <= range) {
@@ -281,7 +289,7 @@ function applyCirculator(game: Game, t: Tower): void {
 }
 
 function applyBackflow(game: Game, t: Tower, dt: number): void {
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const range = game.effectiveRange(t);
   t.cooldown -= dt;
   if (t.cooldown > 0) return;
@@ -301,7 +309,7 @@ function applyBackflow(game: Game, t: Tower, dt: number): void {
 }
 
 function applyPrv(game: Game, t: Tower, dt: number): void {
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const range = game.effectiveRange(t);
   let traffic = 0;
   for (const e of game.enemies) {
@@ -327,6 +335,7 @@ export function updateTowers(game: Game, dt: number): void {
     if (t.frozen > 0) t.frozen -= dt;
     if (t.shieldCooldown > 0) t.shieldCooldown -= dt;
     if (t.recoil > 0) t.recoil -= dt;
+    updateElite(game, t, dt);
     switch (t.def.kind) {
       case 'shooter':
         if (t.frozen <= 0) updateShooter(game, t, dt);
@@ -344,10 +353,46 @@ export function updateTowers(game: Game, dt: number): void {
   }
 }
 
+function updateElite(game: Game, t: Tower, dt: number): void {
+  if (t.specialization !== 'control' || t.frozen > 0 || t.rebuild > 0) return;
+  if (t.def.kind === 'barricade') {
+    t.hp = Math.min(t.maxHp, t.hp + 8 * dt);
+    for (const f of game.friendlies) if (f.respawn <= 0 && dist(f.pos, t.rally) < 90) f.hp = Math.min(f.maxHp, f.hp + 8 * dt);
+    if (game.heroEnabled && game.hero.downed <= 0 && dist(game.hero.pos, t.rally) < 90) game.hero.hp = Math.min(game.hero.maxHp, game.hero.hp + 8 * dt);
+    return;
+  }
+  t.eliteCooldown = Math.max(0, (t.eliteCooldown ?? 0) - dt);
+  if (t.eliteCooldown > 0) return;
+  const targets = game.enemies.filter(e => isTargetable(e) && matchesTargetMode(t.def.targets, e) && dist(e.pos, t.pos) <= game.effectiveRange(t) + e.def.radius)
+    .sort((a, b) => b.progress - a.progress).slice(0, 3);
+  if (targets.length === 0) return;
+  t.eliteCooldown = 7;
+  for (const e of targets) {
+    e.stun = Math.max(e.stun, e.def.traits.includes('boss') ? 0.35 : 1);
+    e.armorShred = Math.max(e.armorShred, 0.2); e.shredTimer = Math.max(e.shredTimer, 3);
+    game.addEffect({ kind: 'beam', from: { ...t.pos }, to: { ...e.pos }, color: '#9af5db', ttl: 0.28, max: 0.28 });
+    game.addEffect({ kind: 'ring', pos: { ...e.pos }, radius: 22, color: '#bbffe4', ttl: 0.4, max: 0.4 });
+  }
+}
+
 function updateShooter(game: Game, t: Tower, dt: number): void {
+  if ((t.windup ?? 0) > 0) {
+    t.windup = Math.max(0, t.windup! - dt);
+    if (t.windup === 0) fireShooter(game, t, 0);
+    return;
+  }
   t.cooldown -= dt;
   if (t.cooldown > 0) return;
-  const lvl = t.def.levels[t.level];
+  const target = pickTarget(game, t, game.effectiveRange(t));
+  if (!target && t.def.id !== 'pipeSnake') return;
+  if (target) t.facing = Math.atan2(target.pos.y - t.pos.y, target.pos.x - t.pos.x);
+  t.windup = 0.16;
+}
+
+function fireShooter(game: Game, t: Tower, dt: number): void {
+  t.cooldown -= dt;
+  if (t.cooldown > 0) return;
+  const lvl = t.def.levels[t.level]!;
   if (t.def.id === 'pipeSnake') {
     const { pathIdx, progress } = game.nearestPath(t.pos);
     const pierce = lvl.pierce ?? 160;
@@ -358,8 +403,8 @@ function updateShooter(game: Game, t: Tower, dt: number): void {
       t.cooldown = 0;
       return;
     }
-    t.cooldown = 1 / (lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0)));
-    t.recoil = 0.12;
+    t.cooldown = Math.max(0.05, 1 / (lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0))) - 0.16);
+    t.recoil = 0.28;
     firePipeSnake(game, t);
     return;
   }
@@ -370,9 +415,9 @@ function updateShooter(game: Game, t: Tower, dt: number): void {
     return;
   }
   const rate = lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0));
-  t.cooldown = 1 / Math.max(0.2, rate);
+  t.cooldown = Math.max(0.05, 1 / Math.max(0.2, rate) - 0.16);
   t.facing = Math.atan2(target.pos.y - t.pos.y, target.pos.x - t.pos.x);
-  t.recoil = 0.12;
+  t.recoil = 0.28;
   const damage = game.effectiveDamage(t);
   if (t.def.projectileSpeed === undefined) {
     applyDamage(game, target, damage, t.def.damageType, t.def.id, { groundMult: t.def.groundMult });
@@ -429,7 +474,7 @@ function fireHeatJump(game: Game, t: Tower, primary: Enemy, damage: number): voi
 }
 
 function firePipeSnake(game: Game, t: Tower): void {
-  const lvl = t.def.levels[t.level];
+  const lvl = t.def.levels[t.level]!;
   const pierce = lvl.pierce ?? 160;
   const { pathIdx, progress } = game.nearestPath(t.pos);
   const path = game.paths[pathIdx]!;
@@ -463,13 +508,14 @@ export function applyDescaler(e: Enemy, shred: number, dot: number, dotTime: num
 }
 
 function updateBarricade(game: Game, t: Tower, dt: number): void {
-  const lvl = t.def.levels[t.level];
   if (t.rebuild > 0) {
     t.rebuild -= dt;
     t.hp = t.maxHp * (1 - Math.max(0, t.rebuild) / BARRICADE_REBUILD_SECONDS);
     if (t.rebuild <= 0) t.hp = t.maxHp;
     return;
   }
+  if (t.def.recruits) return;
+  const lvl = t.def.levels[t.level]!;
   if (t.frozen > 0) return;
 
   const held = game.enemies.filter((e) => e.heldBy?.kind === 'tower' && e.heldBy.id === t.id && !e.dead && !e.escaped);
@@ -492,7 +538,7 @@ function updateBarricade(game: Game, t: Tower, dt: number): void {
   }
   t.cooldown -= dt;
   if (t.cooldown <= 0) {
-    t.cooldown = 1 / (lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0)));
+    t.cooldown = Math.max(0.05, 1 / (lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0))));
     const target = held.reduce((a, b) => (a.hp < b.hp ? a : b));
     applyDamage(game, target, game.effectiveDamage(t), t.def.damageType, t.def.id);
     game.addEffect({ kind: 'hit', pos: { ...target.pos }, color: t.def.color, ttl: 0.15, max: 0.15 });

@@ -1,6 +1,7 @@
+import { isHeroId, type HeroId } from '../data/heroes';
 import { CORE_MAPS, MAPS } from '../data/maps';
 import { gearScore } from '../data/loot';
-import { canUnlock, SKILLS } from '../data/skills';
+import { canUnlock, SKILLS, skillCost } from '../data/skills';
 import { canUnlockTalent } from '../data/talents';
 import { salvageXp, levelFromXp, talentPointsAvailable } from '../data/xp';
 import type { DifficultyId, EnemyId, GearItem, GearSlot, RemasterId, TowerId } from '../data/types';
@@ -9,11 +10,12 @@ export const INVENTORY_CAP = 24;
 
 export interface SaveData {
   version: 1;
+  selectedHero: HeroId;
   /** mapId -> difficulty -> best stars (0–3). */
   stars: Record<string, Partial<Record<DifficultyId, number>>>;
   /** First-clear remaster badges (1 star each). Never required. */
   remasters: Record<string, Partial<Record<Exclude<RemasterId, 'classic'>, number>>>;
-  nightShiftBest: number;
+  serviceCallBest: number;
   muted: boolean;
   sfxVolume: number;
   ambientVolume: number;
@@ -35,9 +37,10 @@ const KEY = 'jbtd-save-v1';
 function blank(): SaveData {
   return {
     version: 1,
+    selectedHero: 'jeff',
     stars: {},
     remasters: {},
-    nightShiftBest: 0,
+    serviceCallBest: 0,
     muted: false,
     sfxVolume: 0.85,
     ambientVolume: 0.55,
@@ -65,12 +68,14 @@ export class SaveStore {
     try {
       const raw = this.storage?.getItem(KEY);
       if (!raw) return blank();
-      const parsed = JSON.parse(raw) as Partial<SaveData>;
+      const parsed = JSON.parse(raw) as Partial<SaveData> & { nightShiftBest?: number };
       if (parsed.version !== 1) return blank();
       return {
         ...blank(),
         ...parsed,
         version: 1,
+        selectedHero: isHeroId(parsed.selectedHero) ? parsed.selectedHero : 'jeff',
+        serviceCallBest: parsed.serviceCallBest ?? parsed.nightShiftBest ?? 0,
         talents: parsed.talents ?? [],
         inventory: parsed.inventory ?? [],
         equipped: parsed.equipped ?? {},
@@ -131,13 +136,13 @@ export class SaveStore {
     return true;
   }
 
-  recordNightShift(wave: number): void {
-    if (wave <= this.data.nightShiftBest) return;
-    this.data.nightShiftBest = wave;
+  recordServiceCall(wave: number): void {
+    if (wave <= this.data.serviceCallBest) return;
+    this.data.serviceCallBest = wave;
     this.save();
   }
 
-  /** Every campaign map has a star. Used for vanity, not the Night Shift gate. */
+  /** Every campaign map has a star. Used for vanity, not the The Neverending Service Call gate. */
   hasAnyProgress(): boolean {
     return (
       this.totalStars() > 0 ||
@@ -146,7 +151,7 @@ export class SaveStore {
       this.data.skills.length > 0 ||
       this.data.inventory.length > 0 ||
       this.data.seen.length > 0 ||
-      this.data.nightShiftBest > 0
+      this.data.serviceCallBest > 0
     );
   }
 
@@ -154,8 +159,8 @@ export class SaveStore {
     return MAPS.every((m) => this.starsFor(m.id) > 0);
   }
 
-  /** Night Shift opens after the original four service calls so old saves stay valid. */
-  nightShiftUnlocked(): boolean {
+  /** The Neverending Service Call opens after the original four service calls so old saves stay valid. */
+  serviceCallUnlocked(): boolean {
     return CORE_MAPS.every((m) => this.starsFor(m.id) > 0);
   }
 
@@ -176,7 +181,7 @@ export class SaveStore {
   }
 
   spentStars(): number {
-    return this.data.skills.filter((id) => SKILLS.some((s) => s.id === id)).length;
+    return [...new Set(this.data.skills)].filter(id => SKILLS.some(s => s.id === id)).reduce((sum, id) => sum + skillCost(id), 0);
   }
 
   availableStars(): number {
@@ -184,7 +189,7 @@ export class SaveStore {
   }
 
   unlockSkill(id: string): boolean {
-    if (this.availableStars() <= 0) return false;
+    if (this.availableStars() < skillCost(id)) return false;
     if (!canUnlock(id, new Set(this.data.skills))) return false;
     this.data.skills.push(id);
     this.save();
@@ -334,6 +339,11 @@ export class SaveStore {
     return !this.data.tutorialDone && !this.hasAnyProgress();
   }
 
+  setHero(id: HeroId): void {
+    if (!isHeroId(id)) return;
+    this.data.selectedHero = id; this.save();
+  }
+
   setLoadout(ids: TowerId[]): void {
     this.data.lastLoadout = [...ids];
     this.save();
@@ -342,6 +352,7 @@ export class SaveStore {
 
 /** Stars for a clear: 3 for a clean sheet, 2 for keeping most lives, 1 for surviving. */
 export function starsForClear(livesLeft: number, livesStart: number): number {
+  if (livesLeft <= 0 || livesStart <= 0) return 0;
   if (livesLeft >= livesStart) return 3;
   if (livesLeft >= livesStart * 0.5) return 2;
   return 1;

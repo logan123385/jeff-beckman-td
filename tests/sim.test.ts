@@ -8,7 +8,7 @@ import { availableTowers, LOADOUT_SIZE, resolveLoadout, unlockedTowers } from '.
 import { CORE_MAPS, MAPS } from '../src/data/maps';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
 import { MECHANICAL_ROOM } from '../src/data/maps/mechanicalRoom';
-import { NIGHT_SHIFT } from '../src/data/maps/nightShift';
+import { SERVICE_CALL } from '../src/data/maps/serviceCall';
 import { generateEndlessWave, nightMutatorAt } from '../src/data/night';
 import { buildRunModifiers, chestsForRun, xpForRun } from '../src/data/progress';
 import { buildModifiers, canUnlock, neutralModifiers } from '../src/data/skills';
@@ -214,6 +214,23 @@ describe('Towers', () => {
     expect(drip.progress).toBe(held);
   });
 
+  it('barricade melee uses its fire rate without a windup cheat', () => {
+    const game = makeGame();
+    game.placeTower(0, 'barricade');
+    const b = game.towers[0]!;
+    const drip = game.spawnEnemy('drip', 0, 200);
+    drip.pos = { ...b.rally };
+    drip.def = { ...drip.def, dps: 0, speed: 0 };
+    drip.hp = drip.maxHp = 10000;
+    step(game, FIXED_DT);
+    const afterFirst = drip.hp;
+    expect(afterFirst).toBeLessThan(10000);
+    step(game, 0.7);
+    expect(drip.hp).toBe(afterFirst);
+    step(game, 0.2);
+    expect(drip.hp).toBeLessThan(afterFirst);
+  });
+
   it('pressure spikes blow up barricades quickly', () => {
     const game = makeGame();
     game.placeTower(0, 'barricade');
@@ -305,13 +322,15 @@ describe('Jeff', () => {
     expect(game.hero.orderTargetId).toBe(bubble.id);
   });
 
-  it('does not auto-aggro without an attack order', () => {
+  it('defends his posted position without chasing when no attack order is given', () => {
     const game = makeGame({ jeffStart: { x: 200, y: 100 } }, true);
     const crab = game.spawnEnemy('scaleCrab', 0, 195);
     step(game, 1.5);
-    expect(game.stats.jeffDamage).toBe(0);
+    expect(game.stats.jeffDamage).toBeGreaterThan(0);
     expect(game.hero.orderTargetId).toBeNull();
-    expect(crab.hp).toBe(crab.maxHp);
+    expect(crab.hp).toBeLessThan(crab.maxHp);
+    expect(game.hero.pos).toEqual({ x: 200, y: 100 });
+    expect(game.hero.engaged).toBe(false);
   });
 
   it('keeps hunting the next leak after the clicked one dies', () => {
@@ -432,25 +451,25 @@ describe('Skills and save', () => {
     expect(starsForClear(1, 20)).toBe(1);
   });
 
-  it('remaster first-clears add one star and Night Shift records waves', () => {
+  it('remaster first-clears add one star and The Neverending Service Call records waves', () => {
     const save = new SaveStore(null);
     save.recordClear('crawlspace', 'journeyman', 2);
     expect(save.recordRemaster('crawlspace', 'codeInspection')).toBe(true);
     expect(save.recordRemaster('crawlspace', 'codeInspection')).toBe(false);
     expect(save.totalStars()).toBe(3);
-    save.recordNightShift(12);
-    save.recordNightShift(8);
-    expect(save.data.nightShiftBest).toBe(12);
+    save.recordServiceCall(12);
+    save.recordServiceCall(8);
+    expect(save.data.serviceCallBest).toBe(12);
     expect(save.campaignComplete()).toBe(false);
   });
 
-  it('unlocks Night Shift after the first four service calls', () => {
+  it('unlocks The Neverending Service Call after the first four service calls', () => {
     const save = new SaveStore(null);
-    expect(save.nightShiftUnlocked()).toBe(false);
+    expect(save.serviceCallUnlocked()).toBe(false);
     for (const map of CORE_MAPS.slice(0, 3)) save.recordClear(map.id, 'journeyman', 1);
-    expect(save.nightShiftUnlocked()).toBe(false);
+    expect(save.serviceCallUnlocked()).toBe(false);
     save.recordClear(CORE_MAPS[3]!.id, 'journeyman', 1);
-    expect(save.nightShiftUnlocked()).toBe(true);
+    expect(save.serviceCallUnlocked()).toBe(true);
     expect(save.campaignComplete()).toBe(false);
   });
 });
@@ -509,8 +528,8 @@ describe('Stage 2 towers and remasters', () => {
     expect(crab.dotDps).toBeGreaterThan(0);
   });
 
-  it('Night Shift can clock out as a soft exit after a wave starts', () => {
-    const game = new Game(NIGHT_SHIFT, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 2 });
+  it('The Neverending Service Call can clock out as a soft exit after a wave starts', () => {
+    const game = new Game(SERVICE_CALL, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 2 });
     expect(game.endless).toBe(true);
     expect(game.retire()).toBe(false);
     expect(nightXp(0, true)).toBe(0);
@@ -612,27 +631,29 @@ describe('Stage 3 progression and kit', () => {
     expect(item.slot).toBeTruthy();
   });
 
-  it('Night Shift mutators rotate and clock-out banks chests', () => {
+  it('The Neverending Service Call mutators rotate and clock-out banks chests', () => {
     expect(nightMutatorAt(0)).toBe('rushHour');
     expect(nightMutatorAt(5)).not.toBe(nightMutatorAt(0));
     const wave = generateEndlessWave(12, 2);
     expect(wave.groups.length).toBeGreaterThan(0);
-    const game = new Game(NIGHT_SHIFT, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 4 });
+    const game = new Game(SERVICE_CALL, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 4 });
     expect(game.nightMutator).toBeNull();
-    for (let i = 0; i < NIGHT_SHIFT.waves.length; i++) {
+    for (let i = 0; i < SERVICE_CALL.waves.length; i++) {
       expect(game.callNextWave()).toBeGreaterThanOrEqual(0);
       expect(game.nightMutator).toBeNull();
+      game.spawns.length = 0;
+      for (const e of game.enemies) e.dead = true;
     }
     game.callNextWave();
     expect(game.nightMutator).toBe('rushHour');
     expect(game.nightMutator).toBe(nightMutatorAt(0));
-    const mid = new Game(NIGHT_SHIFT, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 4 });
-    mid.waveIdx = 12;
+    const mid = new Game(SERVICE_CALL, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 4 });
+    mid.waveIdx = 12; mid.completedWaves = 11;
     mid.retire();
     expect(chestsForRun(mid, 0).length).toBeGreaterThan(0);
     expect(xpForRun(mid, 0)).toBeGreaterThan(0);
-    const mile = new Game(NIGHT_SHIFT, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 5 });
-    mile.waveIdx = 15;
+    const mile = new Game(SERVICE_CALL, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 5 });
+    mile.waveIdx = 15; mile.completedWaves = 15;
     mile.retire();
     expect(chestsForRun(mile, 0)).toEqual(['night', 'night', 'deepNight']);
   });
@@ -698,24 +719,24 @@ describe('Loadout and new kit', () => {
     expect(resolveLoadout(['washer', 'torch', 'barricade', 'vent', 'radiant', 'expansion'], CRAWLSPACE.allowedTowers)).toEqual([
       'washer',
       'torch',
-      'barricade',
+      'barricade', 'apprentices', 'jayjay',
     ]);
-    expect(resolveLoadout(undefined, CRAWLSPACE.allowedTowers)).toHaveLength(CRAWLSPACE.allowedTowers.length);
+    expect(resolveLoadout(undefined, CRAWLSPACE.allowedTowers)).toHaveLength(LOADOUT_SIZE);
     expect(LOADOUT_SIZE).toBe(5);
   });
 
-  it('unlocks tools from jobs already on the board, never from Night Shift', () => {
+  it('unlocks tools from jobs already on the board, never from The Neverending Service Call', () => {
     const save = new SaveStore(null);
     expect(save.data.lastLoadout).toEqual([]);
-    expect(unlockedTowers(save)).toEqual(['torch', 'washer', 'barricade']);
-    expect(availableTowers(save, NIGHT_SHIFT, 'classic')).toEqual(['torch', 'washer', 'barricade']);
+    expect(unlockedTowers(save)).toEqual(['torch', 'washer', 'barricade', 'apprentices', 'jayjay', 'cbjDoni']);
+    expect(availableTowers(save, SERVICE_CALL, 'classic')).toEqual(['torch', 'washer', 'barricade', 'apprentices', 'jayjay', 'cbjDoni']);
     save.setLoadout(['torch', 'washer']);
     expect(save.data.lastLoadout).toEqual(['torch', 'washer']);
     for (const map of MAPS.slice(0, 7)) save.recordClear(map.id, 'journeyman', 1);
     expect(unlockedTowers(save)).toContain('manifold');
     expect(availableTowers(save, MECHANICAL_ROOM, 'classic')).toContain('manifold');
     expect(availableTowers(save, MECHANICAL_ROOM, 'codeInspection')).not.toContain('manifold');
-    expect(availableTowers(save, NIGHT_SHIFT, 'classic')).toContain('manifold');
+    expect(availableTowers(save, SERVICE_CALL, 'classic')).toContain('manifold');
   });
 
   it('a picked kit is the only thing you can build; an empty kit falls back to the job pool', () => {

@@ -1,3 +1,4 @@
+import { drawHeroAura, drawHeroMissiles, drawHeroNotice, drawHeroVisuals, drawHeroZones, drawLogan } from './heroActors';
 import { dist, type Vec } from '../core/vec';
 import { JEFF } from '../data/jeff';
 import { WORLD_H, WORLD_W } from '../data/maps';
@@ -8,7 +9,9 @@ import type { Game } from '../sim/game';
 import type { Effect, JeffSkillId } from '../sim/state';
 import { blotch, CANVAS_UI, disc, filmGrain, glow, lampCone, noGlow, pulseRing, radial, rgba, stampText, vignette } from './ink';
 import { drawBuildPad, drawEnemy, drawJeff, drawTower, drawTowerBase, drawValveGate } from './sprites';
-import { paintAtmosphere, paintForeground, paintPipeFlow, paintYard } from './yard';
+import { paintAtmosphere, paintForeground, paintYard } from './yard';
+import { paintedCrew, paintedFriendly } from './paintedActors';
+import { ENEMY_ART, paintedSprite } from './art';
 
 interface Spark {
   x: number;
@@ -34,6 +37,7 @@ export interface RenderView {
   mouse: Vec | null;
   /** Enemy under the cursor for Diablo-style attack aim. */
   hoverEnemyId: number | null;
+  targeting?: 'crew' | 'rally' | null;
 }
 
 export class Renderer {
@@ -50,6 +54,7 @@ export class Renderer {
   private lastLives = -1;
   private hurt = 0;
   private lastDrawTime = 0;
+  private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
@@ -77,18 +82,22 @@ export class Renderer {
     }
     this.drawBackground(game);
     this.drawWaveWarning(game);
-    paintPipeFlow(ctx, game.map.paths, game.time, game.map.palette.accent);
     paintAtmosphere(ctx, game.map, game.time);
     this.drawAmbient(game);
     this.drawLights(game);
     this.drawSlots(game, view);
     this.drawRangePreview(game, view);
+    this.drawTargeting(game, view);
     if (game.clamp) this.drawClamp(game);
+    drawHeroZones(ctx, game);
+    drawHeroAura(ctx, game, view.heroSelected);
     this.drawHeroGround(game, view);
     this.drawHeroCombat(game, view);
     this.drawHeroAuras(game);
     this.drawActors(game);
     this.drawProjectiles(game);
+    drawHeroMissiles(ctx, game);
+    drawHeroVisuals(ctx, game);
     for (const fx of game.effects) {
       this.seedSparks(fx);
       if (fx.kind !== 'skill') this.drawEffect(fx);
@@ -102,10 +111,12 @@ export class Renderer {
       if (fx.kind === 'skill') this.drawEffect(fx);
     }
     // living film + edge vignette so the stage reads like a lit diorama
-    filmGrain(ctx, WORLD_W, WORLD_H, Math.floor(game.time * 8), 0.028);
-    vignette(ctx, WORLD_W, WORLD_H, game.map.id === 'nightShift' ? 0.38 : 0.22);
+    filmGrain(ctx, WORLD_W, WORLD_H, Math.floor(game.time * 8), 0.012);
+    vignette(ctx, WORLD_W, WORLD_H, game.map.id === 'serviceCall' ? 0.2 : 0.08);
     this.drawHurtFlash(game);
     this.drawLowLives(game);
+    this.drawSkillNotice(game);
+    drawHeroNotice(ctx, game);
     ctx.restore();
     if (this.shake > 0.02) {
       // cover the sliver exposed by the shake offset
@@ -119,6 +130,7 @@ export class Renderer {
 
   /** Nudge the camera; decays each frame. */
   private kick(amount: number): void {
+    if (this.reducedMotion) return;
     this.shake = Math.min(14, Math.max(this.shake, amount));
   }
 
@@ -217,7 +229,7 @@ export class Renderer {
     ctx.save();
     const snow = game.map.id === 'snowmelt';
     const embers = game.map.id === 'heatPlant' || game.map.id === 'mechanicalRoom';
-    const night = game.map.id === 'nightShift';
+    const night = game.map.id === 'serviceCall';
     const n = night ? 42 : snow ? 36 : embers ? 32 : 24;
     for (let i = 0; i < n; i++) {
       const speed = snow ? 18 + (i % 5) * 4 : 12 + (i % 6);
@@ -257,7 +269,7 @@ export class Renderer {
     ctx.fillStyle = g;
     ctx.fillRect(sweepX - 180, 0, 360, WORLD_H);
     // live bulb flicker for maps with hanging lights
-    if (game.map.id === 'crawlspace' || game.map.id === 'attic' || game.map.id === 'nightShift') {
+    if (game.map.id === 'crawlspace' || game.map.id === 'attic' || game.map.id === 'serviceCall') {
       const flicker = 0.85 + Math.sin(game.time * 11) * 0.08 + Math.sin(game.time * 27) * 0.04;
       for (const x of [160, 480, 800]) {
         radial(ctx, x, 28, 4, 90 * flicker, '#ffe082', 0.1 * flicker);
@@ -340,7 +352,7 @@ export class Renderer {
       const t = game.towerById(view.selectedTowerId);
       if (t) {
         const center = t.def.kind === 'barricade' ? t.rally : t.pos;
-        drawRange(center, t.def.kind === 'barricade' ? t.def.levels[t.level].range : game.effectiveRange(t), 'rgba(255,255,255,ALPHA)');
+        drawRange(center, t.def.kind === 'barricade' ? t.def.levels[t.level]!.range : game.effectiveRange(t), 'rgba(255,255,255,ALPHA)');
         if (t.def.kind === 'shooter') {
           stampText(ctx, AIM_LABEL[t.aim], center.x, center.y - 28, { size: 13, color: '#ffe082' });
         }
@@ -357,7 +369,7 @@ export class Renderer {
       ctx.restore();
     }
     if (view.heroSelected && game.heroEnabled && game.hero.downed <= 0) {
-      drawRange(game.hero.pos, JEFF.reach * game.mods.jeffReach, 'rgba(255,236,179,ALPHA)');
+      drawRange(game.hero.pos, game.heroDef.reach * game.mods.jeffReach, 'rgba(255,236,179,ALPHA)');
     }
     if (view.selectedTowerId === null && view.selectedSlot === null && view.mouse) {
       let hover: (typeof game.towers)[number] | null = null;
@@ -371,7 +383,7 @@ export class Renderer {
       }
       if (hover) {
         const center = hover.def.kind === 'barricade' ? hover.rally : hover.pos;
-        const range = hover.def.kind === 'barricade' ? hover.def.levels[hover.level].range : game.effectiveRange(hover);
+        const range = hover.def.kind === 'barricade' ? hover.def.levels[hover.level]!.range : game.effectiveRange(hover);
         drawRange(center, range, 'rgba(255,236,200,ALPHA)');
       }
     }
@@ -446,7 +458,6 @@ export class Renderer {
       }
       noGlow(ctx);
       ctx.setLineDash([]);
-      this.skillBanner(h.pos.x, h.pos.y - 86, 'ISOLATION SLEEVE', '+HOLDS', '#bcaaa4', k);
       ctx.restore();
     }
     if (h.coffeeTimer > 0) {
@@ -471,7 +482,6 @@ export class Renderer {
         const a = game.time * 2.4 + i * 1.1;
         blotch(ctx, h.pos.x - 6 + i * 5, h.pos.y - 52 - Math.sin(a) * 6, 4, 6.5, 0.15, rgba('#ffe0b2', 0.4));
       }
-      this.skillBanner(h.pos.x, h.pos.y - 96, 'COFFEE THERMOS', 'HEAL + HUSTLE', '#ffe082', k);
       ctx.restore();
     }
   }
@@ -480,13 +490,13 @@ export class Renderer {
     const ctx = this.ctx;
     const k = Math.min(1, game.globalSlowTimer);
     ctx.save();
-    ctx.fillStyle = `rgba(3, 32, 52, ${0.22 * k})`;
+    ctx.fillStyle = `rgba(3, 32, 52, ${0.10 * k})`;
     ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-    ctx.fillStyle = `rgba(79,195,247,${0.1 * k})`;
+    ctx.fillStyle = `rgba(79,195,247,${0.035 * k})`;
     ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-    ctx.strokeStyle = `rgba(179,229,252,${0.85 * k})`;
-    ctx.lineWidth = 10;
-    ctx.setLineDash([16, 12]);
+    ctx.strokeStyle = `rgba(179,229,252,${0.55 * k})`;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([12, 9]);
     ctx.lineDashOffset = -game.time * 50;
     ctx.strokeRect(8, 8, WORLD_W - 16, WORLD_H - 16);
     ctx.setLineDash([4, 10]);
@@ -500,8 +510,7 @@ export class Renderer {
       { x: 46, y: WORLD_H - 46 },
       { x: WORLD_W - 46, y: WORLD_H - 46 },
     ];
-    for (const p of corners) this.drawValveGlyph(p.x, p.y, 22, k, game.time);
-    this.skillBanner(WORLD_W / 2, 52, 'EMERGENCY SHUTOFF', 'MAP SLOW · SPAWNS PAUSED', '#4fc3f7', k);
+    for (const p of corners) this.drawValveGlyph(p.x, p.y, 14, k * 0.7, game.time);
     ctx.restore();
   }
 
@@ -531,20 +540,43 @@ export class Renderer {
     const ctx = this.ctx;
     const items: { y: number; z: number; draw: () => void }[] = [];
     for (const t of game.towers) {
-      if (t.def.kind === 'barricade') {
-        items.push({ y: t.rally.y, z: 0, draw: () => drawValveGate(ctx, t) });
+      if (t.def.kind === 'barricade' && !t.def.recruits) {
+        items.push({ y: t.rally.y, z: 0, draw: () => {
+          if (t.rebuild > 0) { drawValveGate(ctx, t); return; }
+          for (let i = 0; i < Math.min(3, t.level + 2); i++) paintedCrew(ctx, { x: t.rally.x + (i - (Math.min(3, t.level + 2) - 1) / 2) * 20, y: t.rally.y + (i % 2) * 7 }, game.time, t.recoil, 1, t.hp / t.maxHp);
+        } });
       }
       items.push({ y: t.pos.y, z: 1, draw: () => drawTower(ctx, t, game.time) });
     }
     for (const e of game.enemies) {
-      const dir = game.paths[e.pathIdx]?.directionAt(e.progress);
+      let dir = game.paths[e.pathIdx]?.directionAt(e.progress);
+      const hold=e.heldBy;
+      const opponent=hold?.kind==='friendly'?game.friendlies.find(f=>f.id===hold.id)?.pos:hold?.kind==='crew'?game.crew.find(f=>f.id===hold.id)?.pos:hold?.kind==='summon'?game.heroSummons.find(s=>s.id===hold.id)?.pos:hold?.kind==='hero'?game.hero.pos:hold?.kind==='tower'?game.towerById(hold.id)?.rally:null;
+      if(opponent)dir={x:opponent.x-e.pos.x,y:opponent.y-e.pos.y};
       items.push({ y: e.pos.y, z: e.def.flying ? 4 : 2, draw: () => drawEnemy(ctx, e, game.time, dir) });
     }
+    for (const f of game.friendlies) items.push({ y: f.pos.y, z: 2, draw: () => paintedFriendly(ctx, f, game.time) });
+    for (const summon of game.heroSummons) items.push({ y: summon.pos.y, z: 2, draw: () => drawLogan(ctx, summon, game.time) });
+    for (const crew of game.crew) items.push({ y: crew.pos.y, z: 2, draw: () => paintedCrew(ctx, crew.pos, game.time, crew.swing, crew.facing, crew.hp / crew.maxHp, crew.timeLeft / 18) });
     if (game.heroEnabled) {
       items.push({ y: game.hero.pos.y, z: 3, draw: () => drawJeff(ctx, game.hero, game.time) });
     }
     items.sort((a, b) => a.y - b.y || a.z - b.z);
     for (const item of items) item.draw();
+  }
+
+  private drawTargeting(game: Game, view: RenderView): void {
+    if (!view.targeting || !view.mouse) return;
+    const ctx = this.ctx, p = game.nearestPathPoint(view.mouse);
+    const tower = view.selectedTowerId === null ? null : game.towerById(view.selectedTowerId);
+    const valid = dist(view.mouse, p) <= 55 && p.x >= 16 && p.x <= 944 && p.y >= 24 && p.y <= 576 && (view.targeting !== 'rally' || !!tower && dist(tower.pos, p) <= 150);
+    const color = valid ? '#b8ef9a' : '#ff8c76';
+    ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = rgba(color, 0.13); ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 4]); ctx.lineDashOffset = -game.time * 20;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, 38, 24, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+    stampText(ctx, valid ? view.targeting === 'crew' ? 'DEPLOY CREW' : 'SET RALLY' : 'CHOOSE A NEARBY ROUTE', p.x, p.y - 36, { size: 12, color });
+    if (tower && view.targeting === 'rally') { ctx.strokeStyle = rgba(color, 0.4); ctx.beginPath(); ctx.arc(tower.pos.x, tower.pos.y, 150, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
   }
 
   private drawHeroGround(game: Game, view: RenderView): void {
@@ -619,7 +651,7 @@ export class Renderer {
       noGlow(ctx);
       ctx.restore();
     }
-    if (h.swing > 0) {
+    if (h.swing > 0 && game.heroDef.id === 'jeff') {
       const k = Math.min(1, h.swing / JEFF.swingTime);
       const slam = 1 - k;
       ctx.save();
@@ -660,7 +692,7 @@ export class Renderer {
         ctx.fillStyle = '#ffe082';
         ctx.font = '700 11px Source Sans 3, Trebuchet MS, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('CLICK TO WRENCH', hover.pos.x, hover.pos.y - hover.def.radius - 16);
+        ctx.fillText('CLICK TO ATTACK', hover.pos.x, hover.pos.y - hover.def.radius - 16);
         ctx.restore();
       }
     }
@@ -670,9 +702,11 @@ export class Renderer {
     if (this.seededFx.has(fx)) return;
     this.seededFx.add(fx);
     switch (fx.kind) {
+      case 'death':
+        break;
       case 'hit':
-        this.burst(fx.pos.x, fx.pos.y, fx.color, 16, 180);
-        this.burst(fx.pos.x, fx.pos.y, '#fffde7', 6, 60);
+        this.burst(fx.pos.x, fx.pos.y, fx.color, 3, 65);
+        this.burst(fx.pos.x, fx.pos.y, '#fffde7', 2, 35);
         if (fx.max >= 0.25) this.kick(1.6);
         break;
       case 'splash':
@@ -839,6 +873,17 @@ export class Renderer {
     const k = fx.ttl / fx.max;
     ctx.save();
     switch (fx.kind) {
+      case 'death': {
+        const index = ENEMY_ART[fx.enemy];
+        if (index !== undefined) {
+          ctx.globalAlpha = k * 0.8;
+          ctx.translate(fx.pos.x, fx.pos.y + 10);
+          ctx.rotate((1 - k) * 1.1);
+          ctx.scale(0.8 + k * 0.2, 0.5 + k * 0.5);
+          paintedSprite(ctx, 'units', index, 0, 0, Math.max(37, fx.radius * 2.8));
+        }
+        break;
+      }
       case 'beam':
         ctx.globalAlpha = k;
         ctx.globalCompositeOperation = 'lighter';
@@ -863,25 +908,25 @@ export class Renderer {
       case 'hit':
         ctx.globalAlpha = k;
         ctx.globalCompositeOperation = 'lighter';
-        glow(ctx, fx.color, 28);
+        glow(ctx, fx.color, 8);
         ctx.fillStyle = fx.color;
         ctx.beginPath();
-        ctx.arc(fx.pos.x, fx.pos.y, 10 + (1 - k) * 22, 0, Math.PI * 2);
+        ctx.arc(fx.pos.x, fx.pos.y, 3 + (1 - k) * 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#fffde7';
         ctx.globalAlpha = k * 0.9;
         ctx.beginPath();
-        ctx.arc(fx.pos.x, fx.pos.y, 5 + (1 - k) * 8, 0, Math.PI * 2);
+        ctx.arc(fx.pos.x, fx.pos.y, 2 + (1 - k) * 3, 0, Math.PI * 2);
         ctx.fill();
         noGlow(ctx);
         ctx.strokeStyle = '#fffde7';
         ctx.globalAlpha = k * 0.95;
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = 1.5;
         ctx.lineCap = 'round';
-        for (let i = 0; i < 14; i++) {
-          const a = (i / 14) * Math.PI * 2 + (1 - k) * 1.6;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 + (1 - k) * 1.6;
           const r0 = 5;
-          const r1 = 26 + (1 - k) * 34;
+          const r1 = 8 + (1 - k) * 10;
           ctx.beginPath();
           ctx.moveTo(fx.pos.x + Math.cos(a) * r0, fx.pos.y + Math.sin(a) * r0);
           ctx.lineTo(fx.pos.x + Math.cos(a) * r1, fx.pos.y + Math.sin(a) * r1);
@@ -983,59 +1028,30 @@ export class Renderer {
     }
   }
 
-  private skillBanner(x: number, y: number, title: string, subtitle: string, color: string, k: number): void {
+  /** A single cast notice keeps simultaneous skills from hiding the hero. */
+  private drawSkillNotice(game: Game): void {
+    let latest: Extract<Effect, { kind: 'skill' }> | undefined;
+    for (const fx of game.effects) if (fx.kind === 'skill') latest = fx;
+    if (!latest && game.globalSlowTimer <= 0) return;
+    const labels: Record<JeffSkillId, [string, string, string]> = {
+      clamp: ['PIPE CLAMP', 'Hold + slow', '#edb199'],
+      shutoff: ['EMERGENCY SHUTOFF', 'Spawns paused', '#9fe0ef'],
+      pulse: ['MANOMETER PULSE', 'Shred + stun', '#edc87c'],
+      sleeve: ['ISOLATION SLEEVE', 'Extra holds', '#c7d8c7'],
+      coffee: ['COFFEE', 'Heal + hustle', '#efda91'],
+    };
+    const [title, subtitle, color] = labels[latest?.skill ?? 'shutoff'];
     const ctx = this.ctx;
-    const rise = (1 - k) * 18;
-    const w = Math.max(200, title.length * 14);
-    const top = y - 26 + rise;
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, k * 1.45);
-    // drop shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    ctx.beginPath();
-    ctx.roundRect(x - w / 2 + 3, top + 5, w + 2, 42, 10);
-    ctx.fill();
-    // wood plaque
-    ctx.fillStyle = '#1a1008';
-    ctx.beginPath();
-    ctx.roundRect(x - w / 2 - 4, top - 4, w + 8, 46, 11);
-    ctx.fill();
-    const g = ctx.createLinearGradient(x, top, x, top + 42);
-    g.addColorStop(0, '#7a5432');
-    g.addColorStop(0.4, '#52351f');
-    g.addColorStop(1, '#2a1810');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.roundRect(x - w / 2, top, w, 40, 9);
-    ctx.fill();
-    // grain
-    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 5; i++) {
-      ctx.beginPath();
-      ctx.moveTo(x - w / 2 + 8, top + 6 + i * 7);
-      ctx.lineTo(x + w / 2 - 8, top + 8 + i * 7);
-      ctx.stroke();
-    }
-    glow(ctx, color, 10);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3.4;
-    ctx.stroke();
-    noGlow(ctx);
-    ctx.strokeStyle = '#c9a15b';
-    ctx.lineWidth = 1.8;
-    ctx.stroke();
-    for (const sx of [-1, 1]) {
-      disc(ctx, x + sx * (w / 2 - 11), top + 9, 2.6, '#5d4037');
-      disc(ctx, x + sx * (w / 2 - 11), top + 9, 1.4, '#e8c56a');
-      disc(ctx, x + sx * (w / 2 - 11), top + 30, 2.6, '#5d4037');
-      disc(ctx, x + sx * (w / 2 - 11), top + 30, 1.4, '#e8c56a');
-    }
-    stampText(ctx, title, x, top + 18, { size: 17, color, display: true });
-    ctx.font = `700 10px ${CANVAS_UI}`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#fff8e1';
-    ctx.fillText(subtitle, x, top + 33);
+    const alpha = latest ? Math.min(1, latest.ttl * 4) : Math.min(1, game.globalSlowTimer);
+    const x = WORLD_W / 2, y = WORLD_H - 34;
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#173528e8'; ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(x - 136, y - 13, 272, 27, 6); ctx.fill(); ctx.stroke();
+    disc(ctx, x - 123, y, 3, color);
+    ctx.font = `700 10px ${CANVAS_UI}`; ctx.textAlign = 'left'; ctx.fillStyle = color;
+    ctx.fillText(title, x - 112, y + 4);
+    ctx.font = `500 9px ${CANVAS_UI}`; ctx.textAlign = 'right'; ctx.fillStyle = '#e3ebd2';
+    ctx.fillText(subtitle, x + 124, y + 4);
     ctx.restore();
   }
 
@@ -1074,7 +1090,6 @@ export class Renderer {
       ctx.arc(pos.x + side * (r - 6), pos.y, 7, 0, Math.PI * 2);
       ctx.fill();
     }
-    this.skillBanner(pos.x, pos.y - r - 22, 'PIPE CLAMP', 'HOLD + SLOW', '#ff8a80', k);
     ctx.restore();
   }
 
@@ -1100,7 +1115,6 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, 18, 0, Math.PI * 2);
     ctx.fill();
-    this.skillBanner(WORLD_W / 2, 86, 'EMERGENCY SHUTOFF', 'MAP SLOW · SPAWNS PAUSED', '#4fc3f7', k);
     ctx.restore();
   }
 
@@ -1146,7 +1160,6 @@ export class Renderer {
       ctx.lineTo(pos.x + Math.cos(a) * (r * (1.05 - k * 0.4)), pos.y + Math.sin(a) * (r * (1.05 - k * 0.4)));
       ctx.stroke();
     }
-    this.skillBanner(pos.x, pos.y - r - 16, 'MANOMETER PULSE', 'SHRED + STUN', '#ffcc80', k);
     ctx.restore();
   }
 
@@ -1168,7 +1181,6 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(pos.x, pos.y - 2, 20, 28, 0, 0, Math.PI * 2);
     ctx.fill();
-    this.skillBanner(pos.x, pos.y - 78, 'ISOLATION SLEEVE', '+HOLDS', '#bcaaa4', k);
     ctx.restore();
   }
 
@@ -1210,7 +1222,6 @@ export class Renderer {
     for (let i = 0; i < 4; i++) {
       blotch(ctx, pos.x - 10 + i * 7, pos.y - 48 - (1 - k) * 14 - Math.sin(this.fxTime * 4 + i) * 3, 4.5, 7, 0.2, rgba('#ffe0b2', 0.55));
     }
-    this.skillBanner(pos.x, pos.y - 86, 'COFFEE THERMOS', 'HEAL + HUSTLE', '#ffe082', k);
     ctx.restore();
   }
 }

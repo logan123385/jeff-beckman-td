@@ -35,8 +35,8 @@ const SLOT_AFFIXES: Record<GearSlot, readonly AffixKey[]> = {
 };
 
 const AFFIX_ROLL: Record<AffixKey, { min: number; max: number; label: (n: number) => string }> = {
-  jeffDamage: { min: 0.06, max: 0.16, label: (n) => `+${pct(n)} Jeff damage` },
-  jeffHp: { min: 0.08, max: 0.2, label: (n) => `+${pct(n)} Jeff health` },
+  jeffDamage: { min: 0.06, max: 0.16, label: (n) => `+${pct(n)} hero damage` },
+  jeffHp: { min: 0.08, max: 0.2, label: (n) => `+${pct(n)} hero health` },
   jeffSpeed: { min: 0.06, max: 0.16, label: (n) => `+${pct(n)} move speed` },
   cooldown: { min: 0.06, max: 0.14, label: (n) => `−${pct(n)} cooldowns` },
   stunDuration: { min: 0.1, max: 0.28, label: (n) => `+${pct(n)} stun duration` },
@@ -200,7 +200,7 @@ export function chestBlurb(quality: ChestQuality): string {
     case 'remaster':
       return 'Remaster chest';
     case 'night':
-      return 'Night Shift crate';
+      return 'The Neverending Service Call crate';
     case 'deepNight':
       return 'Deep-night crate';
     default: {

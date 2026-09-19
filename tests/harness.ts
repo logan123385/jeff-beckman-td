@@ -1,3 +1,4 @@
+import type { HeroId } from '../src/data/heroes';
 import { FIXED_DT } from '../src/core/loop';
 import { dist } from '../src/core/vec';
 import { DIFFICULTIES } from '../src/data/difficulty';
@@ -10,6 +11,7 @@ import { Game } from '../src/sim/game';
 export interface HarnessOptions {
   difficulty?: DifficultyId;
   heroEnabled?: boolean;
+  heroId?: HeroId;
   skills?: string[];
   seed?: number;
   /** Tower build priority; cycles through allowed towers in this order. */
@@ -78,7 +80,7 @@ export function coverage(map: MapDef, game: Game, slot: number, range: number): 
 export function runHeadless(map: MapDef, opts: HarnessOptions = {}): HarnessResult {
   const difficulty = DIFFICULTIES[opts.difficulty ?? 'apprentice'];
   const mods = buildModifiers(opts.skills ?? []);
-  const game = new Game(map, { difficulty, mods, seed: opts.seed ?? 7, heroEnabled: opts.heroEnabled ?? true });
+  const game = new Game(map, { heroId: opts.heroId, difficulty, mods, seed: opts.seed ?? 7, heroEnabled: opts.heroEnabled ?? true });
   const order = (opts.buildOrder ?? DEFAULT_ORDER).filter((id) => map.allowedTowers.includes(id));
   const hasFliers = map.waves.some((w) => w.groups.some((g) => ENEMIES[g.enemy].flying));
   const plan = order.filter((id) => id !== 'vent' || hasFliers);

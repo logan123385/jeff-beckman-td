@@ -9,10 +9,10 @@ Ships: Jeff (only hero) + six towers + four campaign maps + wave system + soft-f
 three difficulties + small Journeyman Stars tree + enemy encyclopedia with wave foreshadowing
 + results screen with Jeff-vs-tower damage share (the Stage 0 falsifier readout).
 
-Shipped in the Stage 2 pass: remasters (Code Inspection / Frozen Main), Night Shift
+Shipped in the Stage 2 pass: remasters (Code Inspection / Frozen Main), The Neverending Service Call
 endless with soft clock-out, towers 7–12, soft Web Audio.
 
-Later expansion: towers 13–16, maps 5–7, Jeff XP / talents / locker gear. Night Shift
+Later expansion: towers 13–16, maps 5–7, Jeff XP / talents / locker gear. The Neverending Service Call
 opens after the first four service calls.
 
 Still deferred: second hero, cosmetics, live events.
@@ -72,7 +72,7 @@ Remasters unlock after a Classic clear of that map (never the first play). Code 
 locks the map’s intended tools (`inspectionBan`). Frozen Main is 1 life with longer freezes.
 Each remaster type awards one Journeyman Star on first clear.
 
-Night Shift unlocks after all four campaign maps. Soft-exit (“Clock out”) saves a wave
+The Neverending Service Call unlocks after all four campaign maps. Soft-exit (“Clock out”) saves a wave
 record. Same Jeff, same towers, same skills — no exclusive campaign power.
 
 ## Enemies

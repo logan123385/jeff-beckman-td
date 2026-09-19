@@ -39,13 +39,13 @@ export function proceduralIndex(waveIndex: number, scriptedCount: number): numbe
   return Math.max(0, waveIndex - scriptedCount);
 }
 
-/** Mutator for a Night Shift wave, ignoring the scripted opener so Rush Hour is wave 6. */
+/** Mutator for a The Neverending Service Call wave, ignoring the scripted opener so Rush Hour is wave 6. */
 export function proceduralMutator(waveIndex: number, scriptedCount: number): NightMutatorId {
   return nightMutatorAt(proceduralIndex(waveIndex, scriptedCount));
 }
 
 function count(base: number, index: number): number {
-  return Math.round(base * (1 + index * 0.11));
+  return Math.round(base * (1 + Math.min(index, 80) * 0.035));
 }
 
 function boss(index: number): EnemyId {
@@ -54,7 +54,7 @@ function boss(index: number): EnemyId {
   return 'frozenMain';
 }
 
-/** Procedural Night Shift waves after the scripted opener. `index` is 0-based. */
+/** Procedural The Neverending Service Call waves after the scripted opener. `index` is 0-based. */
 export function generateEndlessWave(index: number, pathCount: number): WaveDef {
   const n = index + 1;
   const p0 = 0;

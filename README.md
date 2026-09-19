@@ -1,14 +1,61 @@
 # Jeff Beckman Tower Defense
 
-A Kingdom Rush–style tower defense with a plumbing / hydronic-heating theme. Jeff Beckman —
-tall plumber, full beard, ear gauges — is the only hero. Towers are tools and fixtures; enemies
-are leaks, scale, pressure spikes and rogue hydronic gremlins.
+A Kingdom Rush–style tower defense with a plumbing / hydronic-heating theme. Five playable heroes lead the crew: Jeff Beckman (full beard and ear gauges), Big Mike, Robo Bob, Mr. Chris, and Becbec. Towers are tools and fixtures; enemies are leaks, scale, pressure spikes, and rogue hydronic gremlins.
 
-Twenty-four unique towers across nine campaign maps. Before each job you pack up to
+Twenty-seven unique towers across nine campaign maps. Before each job you pack up to
 five tools — Kingdom Rush style — from what later calls have taught you. Opt-in
-remasters after a Classic clear (Code Inspection / Frozen Main), and Night Shift
-after the first four service calls. Jeff levels, spends talent points, and
-equips locker gear. Still no second hero or cosmetics.
+remasters after a Classic clear (Code Inspection / Frozen Main), and The Neverending Service Call
+after the first four service calls. Heroes share crew XP, talent points, and equipped locker gear. Each has a different combat kit and aura.
+
+## Illustrated defense overhaul
+
+Original painted artwork now covers all 27 towers, all 20 enemies, Jeff (including his
+black ear gauges), the support crew, and five environment themes. Jeff has idle,
+running, and wrench-attack poses; enemies squash, flinch, and fall; towers recoil and
+gain larger silhouettes and elite pennants as they upgrade. The HUD has illustrated
+skill emblems, numeric cooldowns, enemy previews, and a boss health bar.
+
+- Prepare your defenses without a countdown before the first wave.
+- Jeff automatically fights enemies within reach while guarding. An enemy click
+  starts a hunt; moving him posts him at a new position.
+- Level-three towers choose a permanent **power** or **control** specialization.
+  All 27 towers have two named choices. The choice applies to that tower only.
+- **D** arms Support Crew targeting. Click a route to deploy two helpers for
+  18 seconds; the ability recharges in 30 seconds. They block ground enemies and
+  can be defeated. Invalid placement never spends the cooldown.
+- Select a barricade and press **G** to set its rally point on a nearby route.
+- Hover the next-wave preview for enemy counts, routes, and counters.
+
+Progress remains in the existing save format. Original PNG sources and optimized
+WebP runtime assets live in `assets/remaster/`; see [art direction and prompts](docs/overhaul/art-direction.md)
+and [verification with screenshots](docs/overhaul/verification.md).
+
+## Crew, progression, and motion update
+
+- **Apprentice Workshop** fields four individual tool-bearing workers, five at tier IV and six at tier VI.
+- **Jayjay’s Stronghold** fields one bald, grey-bearded tank with armor and heavy punches.
+- **CBJ & Doni’s Garage** fields long-bearded CBJ in his blue cap and burly dark-haired Doni. Doni calls “NYEH!” when a punch connects.
+- Recruits walk to rally points, block ground enemies, take damage, heal out of combat, and respawn individually. Selling their tower removes them.
+- Every tower has **six equipment tiers**, two specialization choices, and increasingly expensive repeatable **Mastery** after tier VI. Buildings and recruit armor change visibly.
+- **The 90’s Workshop** has four branches, 28 perks, mutually exclusive forks, and free respecs. Campaign ratings award 1–3 90’s; the icon depicts a PureFlow PEX press elbow with a black body and silver sleeves.
+- **The Neverending Service Call** waits for the field to clear, pays cleared-call bonuses, repairs two lives every fifth completed call, and continues with generated waves. Records, XP, and crates use completed calls.
+- Full eight-pose painted attack sequences cover Jeff, Jayjay, CBJ, Doni, and all four apprentice tools. Jeff and the named recruits have eight-pose walking cycles; apprentices use a continuous painted mesh gait. Monsters deform continuously through locomotion, anticipation, contact, and recovery. Damage lands at the contact pose; towers wind up and recoil.
+
+See [crew update verification](docs/overhaul/crew-verification.md) and [generation prompts](docs/overhaul/crew-art-prompts.md).
+
+## Five playable heroes
+
+Choose your hero while packing the truck. Every hero is available immediately, the choice persists, and old saves default to Jeff without losing progress.
+
+| Hero | Playstyle | Signature kit | Aura |
+|---|---|---|---|
+| Jeff Beckman | Frontline guardian | Wrench, Pipe Clamp, Emergency Shutoff, Manometer, Sleeve, Coffee | Greatest Plumber to Ever Live |
+| Big Mike | Mobile ranged support | Blue/cream truck with no logos, plunger javelins, horn knockback, supply crate, throttle, Royal Rain | The Truck King |
+| Robo Bob | Precision ranged destroyer | Laser hand cannon, You’re Fired piercing beam, reboot, EMP, overclock, target marks | Orbs Aren’t Real |
+| Mr. Chris | Melee skirmisher and summoner | Reciprocating saw, temporary scurrying Logan, ricocheting golf ball, saw combo, gas cloud, lifesteal | Big Farter |
+| Becbec | Heavy bare-handed brawler | Cartoonishly muscular, haymaker, ground slam, extra holds, Iron Will, five-punch combo | Stronger Together |
+
+Five painted transparent atlases contain 120 movement, attack, and signature-cast poses for the new heroes and Logan. Contact-timed damage, projectile arcs, custom laser/impact effects, distinct sound cues, smooth pose transitions, and moving aura boundaries make the kits readable. Logan moves, fights, takes damage, expires, and releases enemies as a real ally. See [hero verification](docs/overhaul/hero-verification.md), [motion sheet](docs/overhaul/hero-motion-sheet.png), and [exact art prompts](docs/overhaul/hero-art-prompts.md).
 
 ## Run it
 
@@ -44,28 +91,26 @@ Local check: `npm run build && npm run preview`.
 | Tower selected, **U** | Upgrade |
 | Tower selected, **S** | Sell |
 | Tap / click tower | Upgrade / sell |
-| Tap / click a leak | Send Jeff’s wrench |
-| Select Jeff, then tap empty ground | Move Jeff |
-| Right-click map | Move Jeff (desktop) |
-| Tap / click Jeff (or **J**) | Select Jeff |
-| **Q** | Pipe Clamp (hold + slow zone at Jeff) |
-| **E** | Emergency Shutoff (map-wide slow, spawns pause) |
-| **R** | Manometer Pulse (shred + stun around Jeff) |
-| **T** | Isolation Sleeve (extra holds for a few seconds) |
-| **C** | Coffee Thermos (heal + sprint) |
+| Tap / click a leak | Order your hero to attack |
+| Select your hero, then tap empty ground | Move your hero |
+| Right-click map | Move your hero (desktop) |
+| Tap / click your hero (or **J**) | Select your hero |
+| **Q / E / R / T / C** | Your selected hero’s five abilities; names and cooldowns appear in the HUD |
+| **D**, then click a route | Deploy two temporary support crew |
+| Barricade selected, **G**, then click a nearby route | Set crew rally point |
 | **Space** / **N** | Call next wave early for bonus cash |
 | **F** | Toggle 2× speed |
 | **P** | Pause (Resume / sound / Quit panel) |
 | **Esc** | Deselect, or open/close pause when nothing is selected |
-| Clock out | Night Shift soft-exit (keeps the wave record) |
+| Clock out | The Neverending Service Call soft-exit (keeps the wave record) |
 
 ## Layout
 
 ```
 src/core     vec math, seeded RNG, fixed-step loop
-src/data     towers, enemies, Jeff, skills, difficulty, maps (pure data)
+src/data     towers, enemies, heroes, skills, difficulty, maps (pure data)
 src/sim      deterministic game logic — no DOM, no canvas
-src/render   canvas renderer + procedural sprites
+src/render   canvas renderer, painted sprite atlases, animation, and procedural effects
 src/ui       DOM screens (title, hub, loadout, skills, talents, locker, encyclopedia, play) and HUD
 src/save     localStorage persistence
 tests        vitest specs + headless auto-builder harness

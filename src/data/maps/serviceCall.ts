@@ -3,12 +3,12 @@ import { TOWER_ORDER } from '../towers';
 import type { MapDef } from '../types';
 import { grp, wave } from './helpers';
 
-/** Dedicated Night Shift survival yard — after the campaign slice, soft-exit, no exclusive kit. */
-export const NIGHT_SHIFT: MapDef = {
-  id: 'nightShift',
-  name: 'Night Shift',
-  subtitle: 'After hours',
-  blurb: 'The true endgame. Pack five tools you already earned — nothing exclusive lives here. Mutators rotate, milestone crates drop gear, and the record is how deep the night went. Clock out whenever you want.',
+/** Dedicated The Neverending Service Call survival yard — after the campaign slice, soft-exit, no exclusive kit. */
+export const SERVICE_CALL: MapDef = {
+  id: 'serviceCall',
+  name: 'The Neverending Service Call',
+  subtitle: 'Endless dispatch',
+  blurb: 'The true endgame. Pack five tools you already earned — nothing exclusive lives here. Mutators rotate, milestone crates drop gear, and cleared calls pay for increasingly powerful equipment. Clock out whenever you want.',
   endless: true,
   paths: [
     [
@@ -46,7 +46,7 @@ export const NIGHT_SHIFT: MapDef = {
     vec(850, 220),
   ],
   jeffStart: vec(400, 240),
-  startMoney: 380,
+  startMoney: 650,
   lives: 20,
   allowedTowers: [...TOWER_ORDER],
   waves: [

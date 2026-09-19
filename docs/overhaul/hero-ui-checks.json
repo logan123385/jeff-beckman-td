@@ -1,0 +1,80 @@
+[
+  {
+    "id": "mike",
+    "report": {
+      "hero": "Big Mike",
+      "hp": "520 / 520· guarding",
+      "abilities": [
+        "Plunger Volley",
+        "Make Way!",
+        "Tailgate Supply",
+        "Full Throttle",
+        "Royal Rain",
+        "Support crew"
+      ],
+      "aura": "The Truck King",
+      "cooldowns": [
+        "",
+        "19",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "saved": "mike",
+      "overflow": false
+    }
+  },
+  {
+    "id": "bob",
+    "report": {
+      "hero": "Robo Bob",
+      "hp": "360 / 360· guarding",
+      "abilities": [
+        "You're Fired",
+        "System Reboot",
+        "EMP Notice",
+        "Overclock",
+        "Performance Review",
+        "Support crew"
+      ],
+      "aura": "Orbs Aren't Real",
+      "cooldowns": [
+        "",
+        "27",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "saved": "bob",
+      "overflow": false
+    }
+  },
+  {
+    "id": "chris",
+    "report": {
+      "hero": "Mr. Chris",
+      "hp": "430 / 430· guarding",
+      "abilities": [
+        "Unleash Logan",
+        "FORE!",
+        "Reciprocating Rampage",
+        "Clear the Room",
+        "Second Wind",
+        "Support crew"
+      ],
+      "aura": "Big Farter",
+      "cooldowns": [
+        "27",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "saved": "chris",
+      "overflow": false
+    }
+  }
+]

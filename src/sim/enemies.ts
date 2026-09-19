@@ -13,6 +13,9 @@ import {
   PHASE_VISIBLE_SECONDS,
 } from '../data/enemies';
 import { JEFF } from '../data/jeff';
+import { friendlyMitigation } from './heroPowers';
+import { damageFriendly } from './friendlies';
+import { CREW_REACH } from './crew';
 import type { Game } from './game';
 import type { Enemy } from './state';
 import { applyDamage } from './combat';
@@ -23,6 +26,7 @@ export function updateEnemies(game: Game, dt: number): void {
     if (e.dead || e.escaped) continue;
     tickTimers(game, e, dt);
     validateHold(game, e);
+    if (!e.heldBy) e.attackSwing = 0;
     if (e.heldBy === null && e.stun <= 0) {
       const speed = e.def.speed * e.speedMult * (1 - e.slow) * (1 + e.haste);
       e.progress += speed * dt;
@@ -40,7 +44,7 @@ export function updateEnemies(game: Game, dt: number): void {
     const base = path.pointAt(e.progress);
     const dir = path.directionAt(e.progress);
     e.pos = { x: base.x - dir.y * e.lane, y: base.y + dir.x * e.lane };
-    if (e.heldBy !== null) attackHolder(game, e, dt);
+    if (e.heldBy !== null && e.stun <= 0) attackHolder(game, e, dt);
   }
 }
 
@@ -59,7 +63,8 @@ function tickTimers(game: Game, e: Enemy, dt: number): void {
     e.shredTimer -= dt;
     if (e.shredTimer <= 0) e.armorShred = 0;
   }
-  if (e.def.traits.includes('phases')) {
+  e.revealTimer = Math.max(0, (e.revealTimer ?? 0) - dt);
+  if (e.def.traits.includes('phases') && (e.revealTimer ?? 0) <= 0) {
     if (e.stun > 0 && e.phased) {
       e.phased = false;
       e.phaseTimer = PHASE_VISIBLE_SECONDS;
@@ -116,14 +121,29 @@ function validateHold(game: Game, e: Enemy): void {
     return;
   }
   switch (h.kind) {
+    case 'summon': {
+      const s = game.heroSummons.find(s => s.id === h.id);
+      if (!s || s.hp <= 0 || s.left <= 0 || dist(s.pos, e.pos) > 35 + e.def.radius) e.heldBy = null;
+      return;
+    }
+    case 'friendly': {
+      const f = game.friendlies.find(n => n.id === h.id);
+      if (!f || f.respawn > 0 || f.hp <= 0 || dist(f.pos, e.pos) > f.range + e.def.radius + 15) e.heldBy = null;
+      return;
+    }
+    case 'crew': {
+      const crew = game.crew.find(c => c.id === h.id);
+      if (!crew || crew.hp <= 0 || crew.timeLeft <= 0 || dist(crew.pos, e.pos) > CREW_REACH + e.def.radius + 6) e.heldBy = null;
+      return;
+    }
     case 'tower': {
       const t = game.towers.find((x) => x.id === h.id);
-      if (!t || t.rebuild > 0 || t.frozen > 0 || dist(t.rally, e.pos) > t.def.levels[t.level].range + e.def.radius + 6) e.heldBy = null;
+      if (!t || t.rebuild > 0 || t.frozen > 0 || dist(t.rally, e.pos) > t.def.levels[t.level]!.range + e.def.radius + 6) e.heldBy = null;
       return;
     }
     case 'hero': {
       const hero = game.hero;
-      if (!game.heroEnabled || hero.downed > 0 || hero.dest !== null || dist(hero.pos, e.pos) > JEFF.reach * game.mods.jeffReach + e.def.radius + 6) e.heldBy = null;
+      if (!game.heroEnabled || hero.downed > 0 || hero.dest !== null || dist(hero.pos, e.pos) > Math.min(44, game.heroDef.reach * game.mods.jeffReach) + e.def.radius + 6) e.heldBy = null;
       return;
     }
     case 'clamp': {
@@ -138,12 +158,37 @@ function validateHold(game: Game, e: Enemy): void {
 }
 
 function attackHolder(game: Game, e: Enemy, dt: number): void {
-  e.attackTimer -= dt;
-  if (e.attackTimer > 0 || e.def.dps <= 0) return;
-  e.attackTimer = 1;
+  if (e.attackSwing && e.attackSwing > 0) {
+    e.attackSwing = Math.max(0, e.attackSwing - dt);
+    if (e.attackLanded || e.attackSwing > 0.32) return;
+    e.attackLanded = true;
+  } else {
+    e.attackTimer -= dt;
+    if (e.attackTimer > 0 || e.def.dps <= 0) return;
+    e.attackTimer = 0.36; e.attackSwing = 0.64; e.attackLanded = false;
+    return;
+  }
+
   const h = e.heldBy;
   if (h === null) return;
   switch (h.kind) {
+    case 'summon': {
+      const s = game.heroSummons.find(s => s.id === h.id);
+      if (s) s.hp = Math.max(0, s.hp - e.def.dps);
+      if (!s || s.hp <= 0) e.heldBy = null;
+      return;
+    }
+    case 'friendly': {
+      const f = game.friendlies.find(n => n.id === h.id);
+      if (f) damageFriendly(game, f, e.def.dps);
+      return;
+    }
+    case 'crew': {
+      const crew = game.crew.find(c => c.id === h.id);
+      if (crew) crew.hp = Math.max(0, crew.hp - e.def.dps * friendlyMitigation(game, crew.pos));
+      if (!crew || crew.hp <= 0) e.heldBy = null;
+      return;
+    }
     case 'tower': {
       const t = game.towers.find((x) => x.id === h.id);
       if (t) damageBarricade(game, t, e.def.dps * (e.def.barricadeMult ?? 1));

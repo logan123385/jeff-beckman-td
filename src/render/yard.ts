@@ -1,15 +1,22 @@
 import type { Vec } from '../core/vec';
 import { WORLD_H, WORLD_W } from '../data/maps';
 import type { MapDef, MapPalette } from '../data/types';
+import { paintLandscape, paintRoutes, usesPaintedYard } from './battlefield';
 import { blotch, celFill, disc, filmGrain, mix, radial, rgba, ring, rivet, stampText, vignette } from './ink';
 
 /** Static jobsite art cached under the live actors. */
 export function paintYard(ctx: CanvasRenderingContext2D, map: MapDef): void {
   const p = map.palette;
+  if (paintLandscape(ctx, map)) {
+    paintRoutes(ctx, map);
+    return;
+  }
   paintFloor(ctx, map.id, p);
   paintScenery(ctx, map.id, p);
   scatterProps(ctx, map.id, p);
   paintPipes(ctx, map.paths, p);
+  // The raised pipework becomes the service route, with its old fixtures retained around it.
+  paintRoutes(ctx, map);
   paintVignette(ctx, map.id);
   filmGrain(ctx, WORLD_W, WORLD_H, map.id.length * 17, 0.035);
 }
@@ -36,7 +43,7 @@ function paintFloor(ctx: CanvasRenderingContext2D, id: string, p: MapPalette): v
     case 'snowmelt':
       snowFloor(ctx, p);
       break;
-    case 'nightShift':
+    case 'serviceCall':
       asphalt(ctx, p);
       break;
     case 'mechanicalRoom':
@@ -208,7 +215,7 @@ function paintScenery(ctx: CanvasRenderingContext2D, id: string, p: MapPalette):
     case 'liftStation':
       wetWell(ctx, p);
       break;
-    case 'nightShift':
+    case 'serviceCall':
       moon(ctx);
       yardLamps(ctx, [120, 460, 820]);
       break;
@@ -616,7 +623,7 @@ function drawMarker(ctx: CanvasRenderingContext2D, p: Vec, color: string, label:
 }
 
 function paintVignette(ctx: CanvasRenderingContext2D, id: string): void {
-  vignette(ctx, WORLD_W, WORLD_H, id === 'nightShift' ? 0.72 : 0.52);
+  vignette(ctx, WORLD_W, WORLD_H, id === 'serviceCall' ? 0.72 : 0.52);
 }
 
 /** Live water/steam shimmer on top of the cached yard. */
@@ -666,6 +673,7 @@ export function paintPipeFlow(ctx: CanvasRenderingContext2D, paths: readonly (re
 
 /** Drips, steam, and flange sparks — the yard is alive. */
 export function paintAtmosphere(ctx: CanvasRenderingContext2D, map: MapDef, time: number): void {
+  if (usesPaintedYard(map)) return;
   ctx.save();
   let n = 0;
   for (const path of map.paths) {
@@ -736,6 +744,7 @@ export function paintAtmosphere(ctx: CanvasRenderingContext2D, map: MapDef, time
 
 /** Silhouettes and weeds drawn over actors so the map has a foreground. */
 export function paintForeground(ctx: CanvasRenderingContext2D, map: MapDef): void {
+  if (usesPaintedYard(map)) return;
   const p = map.palette;
   const g = ctx.createLinearGradient(0, WORLD_H - 120, 0, WORLD_H);
   g.addColorStop(0, 'rgba(0,0,0,0)');
@@ -760,7 +769,7 @@ export function paintForeground(ctx: CanvasRenderingContext2D, map: MapDef): voi
         blotch(ctx, 60 + i * 120, WORLD_H - 4, 48, 16, 0, mix('#e1f5fe', p.wall, 0.25));
       }
       break;
-    case 'nightShift':
+    case 'serviceCall':
       // lamp poles
       for (const x of [90, WORLD_W / 2, WORLD_W - 100]) {
         ctx.fillStyle = mix(p.wall, '#000000', 0.7);

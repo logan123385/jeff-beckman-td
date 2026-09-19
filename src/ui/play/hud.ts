@@ -1,10 +1,12 @@
 import { ENEMIES } from '../../data/enemies';
-import { JEFF } from '../../data/jeff';
+import { ABILITY_KEYS, COOLDOWN_FIELDS } from '../../data/heroes';
 import { NIGHT_MUTATORS, proceduralMutator } from '../../data/night';
 import type { Game } from '../../sim/game';
 import { EARLY_CALL_BONUS_PER_SECOND } from '../../sim/game';
+import { CREW_COOLDOWN } from '../../sim/crew';
 import { clear, h } from '../dom';
-import { jeffPortrait } from '../portraits';
+import { enemyPortrait, heroPortrait } from '../portraits';
+import { skillGlyph } from './icons';
 
 export interface HudHandlers {
   onCallWave(): void;
@@ -20,6 +22,7 @@ export interface HudHandlers {
   onSleeve(): void;
   onCoffee(): void;
   onSelectJeff(): void;
+  onCrew(): void;
 }
 
 /** Top and bottom bars. `update()` runs every frame and only touches text that changed. */
@@ -45,6 +48,20 @@ export class Hud {
   private readonly pulseCd = h('div', { class: 'cd' });
   private readonly sleeveCd = h('div', { class: 'cd' });
   private readonly coffeeCd = h('div', { class: 'cd' });
+  private readonly crewBtn = h('button', { class: 'ability ab-crew' });
+  private readonly crewCd = h('div', { class: 'cd' });
+  private readonly bossPanel = h('div', { class: 'boss-panel hidden' });
+  private readonly bossName = h('span');
+  private readonly bossHp = h('span', {
+    class: 'boss-hp',
+    attrs: {
+      role: 'progressbar',
+      'aria-valuemin': '0',
+      'aria-valuemax': '100',
+      'aria-valuenow': '100',
+      'aria-label': 'Boss health',
+    },
+  });
   private readonly status = h('span', { class: 'jeff-status' });
   private readonly hint = h('div', { class: 'hint' });
   private readonly clockBtn = h('button', { class: 'btn small-btn' });
@@ -75,7 +92,7 @@ export class Hud {
     this.muteBtn.textContent = handlers.muteLabel();
     this.muteBtn.title = 'Cycle sound: Off → Soft → Full (soft AV only)';
     this.clockBtn.textContent = 'Clock out';
-    this.clockBtn.title = 'Soft-exit Night Shift. Keep the record, bank XP and crates.';
+    this.clockBtn.title = 'Soft-exit The Neverending Service Call. Keep the record, bank XP and crates.';
     this.clockBtn.classList.toggle('hidden', !game.endless);
     this.clockBtn.addEventListener('click', handlers.onClockOut);
     this.muteBtn.addEventListener('click', () => {
@@ -109,34 +126,41 @@ export class Hud {
       btn.append(
         cd,
         h('span', { class: 'key', text: key }),
-        h('span', { class: 'ab-glyph', attrs: { 'aria-hidden': 'true' } }),
+        h('span', { class: 'ab-glyph', html: skillGlyph(key === 'D' ? key : game.heroDef.abilities[ABILITY_KEYS.indexOf(key as typeof ABILITY_KEYS[number])]?.glyph ?? key), attrs: { 'aria-hidden': 'true' } }),
         h('span', { class: 'ab-name', text: name }),
         h('span', { class: 'ab-desc', text: desc }),
       );
       btn.addEventListener('click', onClick);
+      btn.title = `${name} (${key}) · ${desc}`;
+      btn.setAttribute('aria-label', `${name} (${key})`);
       return btn;
     };
 
-    ability(this.clampBtn, this.clampCd, 'Q', 'Pipe Clamp', `${JEFF.clamp.duration}s hold + ${Math.round(JEFF.clamp.slow * 100)}% slow`, handlers.onClamp);
-    ability(this.shutoffBtn, this.shutoffCd, 'E', 'Shutoff', `${JEFF.shutoff.duration}s freeze-frame`, handlers.onShutoff);
-    ability(this.pulseBtn, this.pulseCd, 'R', 'Manometer', `${JEFF.pulse.damage} shred + stun`, handlers.onPulse);
-    ability(this.sleeveBtn, this.sleeveCd, 'T', 'Sleeve', `+${JEFF.sleeve.extraHolds} holds`, handlers.onSleeve);
-    ability(this.coffeeBtn, this.coffeeCd, 'C', 'Coffee', `+${JEFF.coffee.heal} HP + hustle`, handlers.onCoffee);
+    const buttons = [this.clampBtn, this.shutoffBtn, this.pulseBtn, this.sleeveBtn, this.coffeeBtn];
+    const cooldowns = [this.clampCd, this.shutoffCd, this.pulseCd, this.sleeveCd, this.coffeeCd];
+    const handlersBySlot = [handlers.onClamp, handlers.onShutoff, handlers.onPulse, handlers.onSleeve, handlers.onCoffee];
+    game.heroDef.abilities.forEach((a, i) => {
+      ability(buttons[i]!, cooldowns[i]!, ABILITY_KEYS[i]!, a.name, a.short, handlersBySlot[i]!);
+      buttons[i]!.title = `${a.name} (${ABILITY_KEYS[i]}) · ${a.cooldown}s cooldown. ${a.description}`;
+    });
+
+    ability(this.crewBtn, this.crewCd, 'D', 'Support crew', '2 helpers · 18 seconds', handlers.onCrew);
 
     this.jeffCard = h(
       'button',
       {
         class: 'jeff-card ornate',
         onClick: handlers.onSelectJeff,
-        title: 'Select Jeff (tap him or J). Tap a leak to wrench it, or tap ground to move. Right-click also moves.',
+        title: `Select ${game.heroDef.name} (J). ${game.heroDef.aura.name}: ${game.heroDef.aura.description}`,
       },
-      h('div', { class: 'jeff-frame' }, jeffPortrait(72)),
+      h('div', { class: 'jeff-frame' }, heroPortrait(game.heroDef.id, 72)),
       h(
         'div',
         { class: 'jeff-info' },
-        h('div', { class: 'jeff-name-row' }, h('b', { text: JEFF.name }), h('span', { class: 'jeff-title', text: JEFF.title })),
+        h('div', { class: 'jeff-name-row' }, h('b', { text: game.heroDef.name }), h('span', { class: 'jeff-title', text: game.heroDef.style })),
         h('div', { class: 'bar hp' }, this.hpFill),
         h('div', { class: 'jeff-meta' }, this.hpText, this.status),
+        h('span', { class: 'hud-hero-aura', text: game.heroDef.aura.name, title: game.heroDef.aura.description }),
       ),
     );
 
@@ -148,7 +172,9 @@ export class Hud {
       this.pulseBtn,
       this.sleeveBtn,
       this.coffeeBtn,
+      this.crewBtn,
     );
+    this.bossPanel.append(this.bossName, h('div', { class: 'boss-track' }, this.bossHp));
 
     this.bottom = h(
       'div',
@@ -156,6 +182,7 @@ export class Hud {
       this.jeffCard,
       this.abilityRail,
       this.hint,
+      this.bossPanel,
     );
   }
 
@@ -204,6 +231,10 @@ export class Hud {
     btn.classList.toggle('cooling', remaining > 0);
     if (ready && was === false) this.replay(btn, 'just-ready');
     this.readyState.set(btn, ready);
+    let timer = btn.querySelector<HTMLElement>('.cooldown-number');
+    if (!timer) { timer = h('span', { class: 'cooldown-number' }); btn.append(timer); }
+    this.set(timer, downed ? '—' : remaining > 0 ? `${Math.ceil(remaining)}` : '');
+    (btn as HTMLButtonElement).disabled = !ready;
   }
 
   update(): void {
@@ -228,25 +259,26 @@ export class Hud {
     } else {
       const ids = g.nextWaveEnemies();
       const secs = Math.max(0, Math.ceil(g.waveCountdown));
-      const key = `${secs}|${ids.join(',')}`;
+      const key = `${secs}|${g.waveActive}|${ids.join(',')}`;
       if (key !== this.nextKey) {
         this.nextKey = key;
         clear(this.next);
-        this.next.append(h('span', { class: 'next-label', text: `Next in ${secs}s` }));
+        this.next.append(h('span', { class: 'next-label', text: g.manualStart && g.waveIdx === 0 ? 'Prepare your defense' : g.endless && g.waveActive ? 'Next after this call' : `Next in ${secs}s` }));
+        this.next.title = g.nextWavePreview().map(p => `${p.count} × ${ENEMIES[p.enemy].name} · route ${p.path + 1}\n${ENEMIES[p.enemy].counters}`).join('\n\n');
         for (const id of ids) {
           this.next.append(
             h('span', {
               class: 'wave-pip',
               title: ENEMIES[id].name,
-              style: { background: ENEMIES[id].color },
-            }),
+              attrs: { 'aria-label': ENEMIES[id].name },
+            }, enemyPortrait(id, 28)),
           );
         }
         this.next.append(h('span', { class: 'next-names', text: ids.map((id) => ENEMIES[id].name).join(' · ') }));
       }
       const bonus = Math.floor(Math.max(0, g.waveCountdown) * EARLY_CALL_BONUS_PER_SECOND);
       this.set(this.callBtn, g.waveIdx === 0 ? `Start job  (+$${bonus})` : `Call wave  (+$${bonus})`);
-      this.callBtn.classList.remove('hidden');
+      this.callBtn.classList.toggle('hidden', g.endless && g.waveActive);
     }
 
     const hero = g.hero;
@@ -255,26 +287,35 @@ export class Hud {
     this.prevHp = hero.hp;
     this.jeffCard.classList.toggle('downed', hero.downed > 0);
     this.set(this.hpText, `${Math.ceil(hero.hp)} / ${hero.maxHp}`);
-    let status = '· standing by';
+    let status = '· guarding';
     if (hero.downed > 0) status = `· van in ${Math.ceil(hero.downed)}s`;
     else if (hero.dest) status = '· moving';
     else if (hero.orderTargetId !== null) {
       const prey = g.enemies.find((e) => e.id === hero.orderTargetId);
-      status = prey ? `· wrenching ${prey.def.name}` : '· hunting';
+      status = prey ? `· attacking ${prey.def.name}` : '· hunting';
     } else if (hero.engaged) status = '· hunting';
+    else if (hero.targetId !== null) status = '· holding the line';
     this.set(this.status, status);
 
     const cdMult = g.mods.cooldown / g.jeffCdAura;
     const downed = hero.downed > 0;
-    this.cooldownButton(this.clampBtn, this.clampCd, hero.clampCooldown, JEFF.clamp.cooldown * cdMult, downed);
-    this.cooldownButton(this.shutoffBtn, this.shutoffCd, hero.shutoffCooldown, JEFF.shutoff.cooldown * cdMult, downed);
-    this.cooldownButton(this.pulseBtn, this.pulseCd, hero.pulseCooldown, JEFF.pulse.cooldown * cdMult, downed);
-    this.cooldownButton(this.sleeveBtn, this.sleeveCd, hero.sleeveCooldown, JEFF.sleeve.cooldown * cdMult, downed);
-    this.cooldownButton(this.coffeeBtn, this.coffeeCd, hero.coffeeCooldown, JEFF.coffee.cooldown * cdMult, downed);
-    this.sleeveBtn.classList.toggle('active', hero.sleeveTimer > 0);
+    const buttons = [this.clampBtn, this.shutoffBtn, this.pulseBtn, this.sleeveBtn, this.coffeeBtn];
+    const fills = [this.clampCd, this.shutoffCd, this.pulseCd, this.sleeveCd, this.coffeeCd];
+    g.heroDef.abilities.forEach((a, i) => this.cooldownButton(buttons[i]!, fills[i]!, hero[COOLDOWN_FIELDS[i]!], a.cooldown * cdMult, downed || !!hero.cast));
+    this.cooldownButton(this.crewBtn, this.crewCd, g.crewCooldown, CREW_COOLDOWN, false);
+    this.sleeveBtn.classList.toggle('active', hero.sleeveTimer > 0 || (hero.overdrive ?? 0) > 0);
     this.coffeeBtn.classList.toggle('active', hero.coffeeTimer > 0);
     this.clampBtn.classList.toggle('active', g.clamp !== null);
     this.shutoffBtn.classList.toggle('active', g.globalSlowTimer > 0);
+    const boss = g.enemies.find(e => e.def.traits.includes('boss') && !e.dead && !e.escaped);
+    this.bossPanel.classList.toggle('hidden', !boss);
+    if (boss) {
+      const pct = Math.max(0, boss.hp / boss.maxHp) * 100;
+      this.set(this.bossName, `${boss.def.name} · Phase ${boss.bossPhase + 1}`);
+      this.bossHp.style.width = `${pct}%`;
+      this.bossHp.setAttribute('aria-valuenow', String(Math.round(pct)));
+      this.bossHp.setAttribute('aria-label', `${boss.def.name} health`);
+    }
 
     const mutId = g.endless
       ? (g.nightMutator ?? (g.waveIdx >= g.map.waves.length ? proceduralMutator(g.waveIdx, g.map.waves.length) : null))
