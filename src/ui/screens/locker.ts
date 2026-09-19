@@ -3,7 +3,7 @@ import { JEFF_LEVEL_CAP, levelFromXp, xpBarCopy } from '../../data/xp';
 import type { GearItem, GearSlot } from '../../data/types';
 import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
-import { jeffPortrait } from '../portraits';
+import { heroPortrait } from '../portraits';
 
 export function renderLocker(app: App): ScreenView {
   const save = app.save;
@@ -17,17 +17,17 @@ export function renderLocker(app: App): ScreenView {
         'header',
         { class: 'screen-header sheet' },
         h('button', { class: 'btn link', text: '← Van', onClick: () => app.go({ kind: 'hub' }) }),
-        h('h1', { text: 'Jeff’s Locker' }),
+        h('h1', { text: 'Crew Locker' }),
         h('span', { class: 'pill big', text: xp.level >= JEFF_LEVEL_CAP ? `Lv ${xp.level} · ${xpBarCopy(xp)}` : `Lv ${xp.level} · ${xp.into} / ${xp.need} XP` }),
       ),
-      h('p', { class: 'lede', text: 'First-clear job chests and Night Shift mileposts drop gear. Equip five slots. Inventory is 24 — extras salvage into XP. Nothing here is exclusive to Night Shift.' }),
+      h('p', { class: 'lede', text: 'First-clear job chests and The Neverending Service Call mileposts drop gear. All heroes share the same five equipped gear slots. Inventory is 24 — extras salvage into XP. Nothing here is exclusive to The Neverending Service Call.' }),
       h(
         'div',
         { class: 'locker-layout' },
         h(
           'div',
           { class: 'equip-col sheet' },
-          h('div', { class: 'locker-jeff' }, jeffPortrait(96)),
+          h('div', { class: 'locker-jeff' }, heroPortrait(save.data.selectedHero, 96)),
           ...GEAR_SLOTS.map((slot) => {
             const id = save.data.equipped[slot];
             const item = id ? save.itemById(id) : undefined;
@@ -53,7 +53,7 @@ export function renderLocker(app: App): ScreenView {
           { class: 'inv-col sheet' },
           h('h3', { text: `Inventory · ${save.data.inventory.length} / 24` }),
           save.data.inventory.length === 0
-            ? h('p', { class: 'muted', text: 'First-clear a job or clock a Night Shift milepost. Chests show up on the results card.' })
+            ? h('p', { class: 'muted', text: 'First-clear a job or clock a The Neverending Service Call milepost. Chests show up on the results card.' })
             : h('div', { class: 'inv-grid' }, ...save.data.inventory.map((item) => invCard(app, item, render))),
         ),
       ),

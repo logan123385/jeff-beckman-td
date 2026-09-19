@@ -1,5 +1,6 @@
 import { JEFF } from '../data/jeff';
 import type { Enemy, Hero, Tower } from '../sim/state';
+import { paintedEnemy, paintedJeff, paintedTower } from './paintedActors';
 import { blotch, brassFill, castShadow, celFill, celShine, CEL_INK, disc, glow, metalFill, mix, noGlow, pulseRing, radial, rgba, ring, rivet, stampText } from './ink';
 
 type Ctx = CanvasRenderingContext2D;
@@ -65,6 +66,7 @@ function jeffBox(ctx: Ctx, x: number, y: number, w: number, h: number, r: number
 }
 
 export function drawJeff(ctx: Ctx, hero: Hero, time: number, showBar = true, scale = 1.72): void {
+  if (paintedJeff(ctx, hero, time, showBar, scale)) return;
   const { x, y } = hero.pos;
   ctx.save();
   ctx.translate(x, y);
@@ -513,6 +515,7 @@ export function drawBuildPad(ctx: Ctx, x: number, y: number, hot: boolean, accen
 }
 
 export function drawTower(ctx: Ctx, t: Tower, time: number): void {
+  if (paintedTower(ctx, t, time)) return;
   const { x, y } = t.pos;
   const kick = t.recoil > 0 ? t.recoil * 22 : 0;
   const bob = t.frozen > 0 ? 0 : Math.sin(time * 3.15 + t.id * 2.05) * 1.25;
@@ -609,6 +612,7 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       ctx.restore();
       break;
     }
+    case 'apprentices': case 'jayjay': case 'cbjDoni':
     case 'barricade': {
       roundRect(ctx, x - 11, y - 16, 22, 16, 4);
       ctx.fillStyle = metalFill(ctx, x - 11, y - 16, 22, 16, '#90a4ae');
@@ -807,7 +811,7 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       ctx.lineTo(x + 9, y - 8);
       ctx.closePath();
       celFill(ctx, t.def.color, 2);
-      const pip = Math.min(1, t.charge / (t.def.levels[t.level].chargeNeed ?? 8));
+      const pip = Math.min(1, t.charge / (t.def.levels[t.level]!.chargeNeed ?? 8));
       ctx.fillStyle = '#1a1008';
       roundRect(ctx, x - 6, y - 7, 12, 4, 1);
       ctx.fill();
@@ -1184,6 +1188,7 @@ function drawTowerLife(ctx: Ctx, t: Tower, time: number): void {
     case 'zoneValve':
     case 'expansion':
     case 'mixingValve':
+    case 'apprentices': case 'jayjay': case 'cbjDoni':
     case 'barricade': {
       ctx.save();
       ctx.translate(x - 12, y - 6);
@@ -1261,6 +1266,7 @@ export function drawValveGate(ctx: Ctx, t: Tower): void {
 // ------------------------------------------------------------------ enemies
 
 export function drawEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number; y: number }): void {
+  if (paintedEnemy(ctx, e, time, dir)) return;
   const { x, y } = e.pos;
   const r = e.def.radius;
   ctx.save();

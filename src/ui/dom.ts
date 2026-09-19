@@ -37,8 +37,12 @@ export function clear(el: HTMLElement): void {
   while (el.firstChild) el.removeChild(el.firstChild);
 }
 
+/** A 1½-inch PEX press elbow is the campaign rating and perk currency. */
+export function ninetyIcon(size = 30): HTMLElement {
+  return h('span', { class: 'ninety-icon', title: "1½-inch PureFlow PEX press 90", style: { width: `${size}px`, height: `${size}px` }, html: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M13 7v15c0 8 5 13 13 13h15" fill="none" stroke="#10171b" stroke-width="15"/><path d="M10 9v13c0 9 6 16 17 16h12" fill="none" stroke="#4b555a" stroke-width="3"/><path d="M20 19v4c0 3 2 5 6 5h4" fill="none" stroke="#667176" stroke-width="1.5"/><g stroke="#424c51" stroke-width="1"><path d="M4 3h18v14H4z" fill="#c6d1d6"/><path d="M31 26h14v18H31z" fill="#c6d1d6"/></g><path d="M6 4v12M10 4v12M33 28h11M33 32h11" stroke="#f7fbfc" stroke-width="2"/><path d="M18 4v12M33 40h11" stroke="#89999f" stroke-width="3"/><path d="M4 17h18M30 26v18" stroke="#dac74b" stroke-width="3"/><ellipse cx="13" cy="3" rx="9" ry="2.5" fill="#526068"/><ellipse cx="13" cy="3" rx="6.5" ry="1.4" fill="#101719"/><ellipse cx="45" cy="35" rx="2.4" ry="9" fill="#53636b"/><ellipse cx="45" cy="35" rx="1.2" ry="6.6" fill="#131b1f"/></svg>` });
+}
 export function stars(n: number, max = 3): HTMLElement {
-  const wrap = h('span', { class: 'stars' });
-  for (let i = 0; i < max; i++) wrap.append(h('span', { class: i < n ? 'star on' : 'star', text: '★' }));
+  const wrap = h('span', { class: 'stars nineties', attrs: { 'aria-label': `${n} of ${max} 90’s` } });
+  for (let i = 0; i < max; i++) wrap.append(h('span', { class: i < n ? 'star on' : 'star' }, ninetyIcon()));
   return wrap;
 }

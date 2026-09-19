@@ -26,7 +26,10 @@ export type TowerId =
   | 'heatExchanger'
   | 'dirtSep'
   | 'steamTrap'
-  | 'zoneValve';
+  | 'zoneValve'
+  | 'apprentices'
+  | 'jayjay'
+  | 'cbjDoni';
 
 export type RemasterId = 'classic' | 'codeInspection' | 'frozenMain';
 
@@ -94,6 +97,8 @@ export interface TowerLevel {
   pull?: number;
   /** Thermostat: extra fire-rate for towers in range. */
   rateBuff?: number;
+  recruits?: number;
+  armor?: number;
 }
 
 export interface TowerDef {
@@ -110,7 +115,8 @@ export interface TowerDef {
   projectileSpeed?: number;
   /** Extra damage multiplier times the target's armor (Hammer Drill). */
   armorBonus?: number;
-  levels: [TowerLevel, TowerLevel, TowerLevel];
+  levels: [TowerLevel, TowerLevel, TowerLevel, ...TowerLevel[]];
+  recruits?: 'apprentices' | 'jayjay' | 'cbjDoni';
   color: string;
 }
 
@@ -206,13 +212,13 @@ export interface MapDef {
   allowedTowers: TowerId[];
   /** Towers locked out on the Code Inspection remaster (the "intended" answers). */
   inspectionBan?: TowerId[];
-  /** Endless Night Shift maps never run out of scripted waves — the sim generates more. */
+  /** Endless The Neverending Service Call maps never run out of scripted waves — the sim generates more. */
   endless?: boolean;
   waves: WaveDef[];
   palette: MapPalette;
 }
 
-export type SkillBranch = 'tools' | 'jeff' | 'shop';
+export type SkillBranch = 'tools' | 'jeff' | 'shop' | 'crew';
 
 /** Multiplicative / additive modifiers applied to a run. All default to neutral. */
 export interface Modifiers {
@@ -232,12 +238,18 @@ export interface Modifiers {
   jeffReach: number;
   jeffRespawn: number;
   jeffTapEvery: number;
+  crewHp: number;
+  crewDamage: number;
+  crewRespawn: number;
 }
 
 export interface SkillNode {
   id: string;
   branch: SkillBranch;
-  tier: 1 | 2 | 3;
+  tier: 1 | 2 | 3 | 4 | 5;
+  cost?: number;
+  prerequisite?: string;
+  choiceGroup?: string;
   name: string;
   desc: string;
   apply: (m: Modifiers) => void;

@@ -1,7 +1,9 @@
 import type { Vec } from '../core/vec';
 import type { DamageType, EnemyDef, EnemyId, TowerDef, TowerId } from '../data/types';
+import type { Specialization } from '../data/specializations';
+import type { AbilitySlot, HeroId } from '../data/heroes';
 
-export type DamageSource = 'jeff' | TowerId;
+export type DamageSource = 'jeff' | 'crew' | TowerId;
 
 export interface Enemy {
   id: number;
@@ -21,6 +23,7 @@ export interface Enemy {
   heldBy: HoldRef | null;
   phaseTimer: number;
   phased: boolean;
+  revealTimer?: number;
   armorShred: number;
   shredTimer: number;
   freezeTimer: number;
@@ -35,13 +38,39 @@ export interface Enemy {
   dotTime: number;
   dotSource: DamageSource | null;
   marked: boolean;
+  markBonus?: number;
   haste: number;
   laneTimer: number;
   /** White flash + squash after a real hit. */
   hitFlash: number;
+  attackSwing?: number;
+  attackLanded?: boolean;
 }
 
-export type HoldRef = { kind: 'tower'; id: number } | { kind: 'hero' } | { kind: 'clamp' };
+export type HoldRef = { kind: 'tower'; id: number } | { kind: 'crew'; id: number } | { kind: 'friendly'; id: number } | { kind: 'summon'; id: number } | { kind: 'hero' } | { kind: 'clamp' };
+
+export interface Crew {
+  pendingTarget?: number;
+  id: number;
+  pos: Vec;
+  hp: number;
+  maxHp: number;
+  timeLeft: number;
+  attackTimer: number;
+  swing: number;
+  facing: number;
+}
+
+export type FriendlyRole = 'apprentice' | 'jayjay' | 'cbj' | 'doni';
+export interface Friendly {
+  id: number; towerId: number; role: FriendlyRole; slot: number;
+  pos: Vec; home: Vec; hp: number; maxHp: number; armor: number;
+  damage: number; range: number; rate: number; holds: number;
+  respawn: number; targetId: number | null; attackTimer: number;
+  moveBlend?: number; fall?: number;
+  swing: number; hitLanded: boolean; facing: number; moving: boolean;
+  walkPhase: number; tier: number;
+}
 
 export interface Tower {
   id: number;
@@ -50,7 +79,8 @@ export interface Tower {
   pos: Vec;
   /** Where the tower engages the path (barricades deploy onto the nearest pipe). */
   rally: Vec;
-  level: 0 | 1 | 2;
+  level: number;
+  mastery?: number;
   cooldown: number;
   hp: number;
   maxHp: number;
@@ -66,6 +96,9 @@ export interface Tower {
   charge: number;
   /** Who a shooter prefers. Auras and barricades ignore this. */
   aim: AimPriority;
+  specialization?: Specialization;
+  eliteCooldown?: number;
+  windup?: number;
 }
 
 /** Kingdom Rush–style target priority for shooters. */
@@ -90,6 +123,13 @@ export interface Projectile {
 }
 
 export interface Hero {
+  id?: HeroId;
+  cast?: { slot: AbilitySlot; left: number; duration: number; fired: boolean; target: Vec; targetId?: number; hits: number };
+  swingDuration?: number;
+  overdrive?: number;
+  shield?: number;
+  lifesteal?: number;
+  taunt?: number;
   pos: Vec;
   /** Last move / hunt focus for ground markers and repair. */
   anchor: Vec;
@@ -115,6 +155,29 @@ export interface Hero {
   engaged: boolean;
   /** Currently engaging (derived each frame from the order). */
   targetId: number | null;
+  moveBlend?: number;
+  pendingStrike?: number;
+  moving?: boolean;
+  walkPhase?: number;
+  castTimer?: number;
+}
+
+export interface HeroMissile {
+  id: number; kind: 'plunger' | 'golf'; from: Vec; pos: Vec; goal: Vec; targetId?: number;
+  age: number; duration: number; damage: number; splash: number; bounces: number; hitIds: number[];
+}
+export interface HeroZone {
+  id: number; kind: 'supply' | 'gas' | 'rain' | 'review'; pos: Vec; radius: number;
+  left: number; duration: number; tick: number; ticks: number; targetIds?: number[];
+}
+export interface HeroVisual {
+  kind: 'laser' | 'emp' | 'horn' | 'saw' | 'summon' | 'buff' | 'golf' | 'punch' | 'slam';
+  from: Vec; to: Vec; radius: number; color: string; left: number; duration: number;
+}
+export interface HeroSummon {
+  id: number; pos: Vec; hp: number; maxHp: number; left: number; duration: number;
+  facing: number; walkPhase: number; moving: boolean; moveBlend: number;
+  swing: number; attackTimer: number; targetId?: number; pendingTarget?: number;
 }
 
 export interface Clamp {
@@ -125,6 +188,7 @@ export interface Clamp {
 export type JeffSkillId = 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee';
 
 export type Effect =
+  | { kind: 'death'; pos: Vec; enemy: EnemyId; radius: number; ttl: number; max: number }
   | { kind: 'beam'; from: Vec; to: Vec; color: string; ttl: number; max: number }
   | { kind: 'hit'; pos: Vec; color: string; ttl: number; max: number }
   | { kind: 'splash'; pos: Vec; radius: number; color: string; ttl: number; max: number }
@@ -142,6 +206,7 @@ export interface ActiveSpawn {
 
 export interface RunStats {
   jeffDamage: number;
+  crewDamage: number;
   towerDamage: Record<TowerId, number>;
   kills: number;
   jeffKills: number;

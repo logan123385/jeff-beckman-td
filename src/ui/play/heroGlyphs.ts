@@ -1,0 +1,23 @@
+/** Small vector HUD emblems; the characters themselves use painted animation atlases. */
+export const heroGlyphs: Record<string, string> = {
+  volley: '<path d="M6 33L27 12m-16 25l21-21M4 24L22 6"/><path d="M20 5q10-4 11 6l-8 3zM25 13q10-4 11 6l-8 3z" fill="#b7614d"/>',
+  horn: '<path d="M5 17h10L31 7v26L15 23H5z" fill="#a7cce4"/><path d="M14 23l-2 10H6l2-10m27-12l3-3m-2 12h3m-4 9l3 3"/>',
+  crate: '<path d="M5 12h30v24H5zM5 12l7-7h16l7 7" fill="#ae8d58"/><path d="M20 17v14m-7-7h14M5 12h30"/>',
+  truck: '<path d="M3 17h18V9h10l6 11v11H3z" fill="#497bb2"/><path d="M23 12h6l5 8H23z" fill="#eee4c2"/><circle cx="10" cy="31" r="5" fill="#3e454e"/><circle cx="30" cy="31" r="5" fill="#3e454e"/>',
+  rain: '<path d="M6 8h28M10 14l-5 9m17-9l-5 9m17-9l-5 9M6 29l-3 7m16-7l-3 7m16-7l-3 7"/><path d="M4 25h8m4 0h8m4 0h8"/>',
+  laser: '<path d="M3 12h15v16H3z" fill="#547b84"/><path d="M18 16l19-9m-19 13h20m-20 4l19 9" stroke="#94f3f4"/><circle cx="14" cy="20" r="3" fill="#fc856a"/>',
+  reboot: '<path d="M33 13a14 14 0 1 0 1 13M33 5v9H23"/><path d="M20 12v16m-8-8h16" stroke="#78e3d1"/>',
+  emp: '<circle cx="20" cy="20" r="14"/><circle cx="20" cy="20" r="8"/><path d="M22 3L12 22h8l-2 15 10-20h-8z" fill="#83e4ec"/>',
+  overclock: '<circle cx="20" cy="21" r="14" fill="#466776"/><path d="M20 8v13l9 5M15 3h10M9 5L5 9M5 29l-3 6h8"/>',
+  crosshair: '<circle cx="20" cy="20" r="11"/><path d="M20 2v11m0 14v11M2 20h11m14 0h11"/><circle cx="20" cy="20" r="3" fill="#fc9176"/>',
+  logan: '<path d="M8 17L3 8l12 4q5-6 11 0l11-4-5 12v8L20 37 8 28z" fill="#6e9562"/><path d="M12 22l4 1m8 0l4-1M15 29l5 3 5-3M10 12q-3-9 4-7 3-7 8-2 8-2 9 7"/>',
+  golf: '<path d="M12 4l16 28h8l-2 5H23L8 7"/><circle cx="9" cy="31" r="4" fill="#fff8df"/><path d="M3 22l6-3m-3 8l-4-1"/>',
+  saw: '<path d="M3 16h20v14H3zM8 16v-5h11v5" fill="#b94d43"/><path d="M23 19h14v5H23m3 0l2 3 2-3 2 3 2-3M7 20h9v6H7z"/>',
+  gas: '<path d="M10 30a7 7 0 1 1-3-13 8 8 0 0 1 15-8 6 6 0 0 1 10 8 7 7 0 0 1-2 14z" fill="#809a56"/><path d="M9 23q5-6 10 0t12 0M14 34l-2 3m11-3l2 3"/>',
+  wind: '<path d="M3 14h22q10 0 7-8t-10 3M3 21h28q10 0 4 7M8 29h13q7 0 5 7"/>',
+  fist: '<path d="M8 22V11q0-5 5-3 2-6 7-2 5-4 7 1 6-1 6 5v11l-8 13H13L5 26q-3-8 3-7l8 5" fill="#df9bad"/><path d="M13 9v10m7-11v11m7-9v9M12 31h15"/>',
+  slam: '<path d="M14 3h13v16l-6 5-7-5z" fill="#df9bad"/><path d="M20 25v8M4 31l8-4m-5 10l8-5m21-1l-8-4m5 10l-8-5M10 22L5 18m25 4l5-4"/>',
+  taunt: '<path d="M11 35V22L5 18l2-9 6-2 5 10h4l5-10 6 2 2 9-6 4v13z" fill="#98698b"/><path d="M4 4l4 2m28-2l-4 2M17 27h6"/>',
+  heart: '<path d="M20 35S2 24 3 12C4 1 17 3 20 10 24 2 37 2 37 13c0 10-17 22-17 22z" fill="#ae6589"/><path d="M20 14v14m-7-7h14"/>',
+  combo: '<path d="M7 4l-4 9h7l-4 8m17-16l-5 9h7l-4 8M8 34l8-12h16v9l-7 7H15z" fill="#d392ad"/><path d="M17 25v5m6-5v5m6-5v5"/>',
+};

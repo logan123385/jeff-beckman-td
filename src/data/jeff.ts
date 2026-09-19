@@ -8,7 +8,7 @@ export const JEFF = {
   damage: 22,
   attackRate: 1.35,
   /** Visual + timing window for the wrench follow-through. */
-  swingTime: 0.36,
+  swingTime: 0.68,
   holds: 2,
   armorShred: 0.18,
   shredDuration: 3.2,

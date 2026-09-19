@@ -2,7 +2,7 @@ import { Rng } from '../core/rng';
 import type { SaveStore } from '../save/save';
 import type { Game } from '../sim/game';
 import { applyAffix, rollChest } from './loot';
-import { campaignXp, nightWavesCompleted, nightXp } from './xp';
+import { campaignXp, nightXp } from './xp';
 import { buildModifiers } from './skills';
 import { applyTalents } from './talents';
 import type { ChestQuality, GearItem, Modifiers } from './types';
@@ -31,7 +31,7 @@ export function chestsForRun(game: Game, earnedStars: number, firstClear = true)
     return [earnedStars >= 3 ? 'clean' : 'job'];
   }
   if (!game.endless) return [];
-  const completed = nightWavesCompleted(game.waveIdx, game.status === 'retired');
+  const completed = game.completedWaves;
   const out: ChestQuality[] = [];
   for (let n = 5; n <= completed; n += 5) {
     out.push(n >= 15 ? 'deepNight' : 'night');
@@ -44,7 +44,7 @@ export function chestsForRun(game: Game, earnedStars: number, firstClear = true)
 
 export function xpForRun(game: Game, earnedStars: number): number {
   if (game.endless) {
-    return nightXp(nightWavesCompleted(game.waveIdx, game.status === 'retired'), game.status === 'retired');
+    return nightXp(game.completedWaves, game.status === 'retired');
   }
   return campaignXp({
     won: game.status === 'won',

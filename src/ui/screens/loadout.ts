@@ -1,3 +1,5 @@
+import { ABILITY_KEYS, HEROES, HERO_ORDER } from '../../data/heroes';
+import { skillGlyph } from '../play/icons';
 import { availableTowers, loadoutCap, resolveLoadout } from '../../data/loadout';
 import { mapById } from '../../data/maps';
 import { remasterTitle } from '../../data/remasters';
@@ -5,7 +7,7 @@ import { TOWERS } from '../../data/towers';
 import type { RemasterId, TowerId } from '../../data/types';
 import type { App, ScreenView } from '../app';
 import { h } from '../dom';
-import { towerPortrait } from '../portraits';
+import { heroPortrait, towerPortrait } from '../portraits';
 
 export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'classic'): ScreenView {
   const map = mapById(mapId);
@@ -17,7 +19,7 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
     app.go({ kind: 'hub' });
     return { el: h('div') };
   }
-  if (map.endless && !app.save.nightShiftUnlocked()) {
+  if (map.endless && !app.save.serviceCallUnlocked()) {
     app.go({ kind: 'hub' });
     return { el: h('div') };
   }
@@ -28,6 +30,28 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
 
   const el = h('div', { class: 'screen loadout' });
 
+  const heroPicker = () => {
+    const selected = HEROES[app.save.data.selectedHero];
+    return h('section', { class: 'hero-roster sheet', attrs: { 'aria-label': 'Choose your hero' } },
+      h('div', { class: 'hero-roster-heading' }, h('div', {}, h('span', { class: 'eyebrow', text: 'Five legends. One service call.' }), h('h2', { text: 'Who’s taking the call?' })), h('span', { class: 'pill', text: 'All heroes available' })),
+      h('div', { class: 'hero-roster-grid', attrs: { role: 'group', 'aria-label': 'Playable heroes' } }, ...HERO_ORDER.map(id => {
+        const hero = HEROES[id], on = selected.id === id;
+        return h('button', { class: `hero-roster-card ${on ? 'selected' : ''}`, attrs: { style: `--hero-color: ${hero.color}`,  'aria-pressed': String(on), 'aria-label': `Play as ${hero.name}` },
+          onClick: () => { app.save.setHero(id); paint(); el.querySelector<HTMLButtonElement>(`[aria-label="Play as ${hero.name}"]`)?.focus({ preventScroll: true }); } },
+          h('span', { class: 'hero-roster-check', text: on ? 'SELECTED' : 'SELECT HERO' }),
+          h('div', { class: 'hero-roster-art' }, heroPortrait(id, 132)),
+          h('b', { text: hero.name }), h('span', { class: 'hero-roster-style', text: hero.style }));
+      })),
+      h('div', { class: 'hero-dossier', attrs: { style: `--hero-color: ${selected.color}`,  'aria-live': 'polite' } },
+        h('div', { class: 'hero-dossier-intro' }, h('span', { class: 'eyebrow', text: selected.title }), h('p', { text: selected.description }),
+          h('div', { class: 'hero-statline', text: `${selected.hp} HP  ·  ${selected.ranged ? 'Ranged' : 'Melee'}  ·  ${selected.damage} damage  ·  ${selected.reach} reach` })),
+        h('div', { class: 'hero-aura-card' }, h('span', { class: 'eyebrow', text: 'Always active aura' }), h('b', { text: selected.aura.name }), h('p', { text: selected.aura.description })),
+        h('div', { class: 'hero-kit' }, ...selected.abilities.map((a, index) => h('div', { class: 'hero-kit-skill', title: a.description },
+          h('span', { class: 'hero-kit-icon', html: skillGlyph(a.glyph) }), h('div', {}, h('b', { text: a.name }), h('span', { text: a.description })),
+          h('span', { class: 'hero-kit-key', text: `${ABILITY_KEYS[index]} · ${a.cooldown}s` })))),
+      ));
+  };
+
   const paint = () => {
     el.replaceChildren();
     el.append(
@@ -37,6 +61,7 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
         h('button', { class: 'btn link', text: '← Van', onClick: () => app.go({ kind: 'hub' }) }),
         h('div', {}, h('div', { class: 'eyebrow', text: map.endless ? 'After hours' : map.subtitle }), h('h1', { text: 'Pack the truck' })),
       ),
+      heroPicker(),
       h(
         'p',
         { class: 'lede' },

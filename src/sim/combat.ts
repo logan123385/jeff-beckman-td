@@ -36,7 +36,7 @@ export function applyDamage(
   if ((source === 'descaler' || source === 'dirtSep') && (MINERAL_ENEMIES as readonly EnemyId[]).includes(enemy.def.id)) {
     mult *= source === 'descaler' ? 1.5 : 1.4;
   }
-  if (enemy.marked) mult *= MARKED_DAMAGE;
+  if (enemy.marked) mult *= 1 + (enemy.markBonus || MARKED_DAMAGE - 1);
   const dealt = Math.min(enemy.hp, amount * mult);
   if (dealt <= 0) return 0;
   enemy.hp -= dealt;
@@ -54,6 +54,7 @@ export function applyDamage(
   }
 
   if (source === 'jeff') game.stats.jeffDamage += dealt;
+  else if (source === 'crew') game.stats.crewDamage += dealt;
   else game.stats.towerDamage[source] += dealt;
 
   if (enemy.hp <= 0) {
@@ -63,6 +64,7 @@ export function applyDamage(
     game.money += bounty;
     game.stats.moneyEarned += bounty;
     game.stats.kills++;
+    game.addEffect({ kind: 'death', pos: { ...enemy.pos }, enemy: enemy.def.id, radius: enemy.def.radius, ttl: 0.48, max: 0.48 });
     if (source === 'jeff') game.stats.jeffKills++;
     game.addEffect({ kind: 'text', pos: { x: enemy.pos.x, y: enemy.pos.y - 14 }, text: `+$${bounty}`, color: '#ffe082', ttl: 0.9, max: 0.9 });
     game.addEffect({ kind: 'splash', pos: { ...enemy.pos }, radius: Math.max(22, enemy.def.radius * 2.8), color: enemy.def.color, ttl: 0.32, max: 0.32 });

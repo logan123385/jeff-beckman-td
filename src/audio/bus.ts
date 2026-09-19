@@ -32,7 +32,7 @@ export function moodForMap(mapId: string): AmbientMood {
       return 'plant';
     case 'snowmelt':
       return 'cold';
-    case 'nightShift':
+    case 'serviceCall':
       return 'night';
     default:
       return 'default';
@@ -229,6 +229,27 @@ export class AudioBus {
 
   ability(): void {
     this.skill('pulse');
+  }
+
+  /** Distinct, restrained cues follow the actual contact/release event. */
+  heroImpact(kind: string): void {
+    if (kind === 'laser') {
+      this.play({ freq: 1250, slide: 180, dur: .15, type: 'sawtooth', gain: .027, filter: { type: 'lowpass', freq: 1800 } });
+    } else if (kind === 'saw') {
+      this.play({ freq: 95, slide: 155, dur: .16, type: 'sawtooth', gain: .03, click: .015, filter: { type: 'bandpass', freq: 650, q: .6 } });
+    } else if (kind === 'punch' || kind === 'slam') {
+      this.play({ freq: kind === 'slam' ? 68 : 130, slide: 38, dur: kind === 'slam' ? .25 : .11, type: 'triangle', gain: .055, click: .035, filter: { type: 'lowpass', freq: 600 } });
+    } else if (kind === 'horn') {
+      this.play({ freq: 220, dur: .36, type: 'square', gain: .022, filter: { type: 'lowpass', freq: 800 } });
+      this.play({ freq: 277, dur: .36, type: 'triangle', gain: .028 });
+    } else if (kind === 'golf') {
+      this.play({ freq: 1450, slide: 610, dur: .08, type: 'triangle', gain: .035, click: .035 });
+    } else if (kind === 'plunger') {
+      this.play({ freq: 310, slide: 100, dur: .12, type: 'sine', gain: .04, click: .014 });
+    } else if (kind === 'summon') {
+      this.play({ freq: 300, slide: 710, dur: .2, type: 'triangle', gain: .035, harmonic: .01 });
+    } else if (kind === 'emp') this.skill('pulse');
+    else this.skill('sleeve');
   }
 
   /** Soft confirm when Jeff gets a move or attack order. */

@@ -1,5 +1,6 @@
 import { dist, moveToward } from '../core/vec';
 import { JEFF } from '../data/jeff';
+import { advanceHeroCast, heroAttackSpeed, strikeNewHero } from './heroPowers';
 import { applyDamage, isTargetable } from './combat';
 import type { Game } from './game';
 import type { Enemy } from './state';
@@ -7,6 +8,10 @@ import type { Enemy } from './state';
 export function updateHero(game: Game, dt: number): void {
   if (!game.heroEnabled) return;
   const h = game.hero;
+  const def = game.heroDef;
+  h.moveBlend = Math.max(0,Math.min(1,(h.moveBlend??0)+(h.moving?1:-1)*dt*8));
+  h.moving = false;
+  h.castTimer = Math.max(0, (h.castTimer ?? 0) - dt);
   if (h.clampCooldown > 0) h.clampCooldown -= dt;
   if (h.shutoffCooldown > 0) h.shutoffCooldown -= dt;
   if (h.pulseCooldown > 0) h.pulseCooldown -= dt;
@@ -14,10 +19,13 @@ export function updateHero(game: Game, dt: number): void {
   if (h.coffeeCooldown > 0) h.coffeeCooldown -= dt;
   if (h.sleeveTimer > 0) h.sleeveTimer -= dt;
   if (h.coffeeTimer > 0) h.coffeeTimer -= dt;
+  for (const key of ['overdrive', 'shield', 'lifesteal', 'taunt'] as const) h[key] = Math.max(0, (h[key] ?? 0) - dt);
   if (h.attackTimer > 0) h.attackTimer -= dt;
   if (h.swing > 0) h.swing -= dt;
 
   if (h.downed > 0) {
+    h.pendingStrike = undefined;
+    h.swing = 0;
     h.downed -= dt;
     h.orderTargetId = null;
     h.engaged = false;
@@ -36,13 +44,25 @@ export function updateHero(game: Game, dt: number): void {
     return;
   }
 
+  if (advanceHeroCast(game, dt)) { holdNearby(game); return; }
+
   const coffee = h.coffeeTimer > 0 ? JEFF.coffee.speed : 1;
-  const speed = JEFF.speed * game.mods.jeffSpeed * game.jeffSpeedAura * coffee;
+  const speed = def.speed * game.mods.jeffSpeed * game.jeffSpeedAura * coffee * (def.id === 'mike' && (h.overdrive ?? 0) > 0 ? 1.65 : 1);
+
+  if (h.pendingStrike !== undefined && h.swing <= (h.swingDuration ?? def.swingTime) * 0.52) {
+    const target = game.enemies.find(e => e.id === h.pendingStrike && isTargetable(e));
+    h.pendingStrike = undefined;
+    if (target && !h.dest && dist(h.pos, target.pos) <= game.heroDef.reach * game.mods.jeffReach + target.def.radius + 10) { if (def.id === 'jeff') strike(game, target); else strikeNewHero(game, target); }
+  }
+
+  if (h.swing > 0 && !h.dest) { holdNearby(game); repairNearby(game, dt); return; }
 
   // Pure move order — no swinging while jogging to a point.
   if (h.dest) {
     const r = moveToward(h.pos, h.dest, speed * dt);
     h.facing = h.dest.x >= h.pos.x ? 1 : -1;
+    h.walkPhase = (h.walkPhase ?? 0) + dist(h.pos, r.pos) * 0.1;
+    h.moving = true;
     h.pos = r.pos;
     if (r.arrived) h.dest = null;
     h.targetId = null;
@@ -53,14 +73,18 @@ export function updateHero(game: Game, dt: number): void {
   const target = resolveOrderTarget(game);
   h.targetId = target?.id ?? null;
   if (target) {
-    h.anchor = { ...target.pos };
-    const reach = JEFF.reach * game.mods.jeffReach + target.def.radius;
+    if (h.engaged) h.anchor = { ...target.pos };
+    const reach = game.heroDef.reach * game.mods.jeffReach + target.def.radius;
     if (dist(h.pos, target.pos) > reach) {
       const r = moveToward(h.pos, target.pos, speed * dt);
-      h.pos = r.pos;
+      h.walkPhase = (h.walkPhase ?? 0) + dist(h.pos, r.pos) * 0.1;
+    h.moving = true;
+    h.pos = r.pos;
       h.facing = target.pos.x >= h.pos.x ? 1 : -1;
     } else if (h.attackTimer <= 0) {
-      strike(game, target);
+      const haste = heroAttackSpeed(game);
+      h.attackTimer = 1 / (def.attackRate * haste); h.swingDuration = def.swingTime / haste; h.swing = h.swingDuration;
+      h.facing = target.pos.x >= h.pos.x ? 1 : -1; h.pendingStrike = target.id;
     }
   }
   holdNearby(game);
@@ -70,7 +94,17 @@ export function updateHero(game: Game, dt: number): void {
 /** Hunt started by one wrench click. The locked leak is waited out if it phases; once it dies, the nearest leak is next. A move order is the only off switch. */
 function resolveOrderTarget(game: Game): Enemy | null {
   const h = game.hero;
-  if (!h.engaged) return null;
+  if (!h.engaged) {
+    // A posted hero defends his position automatically. Explicit attack orders still hunt.
+    let guard: Enemy | null = null;
+    let nearest = Infinity;
+    for (const e of game.enemies) {
+      if (!isTargetable(e)) continue;
+      const distance = dist(h.pos, e.pos);
+      if (distance <= game.heroDef.reach * game.mods.jeffReach + e.def.radius && distance < nearest) { guard = e; nearest = distance; }
+    }
+    return guard;
+  }
   const current = h.orderTargetId === null ? undefined : game.enemies.find((e) => e.id === h.orderTargetId);
   if (current && !current.dead && !current.escaped) {
     if (!isTargetable(current)) return null;
@@ -99,8 +133,7 @@ function nearestPrey(game: Game, includePhased: boolean): Enemy | null {
 
 function strike(game: Game, target: Enemy): void {
   const h = game.hero;
-  h.attackTimer = 1 / JEFF.attackRate;
-  h.swing = JEFF.swingTime;
+
   h.facing = target.pos.x >= h.pos.x ? 1 : -1;
   const dmg = JEFF.damage * game.mods.jeffDamage;
   const tapEvery = Math.max(1, Math.round(JEFF.wrenchTap.every * game.mods.jeffTapEvery));
@@ -146,19 +179,23 @@ function strike(game: Game, target: Enemy): void {
 
 function holdNearby(game: Game): void {
   const h = game.hero;
+  const cap = ((h.taunt ?? 0) > 0 ? 5 : game.heroDef.holds) + game.mods.jeffHolds + (h.sleeveTimer > 0 ? JEFF.sleeve.extraHolds : 0);
   let held = 0;
-  for (const e of game.enemies) if (e.heldBy?.kind === 'hero' && !e.dead) held++;
+  for (const e of game.enemies) if (e.heldBy?.kind === 'hero' && !e.dead) {
+    if (held < cap) held++;
+    else { e.heldBy = null; e.attackSwing = 0; }
+  }
   for (const e of game.enemies) {
-    const cap = JEFF.holds + game.mods.jeffHolds + (h.sleeveTimer > 0 ? JEFF.sleeve.extraHolds : 0);
     if (held >= cap) break;
     if (!isTargetable(e) || e.def.flying || e.heldBy !== null) continue;
-    if (dist(h.pos, e.pos) > JEFF.reach * game.mods.jeffReach + e.def.radius) continue;
+    if (dist(h.pos, e.pos) > Math.min(44, game.heroDef.reach * game.mods.jeffReach) + e.def.radius) continue;
     e.heldBy = { kind: 'hero' };
     held++;
   }
 }
 
 function repairNearby(game: Game, dt: number): void {
+  if (game.heroDef.id !== 'jeff') return;
   const h = game.hero;
   for (const t of game.towers) {
     if (t.def.kind !== 'barricade' || t.rebuild > 0 || t.hp >= t.maxHp) continue;

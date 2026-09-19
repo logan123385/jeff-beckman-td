@@ -16,7 +16,7 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
   const won = game.status === 'won';
   const retired = game.status === 'retired';
   const towerTotal = TOWER_ORDER.reduce((s, id) => s + game.stats.towerDamage[id], 0);
-  const total = towerTotal + game.stats.jeffDamage;
+  const total = towerTotal + game.stats.jeffDamage + game.stats.crewDamage;
   const jeffPct = total > 0 ? (game.stats.jeffDamage / total) * 100 : 0;
   const towerRows = TOWER_ORDER.filter((id) => game.stats.towerDamage[id] > 0)
     .sort((a, b) => game.stats.towerDamage[b] - game.stats.towerDamage[a])
@@ -33,14 +33,14 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
 
   const eyebrow = retired ? 'Clocked out' : won ? 'Job complete' : 'Callback needed';
   const headline = retired
-    ? `Night ${game.waveIdx}.`
+    ? `Call ${game.completedWaves}.`
     : won
       ? game.lives >= (game.remaster === 'frozenMain' ? 1 : Math.round(game.map.lives * game.difficulty.livesMult))
         ? 'Clean sheet.'
         : 'Customer’s happy.'
       : 'The basement flooded.';
   const blurb = retired
-    ? `Soft exit from Night Shift on ${game.difficulty.name}. XP and crates bank. Same kit — no exclusive power.`
+    ? `Soft exit from The Neverending Service Call on ${game.difficulty.name}. XP and crates bank. Same kit — no exclusive power.`
     : won
       ? `${game.map.name} · ${remasterTitle(game.remaster)} · ${game.difficulty.name}.`
       : game.endless
@@ -58,10 +58,10 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
       h('p', { class: 'muted', text: blurb }),
       won && game.remaster === 'classic' && earnedStars > 0 ? h('div', { class: 'result-stars' }, stars(earnedStars)) : null,
       won && game.remaster !== 'classic' && earnedStars > 0
-        ? h('p', { class: 'small', text: 'First remaster clear — +1 Journeyman Star.' })
+        ? h('p', { class: 'small', text: 'First remaster clear — +1 90’s.' })
         : null,
       won && game.remaster !== 'classic' && earnedStars === 0
-        ? h('p', { class: 'small muted', text: 'Already inspected. No extra star or chest this time.' })
+        ? h('p', { class: 'small muted', text: 'Already inspected. No extra 90 or chest this time.' })
         : null,
       won && game.remaster === 'classic' && reward && reward.chests.length === 0 && reward.items.length === 0
         ? h('p', { class: 'small muted', text: 'First-clear chest already claimed. XP still banks.' })
@@ -70,7 +70,7 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
         ? h(
             'div',
             { class: 'loot-block' },
-            h('div', { class: 'small muted', text: reward.leveledTo ? `Jeff hit level ${reward.leveledTo}.` : 'Experience' }),
+            h('div', { class: 'small muted', text: reward.leveledTo ? `Crew reached level ${reward.leveledTo}.` : 'Experience' }),
             h('b', { text: `+${reward.xp} XP` }),
             reward.salvagedXp > 0 ? h('span', { class: 'small muted', text: ` · locker full, salvaged +${reward.salvagedXp} XP` }) : null,
             reward.chests.length > 0
@@ -103,12 +103,13 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
         h(
           'div',
           { class: 'share-row jeff' },
-          h('span', { class: 'share-name', text: 'Jeff' }),
-          h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${jeffPct}%`, background: '#a5d6a7' } })),
+          h('span', { class: 'share-name', text: game.heroDef.name }),
+          h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${jeffPct}%`, background: game.heroDef.color } })),
           h('span', { class: 'share-pct', text: `${jeffPct.toFixed(0)}%` }),
         ),
         ...towerRows,
-        h('p', { class: 'small muted', text: jeffPct > 50 ? 'Jeff carried this one. Towers should be doing more of the work — try investing earlier.' : 'Towers did the heavy lifting; Jeff plugged the gaps. That’s the job.' }),
+        game.stats.crewDamage > 0 ? h('div', { class: 'share-row' }, h('span', { class: 'share-name', text: 'Support crew' }), h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${game.stats.crewDamage / total * 100}%`, background: '#dfc273' } })), h('span', { class: 'share-pct', text: `${(game.stats.crewDamage / total * 100).toFixed(0)}%` })) : null,
+        h('p', { class: 'small muted', text: jeffPct > 50 ? `${game.heroDef.name} led the damage. Invest in towers to spread the workload.` : `Towers held the line with ${game.heroDef.name} and the crew.` }),
       ),
       h(
         'div',

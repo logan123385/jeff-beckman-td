@@ -1,17 +1,22 @@
-import { TOWERS, TOWER_ORDER } from '../../data/towers';
+import { TOWERS, TOWER_ORDER, TIER_NAMES } from '../../data/towers';
 import type { TowerId } from '../../data/types';
+import { specializationInfo, type Specialization } from '../../data/specializations';
 import { AIM_HINT, AIM_LABEL } from '../../sim/combat';
 import type { Game } from '../../sim/game';
 import type { Tower } from '../../sim/state';
 import { clear, h } from '../dom';
+import { towerPortrait } from '../portraits';
 
 export interface PopoverHandlers {
   onBuild(slot: number, id: TowerId): void;
   onUpgrade(towerId: number): void;
+  onMastery(towerId: number): void;
   onSell(towerId: number): void;
   onPreview(id: TowerId | null): void;
   onClose(): void;
   onCycleAim(towerId: number): void;
+  onSpecialize(towerId: number, choice: Specialization): void;
+  onRally(towerId: number): void;
 }
 
 /** Build / upgrade card anchored to a slot on the canvas. */
@@ -86,7 +91,7 @@ export class Popover {
   private renderBuild(slot: number): void {
     const g = this.game;
     this.el.append(
-      h('div', { class: 'pop-title' }, h('span', { text: 'Pipe node' }), h('button', { class: 'x', text: '×', onClick: () => this.handlers.onClose() })),
+      h('div', { class: 'pop-title' }, h('span', { text: 'Build your defense' }), h('button', { class: 'x', text: '×', attrs: { 'aria-label': 'Close tower menu' }, onClick: () => this.handlers.onClose() })),
       h(
         'div',
         { class: 'build-list' },
@@ -106,7 +111,7 @@ export class Popover {
               onMouseLeave: () => this.handlers.onPreview(null),
               onClick: () => this.handlers.onBuild(slot, id),
             },
-            h('span', { class: 'swatch', style: { background: def.color } }),
+            towerPortrait(id, 58),
             h(
               'span',
               { class: 'build-name' },
@@ -124,19 +129,20 @@ export class Popover {
 
   private renderTower(t: Tower): void {
     const g = this.game;
-    const lvl = t.def.levels[t.level];
+    const lvl = t.def.levels[t.level]!;
     const up = g.upgradeCost(t);
-    const next = t.level < 2 ? t.def.levels[t.level + 1] : undefined;
+    const next = t.level < t.def.levels.length - 1 ? t.def.levels[t.level + 1] : undefined;
     const parts: (HTMLElement | null)[] = [
       h(
         'div',
         { class: 'pop-title' },
-        h('span', {}, h('span', { class: 'swatch', style: { background: t.def.color } }), ` ${t.def.name} `, h('span', { class: 'pill', text: `Lv ${t.level + 1}` })),
+        h('span', {}, h('span', { class: 'swatch', style: { background: t.def.color } }), ` ${t.def.name} `, h('span', { class: 'pill', text: `${TIER_NAMES[t.level]} · ${t.level + 1}/6` })),
         h('button', { class: 'x', text: '×', onClick: () => this.handlers.onClose() }),
       ),
       h('div', { class: 'small muted', text: t.def.blurb }),
       h('div', { class: 'small stats', text: statLine(t.def.id, g.effectiveDamage(t), g.effectiveRange(t), lvl.fireRate, lvl) }),
-      t.def.kind === 'barricade' ? h('div', { class: 'small', text: `Durability ${Math.round(t.hp)} / ${t.maxHp}${t.rebuild > 0 ? ' — rebuilding' : ''}` }) : null,
+      t.def.kind === 'barricade' && !t.def.recruits ? h('div', { class: 'small', text: `Durability ${Math.round(t.hp)} / ${t.maxHp}${t.rebuild > 0 ? ' — rebuilding' : ''}` }) : null,
+      t.def.kind === 'barricade' ? h('button', { class: 'btn rally-btn', text: '⚑ Set rally point  (G)', title: 'Place the crew on a route within 150 pixels of this tower.', onClick: () => this.handlers.onRally(t.id) }) : null,
       t.frozen > 0 ? h('div', { class: 'small cold', text: `Frozen ${t.frozen.toFixed(1)}s` }) : null,
       t.def.kind === 'shooter'
         ? h('button', {
@@ -154,11 +160,17 @@ export class Popover {
         { class: 'btn-row' },
         up !== null
           ? h('button', { class: 'btn primary', text: `Upgrade $${up}  (U)`, disabled: g.money < up, onClick: () => this.handlers.onUpgrade(t.id) })
-          : h('button', { class: 'btn', text: 'Max level', disabled: true }),
+          : h('button', { class: 'btn primary', text: `Mastery ${1 + (t.mastery ?? 0)} · $${g.masteryCost(t)}`, title: 'Repeatable investment: +14% damage and health; faster attacks. Costs rise each time.', disabled: g.money < g.masteryCost(t), onClick: () => this.handlers.onMastery(t.id) }),
         h('button', { class: 'btn danger', text: `Sell $${g.sellValue(t)}  (S)`, onClick: () => this.handlers.onSell(t.id) }),
       ),
     ];
     for (const p of parts) if (p) this.el.append(p);
+    if (t.level >= 2 && !t.specialization) this.el.append(h('div', { class: 'specializations' }, ...(['power', 'control'] as const).map(choice => {
+      const info = specializationInfo(t.def, choice);
+      const cost = Math.round(info.cost * g.mods.towerCost);
+      return h('button', { class: `specialization ${choice}`, disabled: g.money < cost, onClick: () => this.handlers.onSpecialize(t.id, choice) },
+        h('b', { text: info.name }), h('span', { class: 'small', text: info.description }), h('strong', { text: `$${cost}` }));
+    })));
   }
 }
 
@@ -171,6 +183,9 @@ function statLine(id: TowerId, damage: number, range: number, rate: number, lvl:
       break;
     case 'washer':
       parts.push(`${Math.round(damage)} splash`, `radius ${lvl.splash}`, `${rate}/s`, `range ${Math.round(range)}`);
+      break;
+    case 'apprentices': case 'jayjay': case 'cbjDoni':
+      parts.push(`${lvl.recruits} field recruits`, `${Math.round(lvl.hp ?? 0)} base hp each`, `${Math.round(damage)} dmg`, `${Math.round((lvl.armor ?? 0) * 100)}% armor`);
       break;
     case 'barricade':
       parts.push(`holds ${lvl.holds}`, `${lvl.hp} hp`, `${Math.round(damage)} dmg`);

@@ -41,7 +41,7 @@ export function campaignXp(opts: {
   return 36 + opts.stars * 16 + diff + rem;
 }
 
-/** Waves completed on Night Shift (clock-out keeps the current wave; a drown drops the unfinished one). */
+/** Waves completed on The Neverending Service Call (clock-out keeps the current wave; a drown drops the unfinished one). */
 export function nightWavesCompleted(waveIdx: number, retired: boolean): number {
   return retired ? waveIdx : Math.max(0, waveIdx - 1);
 }
