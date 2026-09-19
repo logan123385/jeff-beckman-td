@@ -52,7 +52,16 @@ export class Hud {
   private readonly crewCd = h('div', { class: 'cd' });
   private readonly bossPanel = h('div', { class: 'boss-panel hidden' });
   private readonly bossName = h('span');
-  private readonly bossHp = h('span', { class: 'boss-hp' });
+  private readonly bossHp = h('span', {
+    class: 'boss-hp',
+    attrs: {
+      role: 'progressbar',
+      'aria-valuemin': '0',
+      'aria-valuemax': '100',
+      'aria-valuenow': '100',
+      'aria-label': 'Boss health',
+    },
+  });
   private readonly status = h('span', { class: 'jeff-status' });
   private readonly hint = h('div', { class: 'hint' });
   private readonly clockBtn = h('button', { class: 'btn small-btn' });
@@ -269,7 +278,7 @@ export class Hud {
       }
       const bonus = Math.floor(Math.max(0, g.waveCountdown) * EARLY_CALL_BONUS_PER_SECOND);
       this.set(this.callBtn, g.waveIdx === 0 ? `Start job  (+$${bonus})` : `Call wave  (+$${bonus})`);
-      this.callBtn.classList.remove('hidden');
+      this.callBtn.classList.toggle('hidden', g.endless && g.waveActive);
     }
 
     const hero = g.hero;
@@ -300,7 +309,13 @@ export class Hud {
     this.shutoffBtn.classList.toggle('active', g.globalSlowTimer > 0);
     const boss = g.enemies.find(e => e.def.traits.includes('boss') && !e.dead && !e.escaped);
     this.bossPanel.classList.toggle('hidden', !boss);
-    if (boss) { this.set(this.bossName, `${boss.def.name} · Phase ${boss.bossPhase + 1}`); this.bossHp.style.width = `${Math.max(0, boss.hp / boss.maxHp) * 100}%`; }
+    if (boss) {
+      const pct = Math.max(0, boss.hp / boss.maxHp) * 100;
+      this.set(this.bossName, `${boss.def.name} · Phase ${boss.bossPhase + 1}`);
+      this.bossHp.style.width = `${pct}%`;
+      this.bossHp.setAttribute('aria-valuenow', String(Math.round(pct)));
+      this.bossHp.setAttribute('aria-label', `${boss.def.name} health`);
+    }
 
     const mutId = g.endless
       ? (g.nightMutator ?? (g.waveIdx >= g.map.waves.length ? proceduralMutator(g.waveIdx, g.map.waves.length) : null))

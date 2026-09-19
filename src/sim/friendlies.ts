@@ -50,7 +50,7 @@ export function updateFriendlies(game: Game, dt: number): void {
       if (f.respawn === 0) { f.hp = f.maxHp; f.pos = { ...tower.pos }; game.addEffect({ kind: 'ring', pos: { ...f.pos }, radius: 24, color: '#b1e5bd', ttl: 0.5, max: 0.5 }); }
       continue;
     }
-    if (tower.frozen > 0) { releaseFriendly(game, f.id); f.targetId = null; f.swing = 0; continue; }
+    if (tower.frozen > 0 || tower.rebuild > 0) { releaseFriendly(game, f.id); f.targetId = null; f.swing = 0; continue; }
     f.attackTimer = Math.max(0, f.attackTimer - dt);
     if (f.swing > 0) {
       f.swing = Math.max(0, f.swing - dt);

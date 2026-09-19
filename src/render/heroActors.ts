@@ -60,10 +60,12 @@ export function drawLogan(ctx: Ctx, s: HeroSummon, time: number): void {
   castShadow(ctx, s.pos.x, s.pos.y + 8, 12, 4, fade * .25);
   ctx.save(); ctx.globalAlpha = fade; ctx.translate(s.pos.x, s.pos.y + 11); ctx.scale(s.facing, 1);
   const arriving = s.duration - s.left < .5;
-  if (arriving) heroFrame(ctx, 'logan', 2, (s.duration - s.left) / .5, 42);
-  else if (s.swing > 0) heroFrame(ctx, 'logan', 1, 1 - s.swing / .46, 42);
-  else if (s.moving) { ctx.translate(0, -Math.abs(Math.sin(s.walkPhase)) * 1.5); heroFrame(ctx, 'logan', 0, s.walkPhase / TAU, 42, true); }
-  else { ctx.scale(1, 1 + Math.sin(time * 5) * .014); heroFrame(ctx, 'logan', 1, 0, 42); }
+  let painted = false;
+  if (arriving) painted = heroFrame(ctx, 'logan', 2, (s.duration - s.left) / .5, 42);
+  else if (s.swing > 0) painted = heroFrame(ctx, 'logan', 1, 1 - s.swing / .46, 42);
+  else if (s.moving) { ctx.translate(0, -Math.abs(Math.sin(s.walkPhase)) * 1.5); painted = heroFrame(ctx, 'logan', 0, s.walkPhase / TAU, 42, true); }
+  else { ctx.scale(1, 1 + Math.sin(time * 5) * .014); painted = heroFrame(ctx, 'logan', 1, 0, 42); }
+  if (!painted) { ctx.fillStyle = '#b8df87'; ctx.beginPath(); ctx.roundRect(-8, -26, 16, 22, 4); ctx.fill(); disc(ctx, 0, -30, 6, '#d6a27c'); }
   ctx.restore();
   bar(ctx, s.pos.x, s.pos.y - 34, 24, s.hp / s.maxHp, '#b8df87');
   ctx.fillStyle = '#e9cf90'; ctx.fillRect(s.pos.x - 12, s.pos.y - 27, 24 * s.left / s.duration, 2);

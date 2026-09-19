@@ -20,6 +20,14 @@ export function paintedCrew(ctx: Ctx, pos: { x: number; y: number }, time: numbe
   health(ctx, pos.x, pos.y - 36, 20, hp, '#a8d478');
   if (lifetime < 1) { ctx.fillStyle = '#f5d08b'; ctx.fillRect(pos.x - 10, pos.y - 29, 20 * Math.max(0, lifetime), 2); }
 }
+function fallbackFriendly(ctx: Ctx, height: number): void {
+  ctx.fillStyle = '#507d49';
+  ctx.fillRect(-8, -height * 0.62, 16, height * 0.48);
+  disc(ctx, 0, -height * 0.72, 7, '#d9aa7e');
+  ctx.fillStyle = '#dfb94f';
+  ctx.fillRect(-9, -height * 0.88, 18, 5);
+}
+
 function health(ctx: Ctx, x: number, y: number, w: number, ratio: number, color: string): void {
   ctx.fillStyle = '#202c24'; ctx.beginPath(); ctx.roundRect(x - w / 2 - 1, y - 1, w + 2, 6, 2); ctx.fill();
   ctx.fillStyle = color; ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, ratio)), 3);
@@ -77,6 +85,21 @@ export function paintedEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number
     stampText(ctx, '✦', x + Math.cos(a) * 13, y - height - lift + Math.sin(a) * 4, { size: 11, color: '#ffe79e' });
   }
   if (e.armorShred > 0) { ctx.fillStyle = '#ffb55e'; ctx.fillRect(x - 4, y - height - lift - 7, 8, 3); }
+  if (e.dotTime > 0) {
+    for (let i = 0; i < 3; i++) {
+      const fall = ((time * 30 + i * 11) % 18);
+      disc(ctx, x - 5 + i * 5 + Math.sin(time * 3 + i) * 2, y - height - lift + fall, 1.6, rgba('#4fc3f7', 0.7 - fall / 30));
+    }
+  }
+  if (e.marked) {
+    ctx.strokeStyle = '#ffcc80';
+    ctx.lineWidth = 2.4;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(x, y + 5, height * 0.42, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
   return true;
 }
 
@@ -122,8 +145,10 @@ export function paintedFriendly(ctx: Ctx, f: Friendly, time: number): void {
   const index = f.role === 'jayjay' ? 4 : f.role === 'cbj' ? 5 : f.role === 'doni' ? 6 : f.slot % 4;
   castShadow(ctx, f.pos.x, f.pos.y + 8, height * .23, 4, .3);
   ctx.save(); ctx.translate(f.pos.x, f.pos.y + 10); ctx.scale(f.facing,1);
-  if (f.respawn > 0) { const k=(f.fall??0)/.55; ctx.globalAlpha=k;ctx.rotate((1-k)*1.15);ctx.scale(1,.55+.45*k);humanoid(ctx,'recruits',index,height,{time,walk:0,moving:false,attacking:false,phase:0,tier:f.tier});ctx.restore();return; }
-  humanoid(ctx, 'recruits', index, height, { time: time + f.id, moving: f.moving || (f.moveBlend ?? 0) > 0, walkWeight: f.moveBlend ?? 0, walk: f.walkPhase, phase: 1 - f.swing / FRIENDLY_SWING, attacking: f.swing > 0, tier: f.tier, punch: f.role !== 'apprentice' });
+  if (f.respawn > 0) { const k=(f.fall??0)/.55; ctx.globalAlpha=k;ctx.rotate((1-k)*1.15);ctx.scale(1,.55+.45*k); if (!humanoid(ctx,'recruits',index,height,{time,walk:0,moving:false,attacking:false,phase:0,tier:f.tier})) fallbackFriendly(ctx, height); ctx.restore();return; }
+  if (!humanoid(ctx, 'recruits', index, height, { time: time + f.id, moving: f.moving || (f.moveBlend ?? 0) > 0, walkWeight: f.moveBlend ?? 0, walk: f.walkPhase, phase: 1 - f.swing / FRIENDLY_SWING, attacking: f.swing > 0, tier: f.tier, punch: f.role !== 'apprentice' })) {
+    fallbackFriendly(ctx, height);
+  }
   if (f.swing > 0) {
     const phase = 1 - f.swing / FRIENDLY_SWING;
     const alpha = phase > .3 && phase < .65 ? Math.sin((phase-.3)/.35*Math.PI) : 0;

@@ -214,6 +214,23 @@ describe('Towers', () => {
     expect(drip.progress).toBe(held);
   });
 
+  it('barricade melee uses its fire rate without a windup cheat', () => {
+    const game = makeGame();
+    game.placeTower(0, 'barricade');
+    const b = game.towers[0]!;
+    const drip = game.spawnEnemy('drip', 0, 200);
+    drip.pos = { ...b.rally };
+    drip.def = { ...drip.def, dps: 0, speed: 0 };
+    drip.hp = drip.maxHp = 10000;
+    step(game, FIXED_DT);
+    const afterFirst = drip.hp;
+    expect(afterFirst).toBeLessThan(10000);
+    step(game, 0.7);
+    expect(drip.hp).toBe(afterFirst);
+    step(game, 0.2);
+    expect(drip.hp).toBeLessThan(afterFirst);
+  });
+
   it('pressure spikes blow up barricades quickly', () => {
     const game = makeGame();
     game.placeTower(0, 'barricade');
@@ -624,6 +641,8 @@ describe('Stage 3 progression and kit', () => {
     for (let i = 0; i < SERVICE_CALL.waves.length; i++) {
       expect(game.callNextWave()).toBeGreaterThanOrEqual(0);
       expect(game.nightMutator).toBeNull();
+      game.spawns.length = 0;
+      for (const e of game.enemies) e.dead = true;
     }
     game.callNextWave();
     expect(game.nightMutator).toBe('rushHour');

@@ -30,12 +30,25 @@ export const WATERWORKS_ART = urls.waterworks;
 export async function preloadArt(): Promise<void> {
   await Promise.all(Object.entries(urls).map(([name, url]) => new Promise<void>((resolve) => {
     const img = new Image();
-    img.onload = () => {
-      images.set(name as Sheet, img);
-      if (name.startsWith('hero')) heroFrames.set(name as Sheet, extractHeroFrames(img));
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       resolve();
     };
-    img.onerror = () => resolve(); // Procedural artwork is a complete offline fallback.
+    const timeout = window.setTimeout(done, 5000);
+    img.onload = () => {
+      try {
+        images.set(name as Sheet, img);
+        if (name.startsWith('hero')) heroFrames.set(name as Sheet, extractHeroFrames(img));
+      } catch {
+        // Keep the procedural fallback.
+      } finally {
+        done();
+      }
+    };
+    img.onerror = done;
     img.src = url;
   })));
 }

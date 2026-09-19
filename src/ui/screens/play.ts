@@ -516,8 +516,13 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     const jeffR = (game.heroDef.id === 'mike' ? 48 : JEFF_SELECT_RADIUS) + pad;
 
     if (view.targeting) {
-      const ok = view.targeting === 'crew' ? game.reinforce(p) : view.selectedTowerId !== null && game.setRally(view.selectedTowerId, p);
-      if (ok) { audio.order(); clearSelection(); hud.setHint('Crew in position. Hold the line.'); }
+      const mode = view.targeting;
+      const ok = mode === 'crew' ? game.reinforce(p) : view.selectedTowerId !== null && game.setRally(view.selectedTowerId, p);
+      if (ok) {
+        audio.order();
+        clearSelection();
+        hud.setHint(mode === 'crew' ? 'Crew in position. Hold the line.' : 'Rally set. Recruits will hold that ground.');
+      }
       else hud.setHint('Choose a visible route nearby. Esc cancels.');
       return;
     }
@@ -554,7 +559,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       return;
     }
     clearSelection();
-    hud.setHint('Select Jeff (tap him or press J), then tap ground to move — or tap a leak to wrench it.');
+    hud.setHint(`Select ${game.heroDef.name} (tap them or press J), then tap ground to move — or tap a leak to attack.`);
   }
 
   canvas.addEventListener('pointerdown', (ev) => {

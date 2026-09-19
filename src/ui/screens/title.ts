@@ -31,7 +31,7 @@ export function renderTitle(app: App): ScreenView {
         h('li', { html: 'Before a job, <b>pack five tools</b> from what the truck has learned. Early calls have a smaller bag. Later jobs teach new tools.' }),
         h('li', { html: 'Click a <b>pipe node</b> to build (keys <b>1–5</b> match the tray). Click a tower to upgrade (<b>U</b>) or sell. Shooters cycle aim with <b>A</b>: First, Strong, Close, Last.' }),
         h('li', { html: '<b>Your hero automatically fights</b> enemies in reach while guarding. <b>Tap a leak</b> to order a hunt. Choose Jeff, Big Mike, Robo Bob, Mr. Chris, or Becbec when packing the truck. <b>Select your hero</b>, then tap ground to post him somewhere else (right-click also works).' }),
-        h('li', { html: '<b>Q</b> Pipe Clamp · <b>E</b> Shutoff · <b>R</b> Manometer Pulse · <b>T</b> Isolation Sleeve · <b>C</b> Coffee · <b>Space</b> call the wave · <b>F</b> fast-forward · <b>P</b> pause.' }),
+        h('li', { html: '<b>Q</b> <b>E</b> <b>R</b> <b>T</b> <b>C</b> are your selected hero’s five abilities. <b>Space</b> call the wave · <b>F</b> fast-forward · <b>P</b> pause.' }),
         h('li', { html: '<b>D</b> calls two support crew onto a route for 18 seconds. Select a barricade and press <b>G</b> to move its rally point. Level-three towers can choose one of two <b>elite specializations</b>.' }),
         h('li', { html: 'Lose a job? Retry it. You still bank a little XP. Nothing is lost for good — you just owe the customer a callback.' }),
         h('li', { html: 'The <b>first</b> win on a job (and The Neverending Service Call mileposts) drops a <b>chest</b> of shared hero gear. The crew levels up and spends points on a <b>talent tree</b>. Towers never grind XP.' }),

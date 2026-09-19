@@ -226,7 +226,7 @@ function mapThumb(map: MapDef): HTMLCanvasElement {
   ctx.scale(dpr, dpr);
   ctx.save();
   ctx.filter = 'brightness(1.18) saturate(1.12)';
-  const zoom = Math.max(w / 960, hgt / 600);
+  const zoom = Math.min(w / 960, hgt / 600);
   ctx.translate((w - 960 * zoom) / 2, (hgt - 600 * zoom) / 2);
   ctx.scale(zoom, zoom);
   paintYard(ctx, map);

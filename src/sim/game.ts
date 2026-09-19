@@ -511,7 +511,7 @@ export class Game {
 
   /** Start the pending wave immediately. Returns the early-call bonus paid. */
   callNextWave(): number {
-    if (this.status !== 'playing' || this.allWavesStarted || this.waveCountdown < 0) return 0;
+    if (this.status !== 'playing' || this.allWavesStarted || this.waveCountdown < 0 || (this.endless && this.waveActive)) return 0;
     this.recordClearedWave();
     const bonus = Math.floor(Math.max(0, this.waveCountdown) * EARLY_CALL_BONUS_PER_SECOND);
     if (bonus > 0) {

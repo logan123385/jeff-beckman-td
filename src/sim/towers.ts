@@ -508,14 +508,14 @@ export function applyDescaler(e: Enemy, shred: number, dot: number, dotTime: num
 }
 
 function updateBarricade(game: Game, t: Tower, dt: number): void {
-  if (t.def.recruits) return;
-  const lvl = t.def.levels[t.level]!;
   if (t.rebuild > 0) {
     t.rebuild -= dt;
     t.hp = t.maxHp * (1 - Math.max(0, t.rebuild) / BARRICADE_REBUILD_SECONDS);
     if (t.rebuild <= 0) t.hp = t.maxHp;
     return;
   }
+  if (t.def.recruits) return;
+  const lvl = t.def.levels[t.level]!;
   if (t.frozen > 0) return;
 
   const held = game.enemies.filter((e) => e.heldBy?.kind === 'tower' && e.heldBy.id === t.id && !e.dead && !e.escaped);
@@ -538,7 +538,7 @@ function updateBarricade(game: Game, t: Tower, dt: number): void {
   }
   t.cooldown -= dt;
   if (t.cooldown <= 0) {
-    t.cooldown = Math.max(0.05, 1 / (lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0))) - 0.16);
+    t.cooldown = Math.max(0.05, 1 / (lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0))));
     const target = held.reduce((a, b) => (a.hp < b.hp ? a : b));
     applyDamage(game, target, game.effectiveDamage(t), t.def.damageType, t.def.id);
     game.addEffect({ kind: 'hit', pos: { ...target.pos }, color: t.def.color, ttl: 0.15, max: 0.15 });

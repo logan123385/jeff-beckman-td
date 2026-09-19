@@ -8,6 +8,7 @@ import { chestsForRun, xpForRun } from '../src/data/progress';
 import { SaveStore, starsForClear } from '../src/save/save';
 import { Game } from '../src/sim/game';
 import { damageFriendly } from '../src/sim/friendlies';
+import { damageBarricade } from '../src/sim/towers';
 
 function field() {
   return new Game({ ...CRAWLSPACE, paths: [[{x:20,y:200},{x:920,y:200}]], slots:[{x:300,y:150},{x:400,y:150},{x:500,y:150}],
@@ -52,6 +53,15 @@ describe('Real recruit towers',()=>{
     expect(g.setRally(g.towers[0]!.id,{x:400,y:200})).toBe(true);
     expect(g.friendlies[0]!.pos).toEqual(before);step(g,.2);expect(g.friendlies[0]!.pos.x).toBeGreaterThan(before.x);
   });
+  it('recruit workshops rebuild after a blowout and idle the crew until they stand back up',()=>{
+    const g=field();g.placeTower(0,'apprentices');step(g,2);
+    const t=g.towers[0]!,f=g.friendlies[0]!;
+    const e=g.spawnEnemy('sludge',0,280);e.pos={...f.pos};e.def={...e.def,dps:0,speed:0};e.hp=e.maxHp=10000;
+    step(g,.5);expect(f.targetId).not.toBeNull();
+    damageBarricade(g,t,1e9);expect(t.rebuild).toBeGreaterThan(7);
+    step(g,.1);expect(f.targetId).toBeNull();expect(t.rebuild).toBeGreaterThan(0);expect(t.rebuild).toBeLessThan(8);
+    step(g,8);expect(t.rebuild).toBeLessThanOrEqual(0);expect(t.hp).toBe(t.maxHp);
+  });
 });
 
 describe('Six tiers and ongoing investment',()=>{
@@ -92,5 +102,14 @@ describe('Neverending call pacing',()=>{
   it('calling waves early and retiring cannot manufacture cleared-wave rewards',()=>{
     const g=new Game(SERVICE_CALL,{difficulty:DIFFICULTIES.apprentice,mods:neutralModifiers(),manualStart:true});
     for(let i=0;i<20;i++)g.callNextWave();g.retire();expect(g.completedWaves).toBe(0);expect(chestsForRun(g,0)).toEqual([]);expect(xpForRun(g,0)).toBe(0);
+  });
+  it('refuses a second call while a service-call wave is still on the floor',()=>{
+    const g=new Game(SERVICE_CALL,{difficulty:DIFFICULTIES.apprentice,mods:neutralModifiers(),heroEnabled:false,manualStart:true});
+    g.callNextWave();
+    expect(g.waveActive).toBe(true);
+    const wave=g.waveIdx,cash=g.money;
+    expect(g.callNextWave()).toBe(0);
+    expect(g.waveIdx).toBe(wave);
+    expect(g.money).toBe(cash);
   });
 });
