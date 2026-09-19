@@ -1,10 +1,15 @@
+import { AudioBus, moodForMap } from '../../audio/bus';
 import { GameLoop } from '../../core/loop';
 import { dist, type Vec } from '../../core/vec';
 import { DIFFICULTIES } from '../../data/difficulty';
 import { ENEMIES } from '../../data/enemies';
 import { MAPS, WORLD_H, WORLD_W, mapById } from '../../data/maps';
-import { buildModifiers } from '../../data/skills';
-import type { EnemyId, TowerId } from '../../data/types';
+import { availableTowers, resolveLoadout } from '../../data/loadout';
+import { TOWER_ORDER } from '../../data/towers';
+import { NIGHT_MUTATORS } from '../../data/night';
+import { remasterTitle } from '../../data/remasters';
+import { buildRunModifiers, grantRunRewards } from '../../data/progress';
+import type { EnemyId, RemasterId, TowerId } from '../../data/types';
 import { Renderer, type RenderView } from '../../render/renderer';
 import { JEFF_SELECT_RADIUS } from '../../render/sprites';
 import { Game } from '../../sim/game';
@@ -12,22 +17,45 @@ import { starsForClear } from '../../save/save';
 import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
 import { Hud } from '../play/hud';
+import { createPausePanel, pauseSoundLabel } from '../play/pause';
 import { Popover } from '../play/popover';
 import { renderResults } from '../play/results';
+import { createTutorCoach, type TutorCoach } from '../play/tutorial';
 
 const SLOT_PICK_RADIUS = 24;
 const TOWER_PICK_RADIUS = 24;
 
-export function renderPlay(app: App, mapId: string): ScreenView {
+export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'classic', loadout?: TowerId[]): ScreenView {
   const found = mapById(mapId);
   if (!found) {
     app.go({ kind: 'hub' });
     return { el: h('div') };
   }
+  if (remaster !== 'classic' && app.save.starsFor(found.id) <= 0) {
+    app.go({ kind: 'hub' });
+    return { el: h('div') };
+  }
+  if (found.endless && !app.save.nightShiftUnlocked()) {
+    app.go({ kind: 'hub' });
+    return { el: h('div') };
+  }
   const map = found;
   const difficulty = DIFFICULTIES[app.save.data.difficulty];
-  const mods = buildModifiers(app.save.data.skills);
-  const game = new Game(map, { difficulty, mods, seed: (Date.now() & 0xffff) + 1 });
+  const mods = buildRunModifiers(app.save);
+  const kit = resolveLoadout(loadout ?? app.save.data.lastLoadout, availableTowers(app.save, map, remaster));
+  const game = new Game(map, { difficulty, mods, seed: (Date.now() & 0xffff) + 1, remaster, loadout: kit });
+  const audio = new AudioBus({
+    muted: app.save.data.muted,
+    sfxGain: app.save.data.sfxVolume,
+    ambientGain: app.save.data.ambientVolume,
+  });
+  const replay = () => app.go({ kind: 'loadout', mapId: map.id, remaster });
+
+  let lastKills = game.stats.kills;
+  let lastEscaped = game.stats.escaped;
+  const heardHitFx = new WeakSet<object>();
+  const lastRecoil = new Map<number, number>();
+  let dripClock = 0;
 
   const canvas = h('canvas', { class: 'stage-canvas' });
   const banner = h('div', { class: 'banner hidden' });
@@ -38,23 +66,74 @@ export function renderPlay(app: App, mapId: string): ScreenView {
   const renderer = new Renderer(canvas);
   renderer.resize();
 
-  const view: RenderView = { hoverSlot: null, selectedSlot: null, selectedTowerId: null, heroSelected: false, previewTower: null, mouse: null };
+  const view: RenderView = {
+    hoverSlot: null,
+    selectedSlot: null,
+    selectedTowerId: null,
+    heroSelected: false,
+    previewTower: null,
+    mouse: null,
+    hoverEnemyId: null,
+  };
 
   let bannerTimer = 0;
   let lastWaveShown = -1;
+  let lastForeshadow = -1;
   let finished = false;
   let endDelay = 0;
+  let coach: TutorCoach | null = null;
 
   const loop = new GameLoop({
     update(dt) {
       game.update(dt);
+      app.save.markSeen(game.seen);
+      coach?.tick(dt);
+
+      // soft combat cues from sim stats (keep audio out of sim)
+      const dk = game.stats.kills - lastKills;
+      if (dk > 0) {
+        const n = Math.min(3, dk);
+        for (let i = 0; i < n; i++) audio.kill();
+        lastKills = game.stats.kills;
+      }
+      const de = game.stats.escaped - lastEscaped;
+      if (de > 0) {
+        for (let i = 0; i < Math.min(2, de); i++) audio.leak();
+        lastEscaped = game.stats.escaped;
+      }
+      for (const fx of game.effects) {
+        if (fx.kind === 'hit' && !heardHitFx.has(fx)) {
+          heardHitFx.add(fx);
+          if (fx.color === '#fffde7' || fx.color === '#ffecb3' || fx.color === '#ffe082') audio.wrench();
+          else audio.hit();
+        }
+      }
+      for (const t of game.towers) {
+        const prev = lastRecoil.get(t.id) ?? 0;
+        if (t.recoil > 0.05 && prev <= 0.05) audio.shot();
+        lastRecoil.set(t.id, t.recoil);
+      }
+      dripClock += dt;
+      if (dripClock >= 2.2) {
+        dripClock = 0;
+        audio.dripTick();
+      }
+
       if (bannerTimer > 0) {
         bannerTimer -= dt;
         if (bannerTimer <= 0) banner.classList.add('hidden');
       }
+      let justStarted = false;
       if (game.waveIdx !== lastWaveShown && game.waveIdx > 0) {
         lastWaveShown = game.waveIdx;
+        justStarted = true;
+        audio.wave();
+        coach?.onWaveStarted();
         showWaveBanner();
+      }
+      if (!justStarted && !game.allWavesStarted && game.waveCountdown > 0 && lastForeshadow !== game.waveIdx) {
+        lastForeshadow = game.waveIdx;
+        showUpcomingBanner();
       }
       if (game.status !== 'playing' && !finished) {
         endDelay += dt;
@@ -70,7 +149,10 @@ export function renderPlay(app: App, mapId: string): ScreenView {
 
   const popover = new Popover(game, {
     onBuild: (slot, id: TowerId) => {
+      if (!live()) return;
       if (game.placeTower(slot, id)) {
+        audio.place();
+        coach?.onBuilt();
         const t = game.towerAt(slot);
         popover.hide();
         view.selectedSlot = null;
@@ -84,16 +166,30 @@ export function renderPlay(app: App, mapId: string): ScreenView {
       }
     },
     onUpgrade: (towerId) => {
-      if (game.upgradeTower(towerId)) popover.showTower(towerId);
+      if (!live()) return;
+      if (game.upgradeTower(towerId)) {
+        audio.upgrade();
+        popover.showTower(towerId);
+      }
     },
     onSell: (towerId) => {
+      if (!live()) return;
       game.sellTower(towerId);
+      audio.sell();
       clearSelection();
     },
     onPreview: (id) => {
       view.previewTower = id;
     },
     onClose: () => clearSelection(),
+    onCycleAim: (towerId) => {
+      if (!live()) return;
+      const aim = game.cycleAim(towerId);
+      if (!aim) return;
+      audio.order();
+      popover.showTower(towerId);
+      hud.setHint(`Aim: ${aim === 'first' ? 'First — closest to the valve' : aim === 'strong' ? 'Strong — toughest in range' : aim === 'close' ? 'Close — nearest leak' : 'Last — newest in range'}.`);
+    },
   });
   stage.append(popover.el);
 
@@ -101,39 +197,122 @@ export function renderPlay(app: App, mapId: string): ScreenView {
     game,
     {
       onCallWave: () => {
+        if (!live()) return;
         const bonus = game.callNextWave();
         if (bonus > 0) hud.setHint(`Called early for +$${bonus}.`);
+        if (game.waveIdx > 0 || game.waveActive) coach?.onWaveStarted();
       },
       onToggleSpeed: () => {
         loop.speed = loop.speed === 1 ? 2 : 1;
+        hud.syncTransport();
       },
       onTogglePause: () => {
-        loop.paused = !loop.paused;
+        togglePause();
       },
-      onQuit: () => {
-        if (game.status !== 'playing' || confirm('Leave this job? Progress on this map is not saved.')) app.go({ kind: 'hub' });
+      onQuit: () => quitJob(),
+      onClockOut: () => {
+        if (!live()) return;
+        if (game.retire()) {
+          audio.clock();
+          hud.setHint('Clocked out. Record saved.');
+        } else if (game.endless && game.waveIdx <= 0) {
+          hud.setHint('Start the night before you clock out — no XP for standing in the lot.');
+        }
       },
+      onMute: () => cycleSound(),
+      muteLabel: () => pauseSoundLabel(audio.preset()),
       onClamp: () => useClamp(),
       onShutoff: () => useShutoff(),
+      onPulse: () => usePulse(),
+      onSleeve: () => useSleeve(),
+      onCoffee: () => useCoffee(),
       onSelectJeff: () => selectJeff(),
     },
     () => (loop.speed === 1 ? '▶ 1×' : '▶▶ 2×'),
     () => (loop.paused ? 'Resume' : 'Pause'),
   );
-  hud.setHint('Click a pipe node to build. Right-click to move Jeff. Space starts the job.');
 
-  el.append(hud.top, stage, hud.bottom, overlayHost);
+  function cycleSound(): void {
+    const next = audio.cyclePreset();
+    app.save.setMuted(audio.muted);
+    app.save.setVolumes(audio.sfxGain, audio.ambientGain);
+    pausePanel.syncSound();
+    hud.syncMute();
+    const hint =
+      next === 'off'
+        ? 'Sound off.'
+        : next === 'soft'
+          ? 'Sound soft — cues on, quiet yard bed.'
+          : 'Sound full — soft AV + yard bed.';
+    hud.setHint(hint);
+  }
+
+  function quitJob(): void {
+    if (game.status !== 'playing') {
+      app.go({ kind: 'hub' });
+      return;
+    }
+    const leave = game.endless
+      ? 'Leave without clocking out? You will not keep XP or crates. Use Clock out to bank them.'
+      : 'Leave this job? You will not keep XP or chests from this run.';
+    if (confirm(leave)) app.go({ kind: 'hub' });
+  }
+
+  const pausePanel = createPausePanel({
+    onResume: () => setPaused(false),
+    onCycleSound: () => cycleSound(),
+    soundLabel: () => pauseSoundLabel(audio.preset()),
+    onQuit: () => quitJob(),
+  });
+  el.append(pausePanel.el);
+
+  audio.unlock();
+  audio.startAmbient(moodForMap(map.id));
+  coach = map.id === 'crawlspace' && remaster === 'classic' ? createTutorCoach(app.save, (text) => hud.setHint(text)) : null;
+  if (coach) stage.append(coach.el);
+  const modeHint =
+    remaster === 'frozenMain'
+      ? 'Frozen Main — one life. Freezes linger.'
+      : remaster === 'codeInspection'
+        ? 'Code Inspection — the obvious tools are locked.'
+        : game.endless
+          ? 'Night Shift — the endgame. Mutators rotate. Clock out any time; XP and crates bank. Same kit, no exclusive power.'
+          : 'Tap a pipe node to build (keys 1–5). Tap a leak to wrench it. Select Jeff, then tap ground to move. Space starts the job.';
+  hud.setHint(coach ? coach.hint() : modeHint);
+
+  const job = h(
+    'div',
+    { class: 'job-strip' },
+    h('span', { class: 'eyebrow', text: game.endless ? 'After hours' : map.subtitle }),
+    h('b', { text: map.name }),
+    h('span', { class: 'pill', text: remasterTitle(remaster) }),
+    h('span', { class: 'pill', text: difficulty.name }),
+    game.endless ? h('span', { class: 'small muted', text: 'Clock out anytime' }) : h('span', { class: 'small muted', text: `${map.waves.length} waves` }),
+  );
+
+  el.append(hud.top, job, stage, hud.bottom, overlayHost);
 
   // ---------------------------------------------------------------- input
 
-  function toWorld(ev: MouseEvent): Vec {
-    const r = canvas.getBoundingClientRect();
-    return { x: ((ev.clientX - r.left) / r.width) * WORLD_W, y: ((ev.clientY - r.top) / r.height) * WORLD_H };
+  const COARSE_PAD = 8;
+
+  function isCoarsePointer(ev: PointerEvent | MouseEvent): boolean {
+    if ('pointerType' in ev && ev.pointerType === 'touch') return true;
+    return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
   }
 
-  function slotAt(p: Vec): number | null {
+  function pickPad(ev: PointerEvent | MouseEvent): number {
+    return isCoarsePointer(ev) ? COARSE_PAD : 0;
+  }
+
+  function toWorld(clientX: number, clientY: number): Vec {
+    const r = canvas.getBoundingClientRect();
+    return { x: ((clientX - r.left) / r.width) * WORLD_W, y: ((clientY - r.top) / r.height) * WORLD_H };
+  }
+
+  function slotAt(p: Vec, pad = 0): number | null {
     let best: number | null = null;
-    let bestD = SLOT_PICK_RADIUS;
+    let bestD = SLOT_PICK_RADIUS + pad;
     map.slots.forEach((s, i) => {
       const d = dist(s, p);
       if (d < bestD) {
@@ -144,10 +323,10 @@ export function renderPlay(app: App, mapId: string): ScreenView {
     return best;
   }
 
-  function towerAtPoint(p: Vec): number | null {
+  function towerAtPoint(p: Vec, pad = 0): number | null {
     for (const t of game.towers) {
-      if (dist(t.pos, { x: p.x, y: p.y + 8 }) < TOWER_PICK_RADIUS) return t.id;
-      if (t.def.kind === 'barricade' && dist(t.rally, p) < 16) return t.id;
+      if (dist(t.pos, { x: p.x, y: p.y + 8 }) < TOWER_PICK_RADIUS + pad) return t.id;
+      if (t.def.kind === 'barricade' && dist(t.rally, p) < 16 + pad) return t.id;
     }
     return null;
   }
@@ -157,56 +336,195 @@ export function renderPlay(app: App, mapId: string): ScreenView {
     view.selectedTowerId = null;
     view.heroSelected = false;
     view.previewTower = null;
+    hud.setHeroSelected(false);
     popover.hide();
+  }
+
+  function live(): boolean {
+    if (game.status !== 'playing') return false;
+    if (!loop.paused) return true;
+    hud.setHint('Paused — press P or Esc to resume.');
+    return false;
+  }
+
+  function setPaused(on: boolean): void {
+    if (loop.paused === on) {
+      if (on) pausePanel.show();
+      else pausePanel.hide();
+      return;
+    }
+    loop.paused = on;
+    el.classList.toggle('paused', on);
+    hud.syncTransport();
+    if (on) {
+      pausePanel.show();
+      hud.setHint('Paused — the truck is waiting.');
+    } else {
+      pausePanel.hide();
+      hud.setHint(coach?.active ? coach.hint() : 'Back on the clock.');
+    }
+  }
+
+  function togglePause(): void {
+    setPaused(!loop.paused);
+  }
+
+  function hasSelection(): boolean {
+    return view.selectedSlot !== null || view.selectedTowerId !== null || view.heroSelected;
   }
 
   function selectJeff(): void {
     clearSelection();
     view.heroSelected = true;
-    hud.setHint('Jeff selected — click the map to send him. He holds two enemies and stuns with every sixth swing.');
+    hud.setHeroSelected(true);
+    coach?.onJeffSelected();
+    hud.setHint(
+      coach?.active
+        ? coach.hint()
+        : 'Jeff ready — tap a leak once and he keeps wrenching the next ones until you move him. Right-click also moves. Q · E · R · T · C for skills.',
+    );
+  }
+
+  function enemyAtPoint(p: Vec, pad = 0): number | null {
+    let best: number | null = null;
+    let bestD = Infinity;
+    for (const e of game.enemies) {
+      if (e.dead || e.escaped) continue;
+      const lift = e.def.flying ? 10 : 0;
+      const d = dist(e.pos, { x: p.x, y: p.y + lift });
+      const hit = e.def.radius + 14 + pad;
+      if (d < hit && d < bestD) {
+        bestD = d;
+        best = e.id;
+      }
+    }
+    return best;
+  }
+
+  function orderAttack(enemyId: number): void {
+    if (!live()) return;
+    if (!game.commandHeroAttack(enemyId)) return;
+    view.heroSelected = true;
+    hud.setHeroSelected(true);
+    view.selectedSlot = null;
+    view.selectedTowerId = null;
+    view.previewTower = null;
+    popover.hide();
+    const prey = game.enemies.find((e) => e.id === enemyId);
+    audio.order();
+    coach?.onJeffOrder();
+    hud.setHint(prey ? `Jeff’s on ${prey.def.name}. He keeps wrenching the next leak until you move him.` : 'Jeff’s swinging.');
+  }
+
+  function orderMove(p: Vec): void {
+    if (!live()) return;
+    if (!game.commandHero(p)) return;
+    view.heroSelected = true;
+    hud.setHeroSelected(true);
+    view.selectedSlot = null;
+    view.selectedTowerId = null;
+    view.previewTower = null;
+    popover.hide();
+    audio.order();
+    coach?.onJeffOrder();
+    hud.setHint(coach?.active && coach.step === 'jeff' ? coach.hint() : 'Jeff’s on his way.');
   }
 
   function useClamp(): void {
-    if (game.useClamp()) hud.setHint('Pipe Clamp down. Ground enemies inside are held and slowed.');
+    if (!live()) return;
+    if (game.useClamp()) {
+      audio.skill('clamp');
+      hud.setHint('Pipe Clamp down. Ground enemies inside are held and slowed.');
+    }
     else if (game.hero.clampCooldown > 0) hud.setHint(`Pipe Clamp ready in ${Math.ceil(game.hero.clampCooldown)}s.`);
   }
 
   function useShutoff(): void {
-    if (game.useShutoff()) hud.setHint('Emergency Shutoff! Everything slows, spawns pause.');
+    if (!live()) return;
+    if (game.useShutoff()) {
+      audio.skill('shutoff');
+      hud.setHint('Emergency Shutoff! Everything slows, spawns pause.');
+    }
     else if (game.hero.shutoffCooldown > 0) hud.setHint(`Emergency Shutoff ready in ${Math.ceil(game.hero.shutoffCooldown)}s.`);
   }
 
+  function usePulse(): void {
+    if (!live()) return;
+    if (game.usePulse()) {
+      audio.skill('pulse');
+      hud.setHint('Manometer Pulse — nearby leaks are shredded and stunned.');
+    } else if (game.hero.pulseCooldown > 0) hud.setHint(`Manometer Pulse ready in ${Math.ceil(game.hero.pulseCooldown)}s.`);
+  }
+
+  function useSleeve(): void {
+    if (!live()) return;
+    if (game.useSleeve()) {
+      audio.skill('sleeve');
+      hud.setHint('Isolation Sleeve — Jeff can hold extra leaks for a few seconds.');
+    } else if (game.hero.sleeveCooldown > 0) hud.setHint(`Isolation Sleeve ready in ${Math.ceil(game.hero.sleeveCooldown)}s.`);
+  }
+
+  function useCoffee(): void {
+    if (!live()) return;
+    if (game.useCoffee()) {
+      audio.skill('coffee');
+      hud.setHint('Coffee. Jeff’s patched up and moving.');
+    } else if (game.hero.coffeeCooldown > 0) hud.setHint(`Coffee ready in ${Math.ceil(game.hero.coffeeCooldown)}s.`);
+  }
+
   canvas.addEventListener('mousemove', (ev) => {
-    const p = toWorld(ev);
+    const p = toWorld(ev.clientX, ev.clientY);
     view.mouse = p;
     view.hoverSlot = slotAt(p);
-    canvas.style.cursor = view.hoverSlot !== null || towerAtPoint(p) !== null || (game.heroEnabled && dist(game.hero.pos, p) < JEFF_SELECT_RADIUS) ? 'pointer' : view.heroSelected ? 'crosshair' : 'default';
+    view.hoverEnemyId = enemyAtPoint(p);
+    const overJeff = game.heroEnabled && dist(game.hero.pos, p) < JEFF_SELECT_RADIUS;
+    const overTower = towerAtPoint(p) !== null;
+    if (view.hoverEnemyId !== null) canvas.style.cursor = 'crosshair';
+    else if (view.hoverSlot !== null || overTower || overJeff) canvas.style.cursor = 'pointer';
+    else if (view.heroSelected) canvas.style.cursor = 'move';
+    else canvas.style.cursor = 'default';
   });
   canvas.addEventListener('mouseleave', () => {
     view.hoverSlot = null;
+    view.hoverEnemyId = null;
     view.mouse = null;
   });
   canvas.addEventListener('contextmenu', (ev) => {
     ev.preventDefault();
-    const p = toWorld(ev);
-    if (game.commandHero(p)) hud.setHint('Jeff’s on his way.');
+    if (!live()) return;
+    orderMove(toWorld(ev.clientX, ev.clientY));
   });
-  canvas.addEventListener('mousedown', (ev) => {
-    if (ev.button !== 0 || game.status !== 'playing') return;
-    const p = toWorld(ev);
 
-    if (game.heroEnabled && game.hero.downed <= 0 && dist(game.hero.pos, { x: p.x, y: p.y + 10 }) < JEFF_SELECT_RADIUS) {
+  /** Primary path for mouse + touch: select / attack / build / move. */
+  function handleYardPointer(ev: PointerEvent): void {
+    audio.unlock();
+    if (ev.button !== 0 && ev.pointerType === 'mouse') return;
+    if (game.status !== 'playing') return;
+    if (!live()) return;
+    // ignore extra fingers
+    if (ev.isPrimary === false) return;
+
+    const pad = pickPad(ev);
+    const p = toWorld(ev.clientX, ev.clientY);
+    const jeffR = JEFF_SELECT_RADIUS + pad;
+
+    if (game.heroEnabled && game.hero.downed <= 0 && dist(game.hero.pos, { x: p.x, y: p.y + 10 }) < jeffR) {
       selectJeff();
       return;
     }
-    const towerId = towerAtPoint(p);
+    const enemyId = enemyAtPoint(p, pad);
+    if (enemyId !== null && game.heroEnabled && game.hero.downed <= 0) {
+      orderAttack(enemyId);
+      return;
+    }
+    const towerId = towerAtPoint(p, pad);
     if (towerId !== null) {
       clearSelection();
       view.selectedTowerId = towerId;
       popover.showTower(towerId);
       return;
     }
-    const slot = slotAt(p);
+    const slot = slotAt(p, pad);
     if (slot !== null && !game.towerAt(slot)) {
       clearSelection();
       view.selectedSlot = slot;
@@ -214,11 +532,19 @@ export function renderPlay(app: App, mapId: string): ScreenView {
       return;
     }
     if (view.heroSelected) {
-      game.commandHero(p);
+      orderMove(p);
       return;
     }
     clearSelection();
+    hud.setHint('Select Jeff (tap him or press J), then tap ground to move — or tap a leak to wrench it.');
+  }
+
+  canvas.addEventListener('pointerdown', (ev) => {
+    // Let popovers / HUD keep their own clicks; only canvas fires this.
+    handleYardPointer(ev);
   });
+  // Avoid ghost mouse events after touch on some browsers
+  canvas.style.touchAction = 'none';
 
   const onKey = (ev: KeyboardEvent) => {
     if (ev.repeat) return;
@@ -229,22 +555,92 @@ export function renderPlay(app: App, mapId: string): ScreenView {
       case 'e':
         useShutoff();
         break;
-      case ' ':
-      case 'n':
-        ev.preventDefault();
-        game.callNextWave();
+      case 'r':
+        usePulse();
         break;
+      case 't':
+        useSleeve();
+        break;
+      case 'c':
+        useCoffee();
+        break;
+      case ' ':
+      case 'n': {
+        ev.preventDefault();
+        if (!live()) break;
+        const bonus = game.callNextWave();
+        if (bonus > 0) hud.setHint(`Called early for +$${bonus}.`);
+        if (game.waveIdx > 0 || game.waveActive) coach?.onWaveStarted();
+        break;
+      }
       case 'f':
         loop.speed = loop.speed === 1 ? 2 : 1;
+        hud.syncTransport();
         break;
       case 'p':
-        loop.paused = !loop.paused;
+        togglePause();
         break;
       case 'j':
         selectJeff();
         break;
+      case 'u': {
+        if (!live() || view.selectedTowerId === null) break;
+        const id = view.selectedTowerId;
+        if (game.upgradeTower(id)) {
+          audio.upgrade();
+          popover.showTower(id);
+        }
+        break;
+      }
+      case 'a': {
+        if (!live() || view.selectedTowerId === null) break;
+        const aim = game.cycleAim(view.selectedTowerId);
+        if (aim) {
+          audio.order();
+          popover.showTower(view.selectedTowerId);
+          hud.setHint(`Aim: ${aim}.`);
+        }
+        break;
+      }
+      case 's': {
+        if (!live() || view.selectedTowerId === null) break;
+        const id = view.selectedTowerId;
+        if (game.sellTower(id)) {
+          audio.sell();
+          clearSelection();
+        }
+        break;
+      }
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9': {
+        if (!live() || view.selectedSlot === null) break;
+        const kit = TOWER_ORDER.filter((id) => game.allowedTowers.includes(id));
+        const id = kit[Number(ev.key) - 1];
+        if (!id) break;
+        if (game.placeTower(view.selectedSlot, id)) {
+          audio.place();
+          coach?.onBuilt();
+          const t = game.towerAt(view.selectedSlot);
+          popover.hide();
+          view.selectedSlot = null;
+          view.previewTower = null;
+          if (t) {
+            view.selectedTowerId = t.id;
+            popover.showTower(t.id);
+          }
+        } else hud.setHint('Not enough cash for that yet.');
+        break;
+      }
       case 'escape':
-        clearSelection();
+        if (hasSelection()) clearSelection();
+        else togglePause();
         break;
       default:
         return;
@@ -254,11 +650,34 @@ export function renderPlay(app: App, mapId: string): ScreenView {
 
   // ---------------------------------------------------------------- banners / results
 
+  function showUpcomingBanner(): void {
+    const ids = game.nextWaveEnemies();
+    const fresh = ids.filter((id) => !app.save.hasSeen(id));
+    if (fresh.length === 0) return;
+    const first = fresh[0]!;
+    const def = ENEMIES[first];
+    const extra = fresh.length > 1 ? ` + ${fresh.length - 1} more new` : '';
+    clear(banner);
+    banner.append(
+      h('div', { class: 'banner-title', text: game.waveIdx === 0 ? 'Incoming' : `Incoming · wave ${game.waveIdx + 1}` }),
+      h('div', { class: 'banner-new' }, h('span', { class: 'pill new', text: 'NEW' }), h('b', { text: def.name }), h('span', { class: 'small', text: ` — ${def.fantasy}${extra}` })),
+      h('div', { class: 'small counter', html: `<b>Counter:</b> ${def.counters}` }),
+    );
+    bannerTimer = 6;
+    banner.classList.remove('hidden');
+  }
+
   function showWaveBanner(): void {
     const ids = [...new Set(game.enemies.map((e) => e.def.id).concat(game.spawns.map((s) => s.enemy)))] as EnemyId[];
     const fresh = ids.filter((id) => !app.save.hasSeen(id));
     clear(banner);
-    banner.append(h('div', { class: 'banner-title', text: game.allWavesStarted ? `Final wave ${game.waveIdx}` : `Wave ${game.waveIdx}` }));
+    const mut = game.nightMutator ? ` · ${NIGHT_MUTATORS[game.nightMutator].name}` : '';
+    banner.append(
+      h('div', { class: 'banner-title', text: game.endless ? `Night Shift · wave ${game.waveIdx}${mut}` : game.allWavesStarted ? `Final wave ${game.waveIdx}` : `${remasterTitle(remaster)} · Wave ${game.waveIdx}` }),
+    );
+    if (game.nightMutator) {
+      banner.append(h('div', { class: 'small muted', text: NIGHT_MUTATORS[game.nightMutator].blurb }));
+    }
     const first = fresh[0];
     if (first) {
       const def = ENEMIES[first];
@@ -268,38 +687,69 @@ export function renderPlay(app: App, mapId: string): ScreenView {
       bannerTimer = 2.2;
     }
     banner.classList.remove('hidden');
-    app.save.markSeen(ids);
   }
 
   function finish(): void {
     finished = true;
     loop.stop();
+    audio.stopAmbient();
     app.save.markSeen(game.seen);
-    const startLives = Math.max(1, Math.round(map.lives * difficulty.livesMult));
-    const earned = game.status === 'won' ? starsForClear(game.lives, startLives) : 0;
-    if (game.status === 'won') app.save.recordClear(map.id, difficulty.id, earned);
+    const startLives = game.remaster === 'frozenMain' ? 1 : Math.max(1, Math.round(map.lives * difficulty.livesMult));
+    let earned = 0;
+    let firstClear = true;
+    if (game.status === 'won' && !game.endless) {
+      if (remaster === 'classic') {
+        firstClear = app.save.starsFor(map.id) === 0;
+        earned = starsForClear(game.lives, startLives);
+        app.save.recordClear(map.id, difficulty.id, earned);
+      } else {
+        firstClear = app.save.recordRemaster(map.id, remaster);
+        earned = firstClear ? 1 : 0;
+      }
+      audio.win();
+    } else if (game.status === 'retired') {
+      app.save.recordNightShift(game.waveIdx);
+      audio.clock();
+    } else if (game.status === 'lost') {
+      if (game.endless) app.save.recordNightShift(Math.max(0, game.waveIdx - 1));
+      audio.lose();
+    }
+    const reward = grantRunRewards(app.save, game, earned, firstClear);
     const idx = MAPS.findIndex((m) => m.id === map.id);
-    const next = MAPS[idx + 1];
+    const next = remaster === 'classic' && !game.endless ? MAPS[idx + 1] : undefined;
     clearSelection();
     overlayHost.append(
       renderResults(game, earned, {
-        onRetry: () => app.go({ kind: 'play', mapId: map.id }),
-        onNext: game.status === 'won' && next ? () => app.go({ kind: 'play', mapId: next.id }) : null,
+        onRetry: replay,
+        onNext: game.status === 'won' && next ? () => app.go({ kind: 'loadout', mapId: next.id, remaster: 'classic' }) : null,
         onHub: () => app.go({ kind: 'hub' }),
-      }),
+      }, reward),
     );
   }
 
   const onResize = () => renderer.resize();
+  const onHide = () => {
+    if (document.hidden && game.status === 'playing' && !loop.paused) {
+      setPaused(true);
+      hud.setHint('Paused — the tab was in the background. Press P or Esc to resume.');
+    }
+  };
   window.addEventListener('resize', onResize);
+  document.addEventListener('visibilitychange', onHide);
+  lastForeshadow = game.waveIdx;
+  showUpcomingBanner();
   loop.start();
 
   return {
     el,
     dispose() {
       loop.stop();
+      audio.stopAmbient();
+      coach?.dispose();
+      pausePanel.hide();
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);
+      document.removeEventListener('visibilitychange', onHide);
     },
   };
 }

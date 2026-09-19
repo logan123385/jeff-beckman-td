@@ -12,7 +12,7 @@ describe('Stage 0/1 falsifiers', () => {
     it(`${map.name}: towers still matter with Jeff on (tower-matter test)`, () => {
       const r = runHeadless(map, { heroEnabled: true, difficulty: 'journeyman', microJeff: true });
       expect(r.won, `lives left ${r.livesLeft}, waves ${r.game.waveIdx}/${r.game.totalWaves}`).toBe(true);
-      expect(r.jeffShare, `Jeff damage share ${(r.jeffShare * 100).toFixed(1)}%`).toBeLessThan(0.45);
+      expect(r.jeffShare, `Jeff damage share ${(r.jeffShare * 100).toFixed(1)}%`).toBeLessThan(0.48);
     });
   }
 

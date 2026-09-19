@@ -36,6 +36,7 @@ export const CRAWLSPACE: MapDef = {
   startMoney: 230,
   lives: 20,
   allowedTowers: ['torch', 'washer', 'barricade'],
+  inspectionBan: ['washer'],
   waves: [
     wave(grp('drip', 6, 1.2)),
     wave(grp('drip', 10, 1.0)),

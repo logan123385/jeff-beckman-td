@@ -1,0 +1,80 @@
+import { Rng } from '../core/rng';
+import type { SaveStore } from '../save/save';
+import type { Game } from '../sim/game';
+import { applyAffix, rollChest } from './loot';
+import { campaignXp, nightWavesCompleted, nightXp } from './xp';
+import { buildModifiers } from './skills';
+import { applyTalents } from './talents';
+import type { ChestQuality, GearItem, Modifiers } from './types';
+
+export function buildRunModifiers(save: SaveStore): Modifiers {
+  const m = buildModifiers(save.data.skills);
+  applyTalents(m, save.data.talents);
+  for (const item of save.equippedItems()) {
+    for (const affix of item.affixes) applyAffix(m, affix);
+  }
+  return m;
+}
+
+export interface RunReward {
+  xp: number;
+  leveledTo: number | null;
+  items: GearItem[];
+  salvagedXp: number;
+  chests: ChestQuality[];
+}
+
+export function chestsForRun(game: Game, earnedStars: number, firstClear = true): ChestQuality[] {
+  if (game.status === 'won' && !game.endless) {
+    if (!firstClear) return [];
+    if (game.remaster !== 'classic') return ['remaster'];
+    return [earnedStars >= 3 ? 'clean' : 'job'];
+  }
+  if (!game.endless) return [];
+  const completed = nightWavesCompleted(game.waveIdx, game.status === 'retired');
+  const out: ChestQuality[] = [];
+  for (let n = 5; n <= completed; n += 5) {
+    out.push(n >= 15 ? 'deepNight' : 'night');
+  }
+  if (game.status === 'retired' && completed >= 8 && completed % 5 !== 0) {
+    out.push(completed >= 15 ? 'deepNight' : 'night');
+  }
+  return out;
+}
+
+export function xpForRun(game: Game, earnedStars: number): number {
+  if (game.endless) {
+    return nightXp(nightWavesCompleted(game.waveIdx, game.status === 'retired'), game.status === 'retired');
+  }
+  return campaignXp({
+    won: game.status === 'won',
+    stars: earnedStars,
+    difficulty: game.difficulty.id,
+    remaster: game.remaster,
+    waveIdx: game.waveIdx,
+  });
+}
+
+export function grantRunRewards(save: SaveStore, game: Game, earnedStars: number, firstClear = true): RunReward {
+  const xp = xpForRun(game, earnedStars);
+  const before = save.jeffLevel();
+  save.addXp(xp);
+  const items: GearItem[] = [];
+  let salvagedXp = 0;
+  const chests = chestsForRun(game, earnedStars, firstClear);
+  const rng = new Rng(((save.data.jeffXp * 7919) ^ (game.waveIdx * 997) ^ (game.stats.kills * 13) ^ 0x9e3779b9) >>> 0);
+  for (const quality of chests) {
+    const item = rollChest(rng, quality, save.nextGearId());
+    const added = save.addGear(item);
+    if (added.kept) items.push(item);
+    salvagedXp += added.salvagedXp;
+  }
+  const after = save.jeffLevel();
+  return {
+    xp,
+    leveledTo: after > before ? after : null,
+    items,
+    salvagedXp,
+    chests,
+  };
+}

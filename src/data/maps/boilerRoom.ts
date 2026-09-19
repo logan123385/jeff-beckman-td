@@ -37,7 +37,8 @@ export const BOILER_ROOM: MapDef = {
   jeffStart: vec(460, 210),
   startMoney: 270,
   lives: 20,
-  allowedTowers: ['torch', 'washer', 'barricade', 'expansion'],
+  allowedTowers: ['torch', 'washer', 'barricade', 'expansion', 'descaler'],
+  inspectionBan: ['torch', 'expansion'],
   waves: [
     wave(grp('drip', 8, 1.0)),
     wave(grp('scaleCrab', 3, 3), grp('drip', 6, 1, 4)),

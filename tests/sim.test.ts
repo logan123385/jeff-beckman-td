@@ -1,15 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { FIXED_DT } from '../src/core/loop';
 import { DIFFICULTIES } from '../src/data/difficulty';
-import { ENEMIES } from '../src/data/enemies';
+import { ENEMIES, ENEMY_ORDER } from '../src/data/enemies';
+import { Rng } from '../src/core/rng';
+import { applyAffix, gearScore, rollChest } from '../src/data/loot';
+import { availableTowers, LOADOUT_SIZE, resolveLoadout, unlockedTowers } from '../src/data/loadout';
+import { CORE_MAPS, MAPS } from '../src/data/maps';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
+import { MECHANICAL_ROOM } from '../src/data/maps/mechanicalRoom';
+import { NIGHT_SHIFT } from '../src/data/maps/nightShift';
+import { generateEndlessWave, nightMutatorAt } from '../src/data/night';
+import { buildRunModifiers, chestsForRun, xpForRun } from '../src/data/progress';
 import { buildModifiers, canUnlock, neutralModifiers } from '../src/data/skills';
-import { TOWERS } from '../src/data/towers';
-import type { MapDef } from '../src/data/types';
+import { applyTalents, canUnlockTalent } from '../src/data/talents';
+import { TOWERS, TOWER_ORDER } from '../src/data/towers';
+import type { GearItem, MapDef, TowerId } from '../src/data/types';
+import { JEFF } from '../src/data/jeff';
+import { JEFF_LEVEL_CAP, levelFromXp, nightXp, talentPointsAvailable, xpBarCopy, xpToNext } from '../src/data/xp';
 import { applyDamage, pickTarget } from '../src/sim/combat';
 import { Game } from '../src/sim/game';
 import { Path } from '../src/sim/path';
-import { SaveStore, starsForClear } from '../src/save/save';
+import { INVENTORY_CAP, SaveStore, starsForClear } from '../src/save/save';
 
 const STRAIGHT: MapDef = {
   ...CRAWLSPACE,
@@ -18,12 +29,29 @@ const STRAIGHT: MapDef = {
   slots: [{ x: 200, y: 60 }, { x: 200, y: 160 }, { x: 140, y: 60 }],
   jeffStart: { x: 200, y: 300 },
   startMoney: 1000,
-  allowedTowers: ['torch', 'washer', 'barricade', 'vent', 'radiant', 'expansion'],
+  allowedTowers: [
+    'torch',
+    'washer',
+    'barricade',
+    'vent',
+    'radiant',
+    'expansion',
+    'pipeSnake',
+    'backflow',
+    'descaler',
+    'circulator',
+    'prv',
+    'boiler',
+    'hammerDrill',
+    'glycol',
+    'sump',
+    'camera',
+  ],
   waves: [{ groups: [{ enemy: 'drip', count: 1, interval: 1, delay: 0, path: 0 }] }],
 };
 
-function makeGame(overrides: Partial<MapDef> = {}, heroEnabled = false): Game {
-  return new Game({ ...STRAIGHT, ...overrides }, { difficulty: DIFFICULTIES.journeyman, mods: neutralModifiers(), seed: 3, heroEnabled });
+function makeGame(overrides: Partial<MapDef> = {}, heroEnabled = false, loadout?: TowerId[]): Game {
+  return new Game({ ...STRAIGHT, ...overrides }, { difficulty: DIFFICULTIES.journeyman, mods: neutralModifiers(), seed: 3, heroEnabled, loadout });
 }
 
 function step(game: Game, seconds: number): void {
@@ -137,6 +165,21 @@ describe('Towers', () => {
     expect(pickTarget(game, game.towers[1]!, 200)?.id).toBe(wisp.id);
   });
 
+  it('strong aim prefers the tougher leak even if it is further back', () => {
+    const game = makeGame();
+    game.placeTower(0, 'torch');
+    const t = game.towers[0]!;
+    t.aim = 'strong';
+    const drip = game.spawnEnemy('drip', 0, 240);
+    const crab = game.spawnEnemy('scaleCrab', 0, 180);
+    drip.pos = game.paths[0]!.pointAt(240);
+    crab.pos = game.paths[0]!.pointAt(180);
+    expect(crab.maxHp).toBeGreaterThan(drip.maxHp);
+    expect(pickTarget(game, t, 400)?.id).toBe(crab.id);
+    t.aim = 'first';
+    expect(pickTarget(game, t, 400)?.id).toBe(drip.id);
+  });
+
   it('placing, upgrading and selling move money correctly', () => {
     const game = makeGame();
     const start = game.money;
@@ -228,13 +271,71 @@ describe('Jeff', () => {
     expect(on.hero.pos).toEqual({ x: 200, y: 100 });
   });
 
-  it('engages and stuns a nearby enemy, attributing damage to jeff', () => {
+  it('engages a clicked enemy, attributing damage to jeff', () => {
     const game = makeGame({ jeffStart: { x: 200, y: 100 } }, true);
     const crab = game.spawnEnemy('scaleCrab', 0, 195);
+    expect(game.commandHeroAttack(crab.id)).toBe(true);
     step(game, 1.5);
     expect(game.stats.jeffDamage).toBeGreaterThan(0);
     expect(crab.stun > 0 || crab.armorShred > 0).toBe(true);
     expect(crab.heldBy).toEqual({ kind: 'hero' });
+  });
+
+  it('keeps a wrench order while an airlock phases', () => {
+    const game = makeGame({ jeffStart: { x: 200, y: 100 } }, true);
+    const bubble = game.spawnEnemy('airlock', 0, 195);
+    const other = game.spawnEnemy('drip', 0, 195);
+    expect(game.commandHeroAttack(bubble.id)).toBe(true);
+    bubble.phased = true;
+    step(game, 0.3);
+    expect(game.hero.orderTargetId).toBe(bubble.id);
+    expect(game.hero.engaged).toBe(true);
+    expect(game.stats.jeffDamage).toBe(0);
+    expect(other.hp).toBe(other.maxHp);
+    bubble.phased = false;
+    step(game, 1.2);
+    expect(game.stats.jeffDamage).toBeGreaterThan(0);
+  });
+
+  it('can lock a wrench order onto a phased leak', () => {
+    const game = makeGame({ jeffStart: { x: 200, y: 100 } }, true);
+    const bubble = game.spawnEnemy('airlock', 0, 195);
+    bubble.phased = true;
+    expect(game.commandHeroAttack(bubble.id)).toBe(true);
+    expect(game.hero.orderTargetId).toBe(bubble.id);
+  });
+
+  it('does not auto-aggro without an attack order', () => {
+    const game = makeGame({ jeffStart: { x: 200, y: 100 } }, true);
+    const crab = game.spawnEnemy('scaleCrab', 0, 195);
+    step(game, 1.5);
+    expect(game.stats.jeffDamage).toBe(0);
+    expect(game.hero.orderTargetId).toBeNull();
+    expect(crab.hp).toBe(crab.maxHp);
+  });
+
+  it('keeps hunting the next leak after the clicked one dies', () => {
+    const game = makeGame({ jeffStart: { x: 200, y: 100 } }, true);
+    const first = game.spawnEnemy('drip', 0, 195);
+    first.hp = 8;
+    const second = game.spawnEnemy('drip', 0, 195);
+    second.pos = { x: first.pos.x + 18, y: first.pos.y };
+    expect(game.commandHeroAttack(first.id)).toBe(true);
+    step(game, 4);
+    expect(first.dead).toBe(true);
+    expect(game.hero.engaged).toBe(true);
+    expect(second.hp).toBeLessThan(second.maxHp);
+  });
+
+  it('a move order calls Jeff off the hunt', () => {
+    const game = makeGame({ jeffStart: { x: 200, y: 100 } }, true);
+    const crab = game.spawnEnemy('scaleCrab', 0, 195);
+    expect(game.commandHeroAttack(crab.id)).toBe(true);
+    expect(game.commandHero({ x: 40, y: 40 })).toBe(true);
+    expect(game.hero.engaged).toBe(false);
+    const before = crab.hp;
+    step(game, 1.2);
+    expect(crab.hp).toBe(before);
   });
 
   it('abilities respect cooldowns and shutoff pauses spawns', () => {
@@ -247,17 +348,29 @@ describe('Jeff', () => {
     game.callNextWave();
     step(game, 2);
     expect(game.enemies.length).toBe(0);
-    step(game, 3);
-    expect(game.enemies.length).toBe(1);
+    step(game, JEFF.shutoff.duration);
+    expect(game.enemies.length).toBeGreaterThan(0);
   });
 
   it('goes down and comes back', () => {
     const game = makeGame({}, true);
     game.damageHero(9999);
     expect(game.hero.downed).toBeGreaterThan(0);
+    expect(game.hero.orderTargetId).toBeNull();
     step(game, 13);
     expect(game.hero.downed).toBeLessThanOrEqual(0);
     expect(game.hero.hp).toBe(game.hero.maxHp);
+  });
+
+  it('respawns at the job start, not in the pile', () => {
+    const game = makeGame({ jeffStart: { x: 40, y: 50 } }, true);
+    expect(game.commandHero({ x: 400, y: 300 })).toBe(true);
+    step(game, 5);
+    expect(game.hero.pos.x).toBeGreaterThan(100);
+    game.damageHero(9999);
+    step(game, 13);
+    expect(game.hero.downed).toBeLessThanOrEqual(0);
+    expect(game.hero.pos).toEqual({ x: 40, y: 50 });
   });
 });
 
@@ -317,5 +430,362 @@ describe('Skills and save', () => {
     expect(starsForClear(20, 20)).toBe(3);
     expect(starsForClear(12, 20)).toBe(2);
     expect(starsForClear(1, 20)).toBe(1);
+  });
+
+  it('remaster first-clears add one star and Night Shift records waves', () => {
+    const save = new SaveStore(null);
+    save.recordClear('crawlspace', 'journeyman', 2);
+    expect(save.recordRemaster('crawlspace', 'codeInspection')).toBe(true);
+    expect(save.recordRemaster('crawlspace', 'codeInspection')).toBe(false);
+    expect(save.totalStars()).toBe(3);
+    save.recordNightShift(12);
+    save.recordNightShift(8);
+    expect(save.data.nightShiftBest).toBe(12);
+    expect(save.campaignComplete()).toBe(false);
+  });
+
+  it('unlocks Night Shift after the first four service calls', () => {
+    const save = new SaveStore(null);
+    expect(save.nightShiftUnlocked()).toBe(false);
+    for (const map of CORE_MAPS.slice(0, 3)) save.recordClear(map.id, 'journeyman', 1);
+    expect(save.nightShiftUnlocked()).toBe(false);
+    save.recordClear(CORE_MAPS[3]!.id, 'journeyman', 1);
+    expect(save.nightShiftUnlocked()).toBe(true);
+    expect(save.campaignComplete()).toBe(false);
+  });
+});
+
+describe('Stage 2 towers and remasters', () => {
+  it('Code Inspection bans the map’s intended tools', () => {
+    const game = new Game(STRAIGHT, {
+      difficulty: DIFFICULTIES.journeyman,
+      mods: neutralModifiers(),
+      remaster: 'codeInspection',
+    });
+    expect(game.allowedTowers.includes('washer')).toBe(false);
+    expect(game.placeTower(0, 'washer')).toBe(false);
+    expect(game.placeTower(0, 'torch')).toBe(true);
+  });
+
+  it('Frozen Main is one life and lengthens freezes', () => {
+    const game = new Game(STRAIGHT, {
+      difficulty: DIFFICULTIES.master,
+      mods: neutralModifiers(),
+      remaster: 'frozenMain',
+    });
+    expect(game.lives).toBe(1);
+    expect(game.freezeDurationMult).toBeGreaterThan(1);
+  });
+
+  it('Pipe Snake hits every enemy on its pipe stretch', () => {
+    const game = makeGame();
+    game.placeTower(0, 'pipeSnake');
+    const a = game.spawnEnemy('drip', 0, 200);
+    const b = game.spawnEnemy('drip', 0, 280);
+    a.pos = game.paths[0]!.pointAt(200);
+    b.pos = game.paths[0]!.pointAt(280);
+    step(game, 1.2);
+    expect(a.hp).toBeLessThan(a.maxHp);
+    expect(b.hp).toBeLessThan(b.maxHp);
+  });
+
+  it('Backflow shoves a ground enemy backward along the pipe', () => {
+    const game = makeGame();
+    game.placeTower(0, 'backflow');
+    const drip = game.spawnEnemy('drip', 0, 200);
+    drip.pos = game.paths[0]!.pointAt(200);
+    const before = drip.progress;
+    step(game, 1);
+    expect(drip.progress).toBeLessThan(before);
+  });
+
+  it('Descaler shreds mineral armor and applies a DoT', () => {
+    const game = makeGame();
+    game.placeTower(0, 'descaler');
+    const crab = game.spawnEnemy('scaleCrab', 0, 200);
+    crab.pos = game.paths[0]!.pointAt(200);
+    step(game, 1.5);
+    expect(crab.armorShred).toBeGreaterThan(0);
+    expect(crab.dotDps).toBeGreaterThan(0);
+  });
+
+  it('Night Shift can clock out as a soft exit after a wave starts', () => {
+    const game = new Game(NIGHT_SHIFT, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 2 });
+    expect(game.endless).toBe(true);
+    expect(game.retire()).toBe(false);
+    expect(nightXp(0, true)).toBe(0);
+    game.callNextWave();
+    expect(game.retire()).toBe(true);
+    expect(game.status).toBe('retired');
+  });
+});
+
+describe('Stage 3 progression and kit', () => {
+  it('Hammer Drill deals extra damage to armored targets', () => {
+    const game = makeGame();
+    const crab = game.spawnEnemy('scaleCrab', 0);
+    const drip = game.spawnEnemy('drip', 0);
+    const vsCrab = applyDamage(game, crab, 10, 'physical', 'hammerDrill');
+    const vsDrip = applyDamage(game, drip, 10, 'physical', 'hammerDrill');
+    expect(vsDrip).toBeCloseTo(10);
+    expect(vsCrab).toBeCloseTo(10 * (1 + ENEMIES.scaleCrab.armor * TOWERS.hammerDrill.armorBonus!));
+    expect(vsCrab).toBeGreaterThan(vsDrip);
+  });
+
+  it('Sump Pump pulls a ground enemy back toward the basin', () => {
+    const game = makeGame();
+    game.placeTower(0, 'sump');
+    const drip = game.spawnEnemy('drip', 0, 260);
+    drip.pos = game.paths[0]!.pointAt(260);
+    drip.stun = 4;
+    const before = drip.progress;
+    step(game, 1.2);
+    expect(drip.progress).toBeLessThan(before);
+  });
+
+  it('Inspection Camera marks enemies and pops a phase', () => {
+    const game = makeGame();
+    game.placeTower(0, 'camera');
+    const bubble = game.spawnEnemy('airlock', 0, 200);
+    bubble.pos = game.paths[0]!.pointAt(200);
+    bubble.phased = true;
+    step(game, FIXED_DT);
+    expect(bubble.phased).toBe(false);
+    expect(bubble.marked).toBe(true);
+  });
+
+  it('Jeff XP and talent points track from jobs', () => {
+    expect(levelFromXp(0).level).toBe(1);
+    expect(levelFromXp(xpToNext(1)).level).toBe(2);
+    expect(talentPointsAvailable(xpToNext(1), 0)).toBe(1);
+    const owned = new Set<string>();
+    expect(canUnlockTalent('ironGrip', owned)).toBe(true);
+    expect(canUnlockTalent('wreckingTap', owned)).toBe(false);
+  });
+
+  it('folds skills, talents, and locker gear into a run', () => {
+    const save = new SaveStore(null);
+    save.data.skills = ['sharpTools'];
+    save.data.talents = ['bossBreaker'];
+    const item: GearItem = {
+      id: 'g-run',
+      name: 'test wrench',
+      slot: 'wrench',
+      rarity: 'rare',
+      affixes: [{ key: 'jeffDamage', amount: 0.1 }],
+    };
+    expect(save.addGear(item).kept).toBe(true);
+    expect(save.equip(item.id)).toBe(true);
+    const m = buildRunModifiers(save);
+    expect(m.towerDamage).toBeCloseTo(1.1);
+    expect(m.jeffDamage).toBeCloseTo(1.32);
+    expect(save.hasAnyProgress()).toBe(true);
+  });
+
+  it('Get Closer spends on reach and wrench damage, not leftover aggro', () => {
+    const m = neutralModifiers();
+    applyTalents(m, ['closer']);
+    expect(m.jeffReach).toBeCloseTo(1.2);
+    expect(m.jeffDamage).toBeCloseTo(1.15);
+  });
+
+  it('save store refuses skipped skill and talent tiers', () => {
+    const save = new SaveStore(null);
+    for (const map of CORE_MAPS) save.recordClear(map.id, 'master', 3);
+    expect(save.unlockSkill('longReach')).toBe(false);
+    expect(save.unlockSkill('sharpTools')).toBe(true);
+    expect(save.unlockSkill('longReach')).toBe(false);
+    expect(save.unlockSkill('bulkDiscount')).toBe(true);
+    expect(save.unlockSkill('longReach')).toBe(true);
+    save.addXp(xpToNext(1) + xpToNext(2) + xpToNext(3) + xpToNext(4));
+    expect(save.unlockTalent('wreckingTap')).toBe(false);
+    expect(save.unlockTalent('ironGrip')).toBe(true);
+    expect(save.unlockTalent('wreckingTap')).toBe(true);
+  });
+
+  it('chests roll gear and affixes fold into modifiers', () => {
+    const item = rollChest(new Rng(11), 'clean', 'g-test');
+    expect(item.affixes.length).toBeGreaterThan(0);
+    const m = neutralModifiers();
+    applyAffix(m, { key: 'jeffDamage', amount: 0.1 });
+    expect(m.jeffDamage).toBeCloseTo(1.1);
+    expect(item.slot).toBeTruthy();
+  });
+
+  it('Night Shift mutators rotate and clock-out banks chests', () => {
+    expect(nightMutatorAt(0)).toBe('rushHour');
+    expect(nightMutatorAt(5)).not.toBe(nightMutatorAt(0));
+    const wave = generateEndlessWave(12, 2);
+    expect(wave.groups.length).toBeGreaterThan(0);
+    const game = new Game(NIGHT_SHIFT, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 4 });
+    expect(game.nightMutator).toBeNull();
+    for (let i = 0; i < NIGHT_SHIFT.waves.length; i++) {
+      expect(game.callNextWave()).toBeGreaterThanOrEqual(0);
+      expect(game.nightMutator).toBeNull();
+    }
+    game.callNextWave();
+    expect(game.nightMutator).toBe('rushHour');
+    expect(game.nightMutator).toBe(nightMutatorAt(0));
+    const mid = new Game(NIGHT_SHIFT, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 4 });
+    mid.waveIdx = 12;
+    mid.retire();
+    expect(chestsForRun(mid, 0).length).toBeGreaterThan(0);
+    expect(xpForRun(mid, 0)).toBeGreaterThan(0);
+    const mile = new Game(NIGHT_SHIFT, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), seed: 5 });
+    mile.waveIdx = 15;
+    mile.retire();
+    expect(chestsForRun(mile, 0)).toEqual(['night', 'night', 'deepNight']);
+  });
+
+  it('only first-clears drop campaign chests', () => {
+    const classic = makeGame();
+    classic.status = 'won';
+    expect(chestsForRun(classic, 3, true)).toEqual(['clean']);
+    expect(chestsForRun(classic, 2, true)).toEqual(['job']);
+    expect(chestsForRun(classic, 3, false)).toEqual([]);
+    const remaster = new Game(STRAIGHT, {
+      difficulty: DIFFICULTIES.journeyman,
+      mods: neutralModifiers(),
+      remaster: 'codeInspection',
+      seed: 1,
+    });
+    remaster.status = 'won';
+    expect(chestsForRun(remaster, 1, true)).toEqual(['remaster']);
+    expect(chestsForRun(remaster, 1, false)).toEqual([]);
+  });
+
+  it('save store banks XP, talents, and locker gear', () => {
+    const save = new SaveStore(null);
+    save.addXp(xpToNext(1) + xpToNext(2));
+    expect(save.jeffLevel()).toBe(3);
+    expect(save.unlockTalent('ironGrip')).toBe(true);
+    expect(save.unlockTalent('wreckingTap')).toBe(true);
+    const item = rollChest(new Rng(3), 'job', save.nextGearId());
+    expect(save.addGear(item).kept).toBe(true);
+    expect(save.equip(item.id)).toBe(true);
+    expect(save.equippedItems()[0]?.id).toBe(item.id);
+  });
+
+  it('full locker salvages the weakest item, not just the lowest rarity', () => {
+    const save = new SaveStore(null);
+    const weak: GearItem = { id: 'weak', name: 'weak', slot: 'boots', rarity: 'uncommon', affixes: [{ key: 'jeffSpeed', amount: 0.01 }] };
+    const strongCommon: GearItem = { id: 'strong', name: 'strong', slot: 'shirt', rarity: 'common', affixes: [{ key: 'jeffHp', amount: 0.2 }] };
+    expect(gearScore(strongCommon)).toBeGreaterThan(gearScore(weak));
+    for (let i = 0; i < INVENTORY_CAP - 1; i++) {
+      const pad: GearItem = { id: `pad-${i}`, name: 'pad', slot: 'gauges', rarity: 'uncommon', affixes: [{ key: 'cooldown', amount: 0.12 }] };
+      save.addGear(pad);
+    }
+    save.addGear(weak);
+    const junkIn: GearItem = { id: 'junk-in', name: 'junk', slot: 'belt', rarity: 'common', affixes: [{ key: 'startMoney', amount: 20 }] };
+    expect(gearScore(junkIn)).toBeLessThan(gearScore(weak));
+    expect(save.addGear(junkIn).kept).toBe(false);
+    expect(save.itemById('weak')).toBeTruthy();
+    const kept = save.addGear(strongCommon);
+    expect(kept.kept).toBe(true);
+    expect(save.itemById('strong')).toBeTruthy();
+    expect(save.itemById('weak')).toBeUndefined();
+  });
+
+  it('hides XP-to-next once Jeff is max level', () => {
+    expect(xpBarCopy({ level: JEFF_LEVEL_CAP, into: 12, need: 40 })).toBe('Max level');
+    expect(xpBarCopy({ level: 1, into: 4, need: 40 })).toBe('4 / 40 XP to next');
+  });
+});
+
+describe('Loadout and new kit', () => {
+  it('fills a Kingdom Rush-style bag and ignores illegal picks', () => {
+    expect(resolveLoadout(['vent', 'torch', 'torch'], ['torch', 'washer', 'barricade'])).toEqual(['torch', 'washer', 'barricade']);
+    expect(resolveLoadout(['washer', 'torch', 'barricade', 'vent', 'radiant', 'expansion'], CRAWLSPACE.allowedTowers)).toEqual([
+      'washer',
+      'torch',
+      'barricade',
+    ]);
+    expect(resolveLoadout(undefined, CRAWLSPACE.allowedTowers)).toHaveLength(CRAWLSPACE.allowedTowers.length);
+    expect(LOADOUT_SIZE).toBe(5);
+  });
+
+  it('unlocks tools from jobs already on the board, never from Night Shift', () => {
+    const save = new SaveStore(null);
+    expect(save.data.lastLoadout).toEqual([]);
+    expect(unlockedTowers(save)).toEqual(['torch', 'washer', 'barricade']);
+    expect(availableTowers(save, NIGHT_SHIFT, 'classic')).toEqual(['torch', 'washer', 'barricade']);
+    save.setLoadout(['torch', 'washer']);
+    expect(save.data.lastLoadout).toEqual(['torch', 'washer']);
+    for (const map of MAPS.slice(0, 7)) save.recordClear(map.id, 'journeyman', 1);
+    expect(unlockedTowers(save)).toContain('manifold');
+    expect(availableTowers(save, MECHANICAL_ROOM, 'classic')).toContain('manifold');
+    expect(availableTowers(save, MECHANICAL_ROOM, 'codeInspection')).not.toContain('manifold');
+    expect(availableTowers(save, NIGHT_SHIFT, 'classic')).toContain('manifold');
+  });
+
+  it('a picked kit is the only thing you can build; an empty kit falls back to the job pool', () => {
+    const kit = makeGame({}, false, ['torch', 'washer']);
+    expect(kit.allowedTowers).toEqual(['torch', 'washer']);
+    expect(kit.placeTower(0, 'torch')).toBe(true);
+    expect(kit.placeTower(1, 'barricade')).toBe(false);
+    const fallback = makeGame({}, false, ['manifold']);
+    expect(fallback.allowedTowers).toEqual(STRAIGHT.allowedTowers);
+  });
+
+  it('pulse shreds and stuns, sleeve and coffee respect cooldowns', () => {
+    const game = makeGame({ jeffStart: { x: 200, y: 100 } }, true);
+    const crab = game.spawnEnemy('scaleCrab', 0, 195);
+    expect(game.usePulse()).toBe(true);
+    expect(crab.stun).toBeGreaterThan(0);
+    expect(crab.armorShred).toBeGreaterThan(0);
+    expect(game.stats.jeffDamage).toBeGreaterThan(0);
+    expect(game.usePulse()).toBe(false);
+    expect(game.useSleeve()).toBe(true);
+    expect(game.hero.sleeveTimer).toBeGreaterThan(0);
+    expect(game.useSleeve()).toBe(false);
+    game.damageHero(120);
+    const hp = game.hero.hp;
+    expect(game.useCoffee()).toBe(true);
+    expect(game.hero.hp).toBeGreaterThan(hp);
+    expect(game.hero.coffeeTimer).toBeGreaterThan(0);
+    expect(game.useCoffee()).toBe(false);
+  });
+
+  it('a flange gremlin splits into two drips', () => {
+    const game = makeGame();
+    const gremlin = game.spawnEnemy('flangeGremlin', 0, 80);
+    applyDamage(game, gremlin, 9999, 'physical', 'torch');
+    expect(gremlin.dead).toBe(true);
+    const kids = game.enemies.filter((e) => e.def.id === 'drip' && !e.dead);
+    expect(kids.length).toBe(2);
+    expect(kids.every((e) => e.progress < gremlin.progress)).toBe(true);
+  });
+
+  it('lists every enemy and tower in the catalogs', () => {
+    expect([...ENEMY_ORDER].sort()).toEqual(Object.keys(ENEMIES).sort());
+    expect([...TOWER_ORDER].sort()).toEqual(Object.keys(TOWERS).sort());
+  });
+
+  it('gives every campaign job an inspection lockout', () => {
+    expect(MAPS.every((m) => (m.inspectionBan?.length ?? 0) > 0)).toBe(true);
+  });
+
+  it('zone valve stun respects stun-duration modifiers', () => {
+    const mods = neutralModifiers();
+    mods.stunDuration = 2;
+    const game = new Game(
+      { ...STRAIGHT, allowedTowers: [...STRAIGHT.allowedTowers, 'zoneValve'] },
+      { difficulty: DIFFICULTIES.journeyman, mods, seed: 3, heroEnabled: false },
+    );
+    expect(game.placeTower(0, 'zoneValve')).toBe(true);
+    const drip = game.spawnEnemy('drip', 0, 200);
+    drip.pos = game.paths[0]!.pointAt(200);
+    step(game, FIXED_DT * 2);
+    expect(drip.stun).toBeGreaterThan(1);
+  });
+
+  it('a radiant manifold heats the primary leak and neighbors', () => {
+    const game = makeGame({ allowedTowers: [...STRAIGHT.allowedTowers, 'manifold'] });
+    expect(game.placeTower(0, 'manifold')).toBe(true);
+    const a = game.spawnEnemy('drip', 0, 180);
+    const b = game.spawnEnemy('drip', 0, 200);
+    const c = game.spawnEnemy('drip', 0, 220);
+    step(game, 1.2);
+    expect([a, b, c].filter((e) => e.hp < e.maxHp).length).toBeGreaterThanOrEqual(2);
   });
 });

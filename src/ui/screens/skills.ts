@@ -15,7 +15,7 @@ export function renderSkills(app: App): ScreenView {
     el.append(
       h(
         'header',
-        { class: 'screen-header' },
+        { class: 'screen-header sheet' },
         h('button', { class: 'btn link', text: '← Van', onClick: () => app.go({ kind: 'hub' }) }),
         h('h1', { text: 'Journeyman Stars' }),
         h('span', { class: 'pill big', text: `${save.availableStars()} / ${save.totalStars()} stars available` }),
@@ -29,14 +29,14 @@ export function renderSkills(app: App): ScreenView {
           },
         }),
       ),
-      h('p', { class: 'muted', text: 'Stars come from clearing jobs (up to 3 per job, best run counts). Spend them here; nothing is ever lost, and you can move them around any time.' }),
+      h('p', { class: 'lede', text: 'Stars come from clearing jobs (up to 3 per job, best run counts) and first remaster clears. Spend them here; nothing is ever lost, and you can move them around any time.' }),
       h(
         'div',
         { class: 'skill-columns' },
         ...BRANCHES.map((branch) =>
           h(
             'div',
-            { class: `skill-col ${branch}` },
+            { class: `skill-col sheet ${branch}` },
             h('h3', { text: SKILL_BRANCHES[branch].name }),
             h('p', { class: 'small muted', text: SKILL_BRANCHES[branch].blurb }),
             ...SKILLS.filter((s) => s.branch === branch).map((s) => {

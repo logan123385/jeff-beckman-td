@@ -1,0 +1,57 @@
+import { vec } from '../../core/vec';
+import type { MapDef } from '../types';
+import { grp, wave } from './helpers';
+
+export const SNOWMELT: MapDef = {
+  id: 'snowmelt',
+  name: 'Snowmelt Shutdown',
+  subtitle: 'Service Call #5',
+  blurb: 'A sidewalk melt loop iced over in April. Frozen Mains and a glycol golem — keep the plant thawed or the whole street floods.',
+  paths: [
+    [
+      vec(-30, 140),
+      vec(220, 140),
+      vec(220, 460),
+      vec(520, 460),
+      vec(520, 160),
+      vec(820, 160),
+      vec(820, 420),
+      vec(990, 420),
+    ],
+  ],
+  slots: [
+    vec(120, 70),
+    vec(120, 220),
+    vec(300, 220),
+    vec(300, 380),
+    vec(420, 380),
+    vec(420, 530),
+    vec(620, 230),
+    vec(620, 90),
+    vec(720, 230),
+    vec(720, 350),
+    vec(900, 350),
+    vec(900, 490),
+    vec(360, 70),
+  ],
+  jeffStart: vec(400, 300),
+  startMoney: 310,
+  lives: 20,
+  allowedTowers: ['torch', 'washer', 'barricade', 'radiant', 'glycol', 'expansion', 'descaler', 'heatExchanger', 'mixingValve'],
+  inspectionBan: ['glycol', 'radiant'],
+  waves: [
+    wave(grp('drip', 10, 0.9)),
+    wave(grp('drip', 10, 0.85), grp('scaleCrab', 2, 2.8, 5)),
+    wave(grp('frozenMain', 1, 1), grp('drip', 10, 0.8, 6)),
+    wave(grp('sludge', 3, 2.8), grp('drip', 8, 0.85, 4)),
+    wave(grp('frozenMain', 2, 7), grp('scaleCrab', 4, 2.2, 4)),
+    wave(grp('drip', 14, 0.65), grp('pressureSpike', 2, 2.4, 8)),
+    wave(grp('frozenMain', 2, 6), grp('sludge', 3, 2.6, 5)),
+    wave(grp('scaleCrab', 6, 1.8), grp('drip', 12, 0.7, 6)),
+    wave(grp('frozenMain', 3, 5), grp('airlock', 4, 2, 4)),
+    wave(grp('sedimentBoulder', 2, 4.5), grp('drip', 12, 0.65, 3)),
+    wave(grp('frozenMain', 3, 4.5), grp('scaleCrab', 6, 1.7, 4), grp('drip', 10, 0.7, 10)),
+    wave(grp('glycolGolem', 1, 1, 2), grp('drip', 14, 0.6, 8), grp('frozenMain', 2, 6, 16)),
+  ],
+  palette: { bg: '#1a242c', wall: '#24323c', pipe: '#7b9aad', pipeDark: '#4a6270', accent: '#26c6da' },
+};

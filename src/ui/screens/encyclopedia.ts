@@ -1,4 +1,4 @@
-import { ENEMIES, ENEMY_ORDER } from '../../data/enemies';
+import { ENEMIES, ENEMY_ORDER, TRAIT_LABEL } from '../../data/enemies';
 import type { App, ScreenView } from '../app';
 import { h } from '../dom';
 import { enemyPortrait } from '../portraits';
@@ -10,12 +10,12 @@ export function renderEncyclopedia(app: App): ScreenView {
     { class: 'screen encyclopedia' },
     h(
       'header',
-      { class: 'screen-header' },
-      h('button', { class: 'btn link', text: '← Back', onClick: () => app.go({ kind: 'hub' }) }),
+      { class: 'screen-header sheet' },
+      h('button', { class: 'btn link', text: '← Van', onClick: () => app.go({ kind: 'hub' }) }),
       h('h1', { text: 'Field Encyclopedia' }),
       h('span', { class: 'pill big', text: `${ENEMY_ORDER.filter((id) => save.hasSeen(id)).length} / ${ENEMY_ORDER.length} logged` }),
     ),
-    h('p', { class: 'muted', text: 'Everything Jeff has met on the job. New threats are called out before the wave they first appear in.' }),
+    h('p', { class: 'lede', text: 'Everything Jeff has met on the job. New threats are called out before the wave they first appear in.' }),
     h(
       'div',
       { class: 'ency-grid' },
@@ -24,7 +24,7 @@ export function renderEncyclopedia(app: App): ScreenView {
         const seen = save.hasSeen(id);
         return h(
           'article',
-          { class: `ency-card ${seen ? '' : 'unknown'}` },
+          { class: `ency-card sheet ${seen ? '' : 'unknown'}` },
           h('div', { class: 'ency-portrait' }, enemyPortrait(id, 72, !seen)),
           h(
             'div',
@@ -43,6 +43,7 @@ export function renderEncyclopedia(app: App): ScreenView {
                     h('span', { class: 'stat', text: `Speed ${def.speed}` }),
                     def.armor > 0 ? h('span', { class: 'stat', text: `Armor ${Math.round(def.armor * 100)}%` }) : null,
                     def.flying ? h('span', { class: 'stat', text: 'Flying' }) : null,
+                    ...def.traits.map((trait) => h('span', { class: 'stat', text: TRAIT_LABEL[trait] })),
                     h('span', { class: 'stat', text: `$${def.bounty}` }),
                   ),
                 )

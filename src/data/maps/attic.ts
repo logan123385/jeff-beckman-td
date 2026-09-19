@@ -1,0 +1,57 @@
+import { vec } from '../../core/vec';
+import type { MapDef } from '../types';
+import { grp, wave } from './helpers';
+
+export const ATTIC: MapDef = {
+  id: 'attic',
+  name: 'Attic Condensate',
+  subtitle: 'Service Call #6',
+  blurb: 'A wet attic and a clogged condensate line. Wisps, gnats, and moths ride the air — a Vent Stack and an Inspection Camera are the clean answers.',
+  paths: [
+    [
+      vec(-30, 120),
+      vec(200, 120),
+      vec(200, 480),
+      vec(520, 480),
+      vec(520, 160),
+      vec(820, 160),
+      vec(820, 440),
+      vec(990, 440),
+    ],
+  ],
+  slots: [
+    vec(90, 50),
+    vec(90, 210),
+    vec(300, 210),
+    vec(300, 400),
+    vec(420, 400),
+    vec(420, 550),
+    vec(620, 80),
+    vec(620, 240),
+    vec(720, 240),
+    vec(720, 360),
+    vec(900, 360),
+    vec(900, 520),
+    vec(360, 80),
+  ],
+  jeffStart: vec(400, 300),
+  startMoney: 440,
+  lives: 20,
+  allowedTowers: ['torch', 'washer', 'barricade', 'vent', 'camera', 'circulator', 'expansion', 'pipeSnake', 'airSeparator', 'steamTrap'],
+  inspectionBan: ['vent', 'camera'],
+  waves: [
+    wave(grp('drip', 10, 0.95)),
+    wave(grp('drip', 12, 0.85), grp('steamWisp', 2, 2.4, 7)),
+    wave(grp('drip', 10, 0.85), grp('sludge', 2, 3.2, 5)),
+    wave(grp('drip', 10, 0.85), grp('hardWaterGnat', 3, 1.2, 5)),
+    wave(grp('sludge', 3, 2.8), grp('steamWisp', 3, 2, 4)),
+    wave(grp('drip', 12, 0.75), grp('scaleCrab', 3, 2.2, 4)),
+    wave(grp('drip', 10, 0.8), grp('condensateMoth', 1, 1, 2), grp('sludge', 2, 3, 6)),
+    wave(grp('drip', 10, 0.8), grp('airlock', 3, 2.1, 3), grp('steamWisp', 3, 1.8, 6)),
+    wave(grp('sludge', 4, 2.4), grp('hardWaterGnat', 4, 1.0, 4), grp('drip', 10, 0.75, 8)),
+    wave(grp('drip', 12, 0.7), grp('condensateMoth', 2, 3.2, 2), grp('scaleCrab', 4, 2, 6)),
+    wave(grp('sludge', 4, 2.4), grp('steamWisp', 5, 1.5, 3), grp('drip', 10, 0.75, 8)),
+    wave(grp('drip', 14, 0.65), grp('sludge', 4, 2.4, 4), grp('steamWisp', 5, 1.5, 8), grp('condensateMoth', 2, 2.8, 12)),
+  ],
+  palette: { bg: '#241f1c', wall: '#3a322c', pipe: '#8a7a68', pipeDark: '#5a4e42', accent: '#ab47bc' },
+};

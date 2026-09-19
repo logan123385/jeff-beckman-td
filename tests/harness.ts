@@ -1,6 +1,7 @@
 import { FIXED_DT } from '../src/core/loop';
 import { dist } from '../src/core/vec';
 import { DIFFICULTIES } from '../src/data/difficulty';
+import { ENEMIES } from '../src/data/enemies';
 import { buildModifiers } from '../src/data/skills';
 import { TOWERS } from '../src/data/towers';
 import type { DifficultyId, MapDef, TowerId } from '../src/data/types';
@@ -29,7 +30,34 @@ export interface HarnessResult {
   towersBuilt: number;
 }
 
-const DEFAULT_ORDER: TowerId[] = ['barricade', 'torch', 'washer', 'vent', 'radiant', 'expansion', 'torch', 'washer'];
+const DEFAULT_ORDER: TowerId[] = [
+  'barricade',
+  'vent',
+  'torch',
+  'hammerDrill',
+  'washer',
+  'camera',
+  'radiant',
+  'glycol',
+  'expansion',
+  'descaler',
+  'pipeSnake',
+  'prv',
+  'sump',
+  'backflow',
+  'circulator',
+  'boiler',
+  'torch',
+  'washer',
+  'steamTrap',
+  'airSeparator',
+  'manifold',
+  'dirtSep',
+  'mixingValve',
+  'heatExchanger',
+  'zoneValve',
+  'thermostat',
+];
 
 /** Path length (sampled) that a tower placed at a slot would cover with the given range. */
 export function coverage(map: MapDef, game: Game, slot: number, range: number): number {
@@ -52,7 +80,7 @@ export function runHeadless(map: MapDef, opts: HarnessOptions = {}): HarnessResu
   const mods = buildModifiers(opts.skills ?? []);
   const game = new Game(map, { difficulty, mods, seed: opts.seed ?? 7, heroEnabled: opts.heroEnabled ?? true });
   const order = (opts.buildOrder ?? DEFAULT_ORDER).filter((id) => map.allowedTowers.includes(id));
-  const hasFliers = map.waves.some((w) => w.groups.some((g) => g.enemy === 'steamWisp'));
+  const hasFliers = map.waves.some((w) => w.groups.some((g) => ENEMIES[g.enemy].flying));
   const plan = order.filter((id) => id !== 'vent' || hasFliers);
   let planIdx = 0;
   let decideTimer = 0;
@@ -121,11 +149,14 @@ export function runHeadless(map: MapDef, opts: HarnessOptions = {}): HarnessResu
     const barricade = game.towers
       .filter((t) => t.def.kind === 'barricade' && t.rebuild <= 0)
       .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
-    if (barricade) {
+    if (barricade && barricade.hp < barricade.maxHp * 0.9) {
       game.commandHero({ x: barricade.rally.x + 14, y: barricade.rally.y });
     } else if (game.enemies.length > 0) {
-      const lead = game.enemies.reduce((a, b) => (game.paths[a.pathIdx]!.length - a.progress < game.paths[b.pathIdx]!.length - b.progress ? a : b));
-      if (!lead.def.flying) game.commandHero({ x: lead.pos.x, y: lead.pos.y });
+      const lead = game.enemies.reduce((a, b) =>
+        game.paths[a.pathIdx]!.length - a.progress < game.paths[b.pathIdx]!.length - b.progress ? a : b,
+      );
+      if (!lead.def.flying) game.commandHeroAttack(lead.id);
+      else game.commandHero({ x: lead.pos.x, y: lead.pos.y });
     }
     if (game.enemies.length >= 8) game.useClamp();
     if (game.enemies.length >= 14) game.useShutoff();

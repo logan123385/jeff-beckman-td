@@ -6,12 +6,16 @@ import {
   FREEZE_DURATION,
   FREEZE_INTERVAL,
   FREEZE_RADIUS,
+  HASTE_AURA_AMOUNT,
+  HASTE_AURA_RADIUS,
+  LANE_SWAP_SECONDS,
   PHASE_HIDDEN_SECONDS,
   PHASE_VISIBLE_SECONDS,
 } from '../data/enemies';
 import { JEFF } from '../data/jeff';
 import type { Game } from './game';
 import type { Enemy } from './state';
+import { applyDamage } from './combat';
 import { damageBarricade, releaseHeldBy, towerHasFreezeProtection } from './towers';
 
 export function updateEnemies(game: Game, dt: number): void {
@@ -20,7 +24,7 @@ export function updateEnemies(game: Game, dt: number): void {
     tickTimers(game, e, dt);
     validateHold(game, e);
     if (e.heldBy === null && e.stun <= 0) {
-      const speed = e.def.speed * e.speedMult * (1 - e.slow);
+      const speed = e.def.speed * e.speedMult * (1 - e.slow) * (1 + e.haste);
       e.progress += speed * dt;
       e.wobble += dt * 6;
     }
@@ -41,7 +45,16 @@ export function updateEnemies(game: Game, dt: number): void {
 }
 
 function tickTimers(game: Game, e: Enemy, dt: number): void {
+  if (e.dotTime > 0 && e.dotDps > 0 && e.dotSource) {
+    applyDamage(game, e, e.dotDps * dt, 'water', e.dotSource);
+    e.dotTime -= dt;
+    if (e.dotTime <= 0) {
+      e.dotDps = 0;
+      e.dotSource = null;
+    }
+  }
   if (e.stun > 0) e.stun -= dt;
+  if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt);
   if (e.shredTimer > 0) {
     e.shredTimer -= dt;
     if (e.shredTimer <= 0) e.armorShred = 0;
@@ -73,6 +86,25 @@ function tickTimers(game: Game, e: Enemy, dt: number): void {
       bossVent(game, e);
     }
   }
+  if (e.def.traits.includes('laneSwap') && game.paths.length > 1) {
+    e.laneTimer -= dt;
+    if (e.laneTimer <= 0) {
+      e.laneTimer = LANE_SWAP_SECONDS;
+      const next = (e.pathIdx + 1) % game.paths.length;
+      const path = game.paths[next]!;
+      e.pathIdx = next;
+      e.progress = Math.min(e.progress, Math.max(0, path.length - 8));
+      e.heldBy = null;
+    }
+  }
+  if (e.def.traits.includes('hasteAura')) {
+    for (const other of game.enemies) {
+      if (other.id === e.id || other.dead || other.escaped) continue;
+      if (dist(other.pos, e.pos) <= HASTE_AURA_RADIUS + other.def.radius) {
+        other.haste = Math.max(other.haste, HASTE_AURA_AMOUNT);
+      }
+    }
+  }
 }
 
 /** Drop a hold whose holder has moved, broken, or died. */
@@ -91,7 +123,7 @@ function validateHold(game: Game, e: Enemy): void {
     }
     case 'hero': {
       const hero = game.hero;
-      if (!game.heroEnabled || hero.downed > 0 || hero.dest !== null || dist(hero.pos, e.pos) > JEFF.reach + e.def.radius + 6) e.heldBy = null;
+      if (!game.heroEnabled || hero.downed > 0 || hero.dest !== null || dist(hero.pos, e.pos) > JEFF.reach * game.mods.jeffReach + e.def.radius + 6) e.heldBy = null;
       return;
     }
     case 'clamp': {
@@ -136,7 +168,7 @@ function freezePulse(game: Game, e: Enemy): void {
     if (dist(t.pos, e.pos) > FREEZE_RADIUS) continue;
     if (towerHasFreezeProtection(game, t)) continue;
     if (game.consumeShield(t)) continue;
-    t.frozen = Math.max(t.frozen, FREEZE_DURATION);
+    t.frozen = Math.max(t.frozen, FREEZE_DURATION * game.freezeDurationMult);
     if (t.def.kind === 'barricade') releaseHeldBy(game, t);
   }
 }

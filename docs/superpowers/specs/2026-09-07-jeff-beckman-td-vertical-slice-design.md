@@ -9,8 +9,13 @@ Ships: Jeff (only hero) + six towers + four campaign maps + wave system + soft-f
 three difficulties + small Journeyman Stars tree + enemy encyclopedia with wave foreshadowing
 + results screen with Jeff-vs-tower damage share (the Stage 0 falsifier readout).
 
-Deferred: remasters (Code Inspection / Frozen Main), Night Shift endless, towers 7–12,
-second hero, audio, cosmetics.
+Shipped in the Stage 2 pass: remasters (Code Inspection / Frozen Main), Night Shift
+endless with soft clock-out, towers 7–12, soft Web Audio.
+
+Later expansion: towers 13–16, maps 5–7, Jeff XP / talents / locker gear. Night Shift
+opens after the first four service calls.
+
+Still deferred: second hero, cosmetics, live events.
 
 ## Stack
 
@@ -56,6 +61,19 @@ The sim is deterministic given a seed and an input log; the renderer only reads 
 | 4 | Vent Stack | anti-air | fast homing shots, big bonus vs flying, weak vs ground |
 | 5 | Radiant Loop Coil | slow zone (heat) | slows ground enemies, protects towers in range from freeze |
 | 6 | Expansion Tank | support aura | +dmg/+range to towers in range, absorbs one surge per cooldown |
+| 7 | Pipe Snake | pierce / line | hits every enemy on a pipe stretch |
+| 8 | Backflow Preventer | redirect | shoves ground enemies backward along the pipe |
+| 9 | Chemical Descaler | DoT / shred | extra vs mineral (scale, sludge, ice) |
+| 10 | Circulator Pump | haste aura | faster projectiles; Jeff move + ability CD in radius |
+| 11 | PRV | reactive burst | charges from traffic, then dumps AoE |
+| 12 | Boiler | late-game anchor | wide heat aura + freeze protection |
+
+Remasters unlock after a Classic clear of that map (never the first play). Code Inspection
+locks the map’s intended tools (`inspectionBan`). Frozen Main is 1 life with longer freezes.
+Each remaster type awards one Journeyman Star on first clear.
+
+Night Shift unlocks after all four campaign maps. Soft-exit (“Clock out”) saves a wave
+record. Same Jeff, same towers, same skills — no exclusive campaign power.
 
 ## Enemies
 

@@ -36,7 +36,8 @@ export const RADIANT_FLOOR: MapDef = {
   jeffStart: vec(320, 290),
   startMoney: 290,
   lives: 20,
-  allowedTowers: ['torch', 'washer', 'barricade', 'expansion', 'radiant'],
+  allowedTowers: ['torch', 'washer', 'barricade', 'expansion', 'radiant', 'pipeSnake', 'manifold', 'mixingValve', 'thermostat'],
+  inspectionBan: ['radiant'],
   waves: [
     wave(grp('drip', 10, 0.9)),
     wave(grp('sludge', 3, 3), grp('drip', 8, 0.9, 4)),

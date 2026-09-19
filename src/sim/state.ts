@@ -31,6 +31,14 @@ export interface Enemy {
   /** Attack cooldown while held. */
   attackTimer: number;
   wobble: number;
+  dotDps: number;
+  dotTime: number;
+  dotSource: DamageSource | null;
+  marked: boolean;
+  haste: number;
+  laneTimer: number;
+  /** White flash + squash after a real hit. */
+  hitFlash: number;
 }
 
 export type HoldRef = { kind: 'tower'; id: number } | { kind: 'hero' } | { kind: 'clamp' };
@@ -54,7 +62,14 @@ export interface Tower {
   facing: number;
   recoil: number;
   invested: number;
+  /** PRV charge (enemy-seconds in range). */
+  charge: number;
+  /** Who a shooter prefers. Auras and barricades ignore this. */
+  aim: AimPriority;
 }
+
+/** Kingdom Rush–style target priority for shooters. */
+export type AimPriority = 'first' | 'strong' | 'close' | 'last';
 
 export interface Projectile {
   id: number;
@@ -68,22 +83,37 @@ export interface Projectile {
   source: DamageSource;
   groundMult: number;
   color: string;
+  /** Descaler (and similar) carry their own tower stats so two pads do not share one roll. */
+  shred?: number;
+  dot?: number;
+  dotTime?: number;
 }
 
 export interface Hero {
   pos: Vec;
-  /** Last commanded position; Jeff only engages enemies near here. */
+  /** Last move / hunt focus for ground markers and repair. */
   anchor: Vec;
   dest: Vec | null;
   hp: number;
   maxHp: number;
   attackTimer: number;
-  tapTimer: number;
+  /** Swings since the last Wrench Tap. */
+  tapCount: number;
   clampCooldown: number;
   shutoffCooldown: number;
+  pulseCooldown: number;
+  sleeveCooldown: number;
+  coffeeCooldown: number;
+  sleeveTimer: number;
+  coffeeTimer: number;
   downed: number;
   facing: number;
   swing: number;
+  /** Sticky Diablo-style attack order — Jeff only swings this enemy until it dies. */
+  orderTargetId: number | null;
+  /** Set by the first wrench click. Stays on until a move order, so the next leak is picked up automatically. */
+  engaged: boolean;
+  /** Currently engaging (derived each frame from the order). */
   targetId: number | null;
 }
 
@@ -92,12 +122,15 @@ export interface Clamp {
   timeLeft: number;
 }
 
+export type JeffSkillId = 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee';
+
 export type Effect =
   | { kind: 'beam'; from: Vec; to: Vec; color: string; ttl: number; max: number }
   | { kind: 'hit'; pos: Vec; color: string; ttl: number; max: number }
   | { kind: 'splash'; pos: Vec; radius: number; color: string; ttl: number; max: number }
   | { kind: 'ring'; pos: Vec; radius: number; color: string; ttl: number; max: number }
-  | { kind: 'text'; pos: Vec; text: string; color: string; ttl: number; max: number };
+  | { kind: 'text'; pos: Vec; text: string; color: string; ttl: number; max: number }
+  | { kind: 'skill'; pos: Vec; skill: JeffSkillId; ttl: number; max: number };
 
 export interface ActiveSpawn {
   enemy: EnemyId;
@@ -118,4 +151,4 @@ export interface RunStats {
   wavesCalledEarly: number;
 }
 
-export type GameStatus = 'playing' | 'won' | 'lost';
+export type GameStatus = 'playing' | 'won' | 'lost' | 'retired';

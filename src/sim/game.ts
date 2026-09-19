@@ -3,23 +3,27 @@ import { dist, type Vec } from '../core/vec';
 import { ENEMIES } from '../data/enemies';
 import { JEFF } from '../data/jeff';
 import { TOWERS, TOWER_ORDER } from '../data/towers';
-import type { Difficulty, EnemyId, MapDef, Modifiers, TowerId } from '../data/types';
-import { applyDamage, isTargetable } from './combat';
+import { generateEndlessWave, nightMutatorAt, proceduralIndex, type NightMutatorId } from '../data/night';
+import type { Difficulty, EnemyId, MapDef, Modifiers, RemasterId, TowerId, WaveDef } from '../data/types';
+import { AIM_ORDER, applyDamage, isTargetable } from './combat';
 import { updateEnemies } from './enemies';
 import { updateHero } from './hero';
 import { Path } from './path';
-import type { ActiveSpawn, Clamp, Effect, Enemy, GameStatus, Hero, Projectile, RunStats, Tower } from './state';
-import { updateAuras, updateTowers } from './towers';
+import type { ActiveSpawn, AimPriority, Clamp, Effect, Enemy, GameStatus, Hero, Projectile, RunStats, Tower } from './state';
+import { applyDescaler, updateAuras, updateTowers } from './towers';
 
 export interface GameOptions {
   difficulty: Difficulty;
   mods: Modifiers;
   seed?: number;
   heroEnabled?: boolean;
+  remaster?: RemasterId;
+  /** If set, only these tools can be built (already intersected with the job). */
+  loadout?: TowerId[];
 }
 
-export const FIRST_WAVE_COUNTDOWN = 20;
-export const BETWEEN_WAVE_GRACE = 14;
+export const FIRST_WAVE_COUNTDOWN = 16;
+export const BETWEEN_WAVE_GRACE = 12;
 export const EARLY_CALL_BONUS_PER_SECOND = 1.5;
 
 export class Game {
@@ -29,6 +33,16 @@ export class Game {
   readonly mods: Modifiers;
   readonly rng: Rng;
   readonly heroEnabled: boolean;
+  readonly remaster: RemasterId;
+  readonly endless: boolean;
+  readonly allowedTowers: TowerId[];
+  readonly freezeDurationMult: number;
+  /** Recomputed each frame by circulator auras. */
+  projSpeedMult = 1;
+  jeffSpeedAura = 1;
+  jeffCdAura = 1;
+  waveHpScale = 1;
+  nightMutator: NightMutatorId | null = null;
 
   enemies: Enemy[] = [];
   towers: Tower[] = [];
@@ -51,8 +65,8 @@ export class Game {
   status: GameStatus = 'playing';
   stats: RunStats;
   seen = new Set<EnemyId>();
-  /** Per-frame Expansion Tank buffs keyed by tower id. */
-  buffs = new Map<number, { dmg: number; range: number }>();
+  /** Per-frame support buffs keyed by tower id. */
+  buffs = new Map<number, { dmg: number; range: number; rate: number }>();
 
   private idCounter = 1;
 
@@ -63,8 +77,17 @@ export class Game {
     this.mods = opts.mods;
     this.rng = new Rng(opts.seed ?? 1);
     this.heroEnabled = opts.heroEnabled ?? true;
+    this.remaster = opts.remaster ?? 'classic';
+    this.endless = map.endless === true;
+    const banned = this.remaster === 'codeInspection' ? (map.inspectionBan ?? []) : [];
+    const pool = map.allowedTowers.filter((id) => !banned.includes(id));
+    const kit = (opts.loadout ?? []).filter((id) => pool.includes(id));
+    this.allowedTowers = kit.length > 0 ? kit : pool;
+    this.freezeDurationMult = this.remaster === 'frozenMain' ? 1.75 : 1;
+    this.nightMutator = null;
     this.money = map.startMoney + opts.mods.startMoney;
-    this.lives = Math.max(1, Math.round(map.lives * opts.difficulty.livesMult));
+    this.lives =
+      this.remaster === 'frozenMain' ? 1 : Math.max(1, Math.round(map.lives * opts.difficulty.livesMult));
     const maxHp = Math.round(JEFF.hp * opts.mods.jeffHp);
     this.hero = {
       pos: { ...map.jeffStart },
@@ -73,12 +96,19 @@ export class Game {
       hp: maxHp,
       maxHp,
       attackTimer: 0,
-      tapTimer: 0,
+      tapCount: 0,
       clampCooldown: 0,
       shutoffCooldown: 0,
+      pulseCooldown: 0,
+      sleeveCooldown: 0,
+      coffeeCooldown: 0,
+      sleeveTimer: 0,
+      coffeeTimer: 0,
       downed: 0,
       facing: 1,
       swing: 0,
+      orderTargetId: null,
+      engaged: false,
       targetId: null,
     };
     this.stats = {
@@ -104,11 +134,11 @@ export class Game {
   // ---------------------------------------------------------------- queries
 
   get totalWaves(): number {
-    return this.map.waves.length;
+    return this.endless ? Number.POSITIVE_INFINITY : this.map.waves.length;
   }
 
   get allWavesStarted(): boolean {
-    return this.waveIdx >= this.totalWaves;
+    return !this.endless && this.waveIdx >= this.map.waves.length;
   }
 
   get waveActive(): boolean {
@@ -116,9 +146,18 @@ export class Game {
   }
 
   nextWaveEnemies(): EnemyId[] {
-    const w = this.map.waves[this.waveIdx];
+    const w = this.waveDefAt(this.waveIdx);
     if (!w) return [];
     return [...new Set(w.groups.map((g) => g.enemy))];
+  }
+
+  nearestPath(p: Vec): { pathIdx: number; progress: number } {
+    let best = { pathIdx: 0, progress: 0, dist: Infinity };
+    this.paths.forEach((path, i) => {
+      const n = path.nearestPoint(p);
+      if (n.dist < best.dist) best = { pathIdx: i, progress: n.progress, dist: n.dist };
+    });
+    return { pathIdx: best.pathIdx, progress: best.progress };
   }
 
   towerAt(slot: number): Tower | undefined {
@@ -174,7 +213,7 @@ export class Game {
   placeTower(slot: number, id: TowerId): boolean {
     if (this.status !== 'playing') return false;
     if (slot < 0 || slot >= this.map.slots.length || this.towerAt(slot)) return false;
-    if (!this.map.allowedTowers.includes(id)) return false;
+    if (!this.allowedTowers.includes(id)) return false;
     const cost = this.towerCost(id);
     if (this.money < cost) return false;
     const def = TOWERS[id];
@@ -198,6 +237,8 @@ export class Game {
       facing: -Math.PI / 2,
       recoil: 0,
       invested: cost,
+      charge: 0,
+      aim: 'first',
     });
     return true;
   }
@@ -222,6 +263,15 @@ export class Game {
     return true;
   }
 
+  /** Cycle a shooter's target priority. Returns the new aim, or null if this tool doesn't aim. */
+  cycleAim(towerId: number): AimPriority | null {
+    const t = this.towerById(towerId);
+    if (!t || t.def.kind !== 'shooter') return null;
+    const i = AIM_ORDER.indexOf(t.aim);
+    t.aim = AIM_ORDER[(i + 1) % AIM_ORDER.length]!;
+    return t.aim;
+  }
+
   sellTower(towerId: number): boolean {
     if (this.status !== 'playing') return false;
     const t = this.towerById(towerId);
@@ -234,13 +284,41 @@ export class Game {
     return true;
   }
 
+  /** Move-only order. Clears any attack lock — Diablo right-click / ground click. */
   commandHero(pos: Vec): boolean {
     if (!this.heroEnabled || this.status !== 'playing' || this.hero.downed > 0) return false;
     const x = Math.max(10, Math.min(950, pos.x));
     const y = Math.max(10, Math.min(590, pos.y));
     this.hero.dest = { x, y };
     this.hero.anchor = { x, y };
+    this.hero.orderTargetId = null;
+    this.hero.engaged = false;
+    this.hero.targetId = null;
     for (const e of this.enemies) if (e.heldBy?.kind === 'hero') e.heldBy = null;
+    this.addEffect({ kind: 'ring', pos: { x, y }, radius: 16, color: '#a5d6a7', ttl: 0.35, max: 0.35 });
+    return true;
+  }
+
+  /** First wrench click starts a hunt. Jeff stays on leaks until a move order. */
+  commandHeroAttack(enemyId: number): boolean {
+    if (!this.heroEnabled || this.status !== 'playing' || this.hero.downed > 0) return false;
+    const enemy = this.enemies.find((e) => e.id === enemyId);
+    if (!enemy || enemy.dead || enemy.escaped) return false;
+    this.hero.dest = null;
+    this.hero.engaged = true;
+    this.hero.orderTargetId = enemy.id;
+    this.hero.targetId = enemy.id;
+    this.hero.anchor = { ...enemy.pos };
+    this.hero.facing = enemy.pos.x >= this.hero.pos.x ? 1 : -1;
+    this.addEffect({ kind: 'ring', pos: { ...enemy.pos }, radius: enemy.def.radius + 18, color: '#ff8a65', ttl: 0.45, max: 0.45 });
+    this.addEffect({
+      kind: 'text',
+      pos: { x: enemy.pos.x, y: enemy.pos.y - enemy.def.radius - 18 },
+      text: enemy.def.name.toUpperCase(),
+      color: '#ffcc80',
+      ttl: 0.7,
+      max: 0.7,
+    });
     return true;
   }
 
@@ -248,9 +326,9 @@ export class Game {
     if (!this.heroEnabled || this.status !== 'playing') return false;
     const h = this.hero;
     if (h.downed > 0 || h.clampCooldown > 0) return false;
-    h.clampCooldown = JEFF.clamp.cooldown * this.mods.cooldown;
+    h.clampCooldown = JEFF.clamp.cooldown * this.mods.cooldown / this.jeffCdAura;
     this.clamp = { pos: { ...h.pos }, timeLeft: JEFF.clamp.duration };
-    this.addEffect({ kind: 'ring', pos: { ...h.pos }, radius: JEFF.clamp.radius, color: '#e74c3c', ttl: 0.5, max: 0.5 });
+    this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'clamp', ttl: 1.15, max: 1.15 });
     return true;
   }
 
@@ -258,11 +336,56 @@ export class Game {
     if (!this.heroEnabled || this.status !== 'playing') return false;
     const h = this.hero;
     if (h.downed > 0 || h.shutoffCooldown > 0) return false;
-    h.shutoffCooldown = JEFF.shutoff.cooldown * this.mods.cooldown;
+    h.shutoffCooldown = JEFF.shutoff.cooldown * this.mods.cooldown / this.jeffCdAura;
     this.globalSlow = JEFF.shutoff.slow;
     this.globalSlowTimer = JEFF.shutoff.duration;
     this.spawnPause = JEFF.shutoff.duration;
-    this.addEffect({ kind: 'text', pos: { x: 480, y: 80 }, text: 'EMERGENCY SHUTOFF', color: '#4fc3f7', ttl: 1.5, max: 1.5 });
+    this.addEffect({ kind: 'skill', pos: { x: 480, y: 300 }, skill: 'shutoff', ttl: 1.8, max: 1.8 });
+    return true;
+  }
+
+  usePulse(): boolean {
+    if (!this.heroEnabled || this.status !== 'playing') return false;
+    const h = this.hero;
+    if (h.downed > 0 || h.pulseCooldown > 0) return false;
+    h.pulseCooldown = JEFF.pulse.cooldown * this.mods.cooldown / this.jeffCdAura;
+    this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'pulse', ttl: 1.05, max: 1.05 });
+    for (const e of this.enemies) {
+      if (!isTargetable(e) || dist(e.pos, h.pos) > JEFF.pulse.radius + e.def.radius) continue;
+      e.armorShred = Math.max(e.armorShred, JEFF.pulse.shred);
+      e.shredTimer = Math.max(e.shredTimer, 3);
+      e.stun = Math.max(e.stun, JEFF.pulse.stun * this.mods.stunDuration);
+      applyDamage(this, e, JEFF.pulse.damage * this.mods.jeffDamage, 'physical', 'jeff');
+      this.addEffect({ kind: 'hit', pos: { ...e.pos }, color: '#ffb74d', ttl: 0.38, max: 0.38 });
+    }
+    return true;
+  }
+
+  useSleeve(): boolean {
+    if (!this.heroEnabled || this.status !== 'playing') return false;
+    const h = this.hero;
+    if (h.downed > 0 || h.sleeveCooldown > 0) return false;
+    h.sleeveCooldown = JEFF.sleeve.cooldown * this.mods.cooldown / this.jeffCdAura;
+    h.sleeveTimer = JEFF.sleeve.duration;
+    this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'sleeve', ttl: 1.1, max: 1.1 });
+    return true;
+  }
+
+  useCoffee(): boolean {
+    if (!this.heroEnabled || this.status !== 'playing') return false;
+    const h = this.hero;
+    if (h.downed > 0 || h.coffeeCooldown > 0) return false;
+    h.coffeeCooldown = JEFF.coffee.cooldown * this.mods.cooldown / this.jeffCdAura;
+    h.coffeeTimer = JEFF.coffee.duration;
+    h.hp = Math.min(h.maxHp, h.hp + JEFF.coffee.heal);
+    this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'coffee', ttl: 1.15, max: 1.15 });
+    return true;
+  }
+
+  /** Soft-exit Night Shift — keep the record, lose nothing from the shop. */
+  retire(): boolean {
+    if (!this.endless || this.status !== 'playing' || this.waveIdx <= 0) return false;
+    this.status = 'retired';
     return true;
   }
 
@@ -285,8 +408,10 @@ export class Game {
     h.hp -= amount;
     if (h.hp <= 0) {
       h.hp = 0;
-      h.downed = JEFF.respawn;
+      h.downed = JEFF.respawn * this.mods.jeffRespawn;
       h.dest = null;
+      h.orderTargetId = null;
+      h.targetId = null;
       for (const e of this.enemies) if (e.heldBy?.kind === 'hero') e.heldBy = null;
       this.addEffect({ kind: 'text', pos: { x: h.pos.x, y: h.pos.y - 40 }, text: 'Jeff needs a minute', color: '#ff8a80', ttl: 1.4, max: 1.4 });
     }
@@ -307,7 +432,7 @@ export class Game {
 
   spawnEnemy(id: EnemyId, pathIdx: number, progress = 0): Enemy {
     const def = ENEMIES[id];
-    const hp = Math.round(def.hp * this.difficulty.hpMult);
+    const hp = Math.round(def.hp * this.difficulty.hpMult * this.waveHpScale);
     const path = this.paths[pathIdx] ?? this.paths[0]!;
     const e: Enemy = {
       id: this.nextEntityId(),
@@ -333,6 +458,13 @@ export class Game {
       escaped: false,
       attackTimer: 0.5,
       wobble: this.rng.range(0, 6),
+      dotDps: 0,
+      dotTime: 0,
+      dotSource: null,
+      marked: false,
+      haste: 0,
+      laneTimer: 7,
+      hitFlash: 0,
     };
     this.enemies.push(e);
     this.seen.add(id);
@@ -371,7 +503,7 @@ export class Game {
     if (this.lives <= 0) {
       this.lives = 0;
       this.status = 'lost';
-    } else if (this.allWavesStarted && !this.waveActive) {
+    } else if (!this.endless && this.allWavesStarted && !this.waveActive) {
       this.status = 'won';
     }
   }
@@ -407,15 +539,28 @@ export class Game {
     this.spawns = this.spawns.filter((s) => s.remaining > 0);
   }
 
+  private waveDefAt(index: number): WaveDef | undefined {
+    const scripted = this.map.waves[index];
+    if (scripted) return scripted;
+    if (this.endless) return generateEndlessWave(proceduralIndex(index, this.map.waves.length), this.paths.length);
+    return undefined;
+  }
+
   private startWave(): void {
-    const w = this.map.waves[this.waveIdx];
+    const index = this.waveIdx;
+    const w = this.waveDefAt(index);
     if (!w) return;
+    this.waveHpScale = this.endless ? 1 + index * 0.08 : 1;
     let duration = 0;
     for (const g of w.groups) {
       this.spawns.push({ enemy: g.enemy, remaining: g.count, interval: g.interval, timer: g.delay, path: g.path });
       duration = Math.max(duration, g.delay + (g.count - 1) * g.interval);
     }
     this.waveIdx++;
+    if (this.endless) {
+      const scripted = index < this.map.waves.length;
+      this.nightMutator = scripted ? null : nightMutatorAt(proceduralIndex(index, this.map.waves.length));
+    }
     this.waveCountdown = this.allWavesStarted ? -1 : duration + BETWEEN_WAVE_GRACE;
   }
 
@@ -425,7 +570,7 @@ export class Game {
       const target = this.enemies.find((e) => e.id === p.targetId && !e.dead && !e.escaped);
       const goal = target ? target.pos : p.lastTargetPos;
       if (target) p.lastTargetPos = { ...target.pos };
-      const step = p.speed * dt;
+      const step = p.speed * this.projSpeedMult * dt;
       const d = dist(p.pos, goal);
       if (d > step + 4) {
         p.pos = { x: p.pos.x + ((goal.x - p.pos.x) / d) * step, y: p.pos.y + ((goal.y - p.pos.y) / d) * step };
@@ -437,11 +582,15 @@ export class Game {
         this.addEffect({ kind: 'splash', pos: { ...goal }, radius: p.splash, color: p.color, ttl: 0.3, max: 0.3 });
         for (const e of this.enemies) {
           if (!isTargetable(e) || e.def.flying) continue;
-          if (dist(e.pos, goal) <= p.splash + e.def.radius) applyDamage(this, e, p.damage, p.damageType, p.source);
+          if (dist(e.pos, goal) <= p.splash + e.def.radius) {
+            applyDamage(this, e, p.damage, p.damageType, p.source);
+            if (p.shred || p.dot) applyDescaler(e, p.shred ?? 0, p.dot ?? 0, p.dotTime ?? 3);
+          }
         }
       } else if (target) {
         applyDamage(this, target, p.damage, p.damageType, p.source, { groundMult: p.groundMult });
         this.addEffect({ kind: 'hit', pos: { ...goal }, color: p.color, ttl: 0.15, max: 0.15 });
+        if (p.shred || p.dot) applyDescaler(target, p.shred ?? 0, p.dot ?? 0, p.dotTime ?? 3);
       }
     }
     this.projectiles = remaining;
