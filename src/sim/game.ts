@@ -566,7 +566,7 @@ export class Game {
       progress,
       pos: path.pointAt(progress),
       lane: this.rng.range(-10, 10),
-      speedMult: 1,
+      speedMult: this.difficulty.speedMult,
       slow: 0,
       stun: 0,
       heldBy: null,
@@ -694,7 +694,9 @@ export class Game {
     const index = this.waveIdx;
     const w = this.waveDefAt(index);
     if (!w) return;
-    this.waveHpScale = this.endless ? 1 + index * 0.028 + Math.pow(Math.max(0, index - 30), 1.4) * 0.005 : 1;
+    this.waveHpScale = this.endless
+      ? 1 + index * 0.03 + Math.pow(Math.max(0, index - 24), 1.4) * 0.006
+      : 1 + Math.max(0, index - 4) * 0.012;
     let duration = 0;
     for (const g of w.groups) {
       this.spawns.push({ enemy: g.enemy, remaining: g.count, interval: g.interval, timer: g.delay, path: g.path });

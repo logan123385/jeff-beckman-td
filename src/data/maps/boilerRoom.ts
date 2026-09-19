@@ -50,8 +50,8 @@ export const BOILER_ROOM: MapDef = {
     wave(grp('sludge', 5, 2.5), grp('scaleCrab', 6, 2, 4), grp('pressureSpike', 2, 2, 16)),
     wave(grp('airlock', 8, 1.8), grp('drip', 14, 0.7, 6)),
     wave(grp('scaleCrab', 10, 1.6), grp('sludge', 4, 3, 8)),
-    wave(grp('drip', 20, 0.5), grp('pressureSpike', 4, 2, 8), grp('airlock', 6, 2, 12)),
-    wave(grp('scaleCrab', 12, 1.4), grp('sludge', 6, 2.5, 6), grp('airlock', 8, 1.5, 12), grp('pressureSpike', 4, 1.5, 22)),
+    wave(grp('drip', 22, 0.48), grp('pressureSpike', 5, 1.8, 8), grp('airlock', 7, 1.8, 12)),
+    wave(grp('scaleCrab', 14, 1.3), grp('sludge', 7, 2.3, 6), grp('airlock', 10, 1.4, 12), grp('pressureSpike', 5, 1.4, 22)),
   ],
   palette: { bg: '#1f2429', wall: '#2c343b', pipe: '#7a7f85', pipeDark: '#4f5559', accent: '#ff9f43' },
 };

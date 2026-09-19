@@ -60,7 +60,7 @@ export function applyDamage(
   if (enemy.hp <= 0) {
     enemy.dead = true;
     enemy.heldBy = null;
-    const bounty = Math.round(enemy.def.bounty * game.mods.bounty);
+    const bounty = Math.round(enemy.def.bounty * game.mods.bounty * game.difficulty.bountyMult);
     game.money += bounty;
     game.stats.moneyEarned += bounty;
     game.stats.kills++;

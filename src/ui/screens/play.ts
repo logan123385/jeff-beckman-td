@@ -563,15 +563,24 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   }
 
   canvas.addEventListener('pointerdown', (ev) => {
-    // Let popovers / HUD keep their own clicks; only canvas fires this.
+    ev.preventDefault();
     handleYardPointer(ev);
+  });
+  canvas.addEventListener('pointermove', (ev) => {
+    if (ev.pointerType !== 'touch') return;
+    const p = toWorld(ev.clientX, ev.clientY);
+    view.mouse = p;
+    view.hoverSlot = slotAt(p, pickPad(ev));
+    view.hoverEnemyId = enemyAtPoint(p, pickPad(ev));
   });
   // Avoid ghost mouse events after touch on some browsers
   canvas.style.touchAction = 'none';
 
   const onKey = (ev: KeyboardEvent) => {
     if (ev.repeat) return;
-    switch (ev.key.toLowerCase()) {
+    const key = ev.key.toLowerCase();
+    if (' qertcdgjufpsan123456789'.includes(key) || ev.key === ' ' || key === 'escape') ev.preventDefault();
+    switch (key) {
       case 'd': beginCrew(); break;
       case 'g': if (view.selectedTowerId !== null) beginRally(view.selectedTowerId); break;
       case 'q':
@@ -759,7 +768,10 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       hud.setHint('Paused — the tab was in the background. Press P or Esc to resume.');
     }
   };
+  const stageWatch = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(onResize) : null;
+  stageWatch?.observe(stage);
   window.addEventListener('resize', onResize);
+  window.visualViewport?.addEventListener('resize', onResize);
   document.addEventListener('visibilitychange', onHide);
   lastForeshadow = game.waveIdx;
   showUpcomingBanner();
@@ -772,8 +784,10 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       audio.stopAmbient();
       coach?.dispose();
       pausePanel.hide();
+      stageWatch?.disconnect();
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);
+      window.visualViewport?.removeEventListener('resize', onResize);
       document.removeEventListener('visibilitychange', onHide);
     },
   };

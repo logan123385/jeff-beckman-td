@@ -156,7 +156,7 @@ export function actorArt(sheet: ActorSheet, index: number, height: number): { wi
 export function meshActor(ctx: CanvasRenderingContext2D, sheet: ActorSheet, index: number, height: number, warp: (x: number, y: number) => [number, number]): boolean {
   if (sheet === 'units' && index >= 16) { sheet = 'unitsAdvanced'; index -= 16; }
   const img = images.get(sheet), rect = crop(sheet, index); if (!img || !rect) return false;
-  const w=height*rect[2]/rect[3], h=height, cols=8, rows=14;
+  const w=height*rect[2]/rect[3], h=height, cols=6, rows=10;
   const vertices: {sx:number;sy:number;x:number;y:number}[][]=[];
   for(let j=0;j<=rows;j++) { const row=[];for(let i=0;i<=cols;i++){const x=i/cols,y=j/rows,p=warp(x,y);row.push({sx:x*w,sy:y*h,x:(p[0]-.5)*w,y:(p[1]-1)*h});}vertices.push(row); }
   type V=typeof vertices[number][number];

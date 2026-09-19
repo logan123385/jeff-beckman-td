@@ -272,4 +272,6 @@ export interface Difficulty {
   blurb: string;
   hpMult: number;
   livesMult: number;
+  speedMult: number;
+  bountyMult: number;
 }

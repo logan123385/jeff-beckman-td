@@ -50,7 +50,7 @@ export const RADIANT_FLOOR: MapDef = {
     wave(grp('frozenMain', 3, 5), grp('pressureSpike', 3, 2, 10)),
     wave(grp('sludge', 6, 2.5), grp('airlock', 6, 2, 5), grp('drip', 12, 0.7, 12)),
     wave(grp('scaleCrab', 10, 1.5), grp('frozenMain', 3, 5, 6)),
-    wave(grp('frozenMain', 4, 4), grp('drip', 20, 0.5, 6), grp('pressureSpike', 5, 1.8, 14), grp('sludge', 5, 2.5, 20)),
+    wave(grp('frozenMain', 4, 3.6), grp('drip', 24, 0.48, 6), grp('pressureSpike', 6, 1.6, 14), grp('sludge', 6, 2.3, 20)),
   ],
   palette: { bg: '#26221f', wall: '#3a332d', pipe: '#8c6f5a', pipeDark: '#5c4a3d', accent: '#ff7043' },
 };

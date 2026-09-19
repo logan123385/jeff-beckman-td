@@ -89,10 +89,11 @@ export function drawHeroAura(ctx: Ctx, game: Game, selected: boolean): void {
     disc(ctx, Math.cos(a) * inner, 12 + Math.sin(a) * inner * .36, 1.8, def.color);
   }
   if (def.id === 'chris') {
-    for (let i = 0; i < 5; i++) {
-      const p = (time * .45 + i * .2) % 1;
-      ctx.globalAlpha = Math.sin(p * Math.PI) * .12;
-      disc(ctx, Math.sin(i * 2.3 + p) * 35, 8 - p * 23, 6 + p * 8, '#b1c16b');
+    for (let i = 0; i < 6; i++) {
+      const a = time * 1.6 + i * TAU / 6;
+      const pulse = 0.72 + Math.sin(time * 3.2 + i) * 0.18;
+      ctx.globalAlpha = 0.28;
+      disc(ctx, Math.cos(a) * 30 * pulse, 8 + Math.sin(a) * 11 * pulse, 2.6, '#d7ec8a');
     }
     ctx.globalAlpha = 1;
   }

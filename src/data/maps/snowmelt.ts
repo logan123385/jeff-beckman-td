@@ -51,7 +51,7 @@ export const SNOWMELT: MapDef = {
     wave(grp('frozenMain', 3, 5), grp('airlock', 4, 2, 4)),
     wave(grp('sedimentBoulder', 2, 4.5), grp('drip', 12, 0.65, 3)),
     wave(grp('frozenMain', 3, 4.5), grp('scaleCrab', 6, 1.7, 4), grp('drip', 10, 0.7, 10)),
-    wave(grp('glycolGolem', 1, 1, 2), grp('drip', 14, 0.6, 8), grp('frozenMain', 2, 6, 16)),
+    wave(grp('glycolGolem', 1, 1, 2), grp('drip', 18, 0.55, 8), grp('frozenMain', 3, 5, 14), grp('pressureSpike', 3, 2, 10)),
   ],
   palette: { bg: '#1a242c', wall: '#24323c', pipe: '#7b9aad', pipeDark: '#4a6270', accent: '#26c6da' },
 };

@@ -64,9 +64,14 @@ export class Renderer {
 
   resize(): void {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    this.canvas.width = WORLD_W * dpr;
-    this.canvas.height = WORLD_H * dpr;
+    const width = Math.round(WORLD_W * dpr);
+    const height = Math.round(WORLD_H * dpr);
+    if (this.canvas.width === width && this.canvas.height === height) return;
+    this.canvas.width = width;
+    this.canvas.height = height;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.bgCache = null;
+    this.fgCache = null;
   }
 
   draw(game: Game, view: RenderView): void {

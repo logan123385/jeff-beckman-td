@@ -73,7 +73,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
     id: 'chris', name: 'Mr. Chris', title: 'Saw teeth. Tee times. Tiny accomplice.', style: 'Melee skirmisher & summoner',
     description: 'Carve into crowds with a reciprocating saw, bank a golf shot through enemies, and unleash Logan to scramble after stragglers.',
     color: '#c3d78a', hp: 430, speed: 136, reach: 44, damage: 19, attackRate: 1.65, swingTime: .57, holds: 2, armor: .08, ranged: false,
-    aura: { name: 'Big Farter', description: 'Within 85: ground enemies move 15% slower and suffer 4 heat damage per second. A personal space problem with tactical benefits.', radius: 85 },
+    aura: { name: 'Strongest Boy in the 8th Grade', description: 'Within 85: ground enemies move 15% slower and suffer 4 heat damage per second. Hallway gravity. Nobody walks past him at full speed.', radius: 85 },
     abilities: [
       { name: 'Unleash Logan', short: 'Tiny gremlin ally · 18s', description: 'Summon Logan for 18 seconds. He scurries after nearby ground enemies, holds one, and bites and batters with rapid attacks.', cooldown: 28, glyph: 'logan', cast: .85 },
       { name: 'FORE!', short: '3 ricocheting golf hits', description: 'Swing a golf club and drive a ball at an enemy within 280. It bounces to two more targets, dealing 70, 49, and 34 damage.', cooldown: 20, glyph: 'golf', target: true, cast: 1.05 },

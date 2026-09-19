@@ -82,7 +82,7 @@ describe('Enemies and lives', () => {
     const game = makeGame();
     game.callNextWave();
     step(game, 400 / ENEMIES.drip.speed + 1);
-    expect(game.lives).toBe(STRAIGHT.lives - 1);
+    expect(game.lives).toBe(Math.round(STRAIGHT.lives * DIFFICULTIES.journeyman.livesMult) - 1);
     expect(game.stats.escaped).toBe(1);
   });
 
@@ -128,8 +128,8 @@ describe('Damage model', () => {
     const before = game.money;
     applyDamage(game, drip, 999, 'fire', 'torch');
     expect(drip.dead).toBe(true);
-    expect(game.money).toBe(before + ENEMIES.drip.bounty);
-    expect(game.stats.towerDamage.torch).toBe(ENEMIES.drip.hp);
+    expect(game.money).toBe(before + Math.round(ENEMIES.drip.bounty * game.difficulty.bountyMult));
+    expect(game.stats.towerDamage.torch).toBe(drip.maxHp);
     expect(game.stats.kills).toBe(1);
   });
 
@@ -414,8 +414,8 @@ describe('Waves and economy', () => {
 
   it('difficulty scales hp and lives', () => {
     const master = new Game(STRAIGHT, { difficulty: DIFFICULTIES.master, mods: neutralModifiers(), seed: 1 });
-    expect(master.lives).toBe(Math.round(STRAIGHT.lives * 0.5));
-    expect(master.spawnEnemy('drip', 0).maxHp).toBe(Math.round(ENEMIES.drip.hp * 1.3));
+    expect(master.lives).toBe(Math.round(STRAIGHT.lives * DIFFICULTIES.master.livesMult));
+    expect(master.spawnEnemy('drip', 0).maxHp).toBe(Math.round(ENEMIES.drip.hp * DIFFICULTIES.master.hpMult));
   });
 });
 

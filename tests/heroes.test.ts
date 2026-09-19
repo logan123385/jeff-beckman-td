@@ -157,6 +157,10 @@ describe('Auras use their owners and real range', () => {
     const g = field('becbec'); expect(friendlyDamageBuff(g, { x: 340, y: 250 })).toBe(1.2);
     expect(friendlyDamageBuff(g, { x: 700, y: 250 })).toBe(1); g.damageHero(100000); expect(friendlyDamageBuff(g, g.hero.pos)).toBe(1);
   });
+  it('Mr. Chris aura is Strongest Boy in the 8th Grade', () => {
+    expect(HEROES.chris.aura.name).toBe('Strongest Boy in the 8th Grade');
+    expect(HEROES.chris.aura.name.toLowerCase()).not.toContain('fart');
+  });
 });
 
 describe('Campaign integration', () => {

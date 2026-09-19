@@ -195,7 +195,7 @@ function applySump(game: Game, t: Tower, dt: number): void {
     if (!path) continue;
     const basin = path.nearestPoint(t.pos).progress;
     if (e.progress <= basin) continue;
-    e.progress = Math.max(basin, e.progress - pull);
+    e.progress = Math.max(basin, e.progress - pull * Math.max(1, e.speedMult));
     e.heldBy = null;
     pulled = true;
   }
@@ -298,7 +298,7 @@ function applyBackflow(game: Game, t: Tower, dt: number): void {
   let shoved = false;
   for (const e of game.enemies) {
     if (!isTargetable(e) || e.def.flying || dist(e.pos, t.pos) > range + e.def.radius) continue;
-    e.progress = Math.max(0, e.progress - push);
+    e.progress = Math.max(0, e.progress - push * Math.max(1, e.speedMult));
     e.heldBy = null;
     shoved = true;
   }

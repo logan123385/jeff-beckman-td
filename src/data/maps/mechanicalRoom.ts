@@ -68,7 +68,7 @@ export const MECHANICAL_ROOM: MapDef = {
     wave(grp('waterHammer', 1, 1, 0, 0), grp('drip', 8, 0.8, 4, 1)),
     wave(grp('pexKink', 1, 1, 0, 1), grp('flangeGremlin', 2, 2.6, 3, 0), grp('drip', 8, 0.75, 8, 1)),
     wave(grp('biofilm', 2, 3.0, 0, 0), grp('limeScale', 2, 2.8, 5, 1), grp('drip', 10, 0.7, 6, 0)),
-    wave(grp('waterHammer', 2, 2.0, 0, 1), grp('pexKink', 2, 3.2, 4, 0), grp('flangeGremlin', 2, 2.4, 8, 1), grp('drip', 10, 0.65, 10, 0)),
+    wave(grp('waterHammer', 2, 1.8, 0, 1), grp('pexKink', 3, 2.8, 4, 0), grp('flangeGremlin', 3, 2.1, 8, 1), grp('drip', 14, 0.58, 10, 0), grp('limeScale', 2, 2.6, 6, 1)),
   ],
   palette: { bg: '#2a241c', wall: '#3e3428', pipe: '#8d6e4a', pipeDark: '#5d4037', accent: '#ff8a65' },
 };

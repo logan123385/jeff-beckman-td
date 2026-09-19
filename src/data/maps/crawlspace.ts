@@ -45,9 +45,9 @@ export const CRAWLSPACE: MapDef = {
     wave(grp('drip', 10, 0.8), grp('sludge', 2, 4, 6)),
     wave(grp('drip', 14, 0.7), grp('pressureSpike', 2, 3, 10)),
     wave(grp('sludge', 4, 3), grp('drip', 10, 0.8, 5)),
-    wave(grp('drip', 16, 0.6), grp('pressureSpike', 3, 2.5, 8)),
-    wave(grp('sludge', 5, 2.5), grp('drip', 12, 0.8, 4), grp('pressureSpike', 2, 2, 14)),
-    wave(grp('drip', 20, 0.5), grp('sludge', 6, 2.5, 6), grp('pressureSpike', 4, 2, 12)),
+    wave(grp('drip', 18, 0.55), grp('pressureSpike', 4, 2.2, 8)),
+    wave(grp('sludge', 6, 2.3), grp('drip', 14, 0.75, 4), grp('pressureSpike', 3, 1.8, 14)),
+    wave(grp('drip', 22, 0.48), grp('sludge', 8, 2.3, 6), grp('pressureSpike', 5, 1.8, 12)),
   ],
   palette: { bg: '#2b2620', wall: '#3d3630', pipe: '#6d6a66', pipeDark: '#4a4744', accent: '#c9a26b' },
 };

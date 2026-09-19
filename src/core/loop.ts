@@ -27,12 +27,13 @@ export class GameLoop {
       if (!this.paused) {
         this.acc += elapsed * this.speed;
         let steps = 0;
-        while (this.acc >= FIXED_DT && steps < 12) {
+        const maxSteps = this.speed > 1.25 ? 10 : 8;
+        while (this.acc >= FIXED_DT && steps < maxSteps) {
           this.handlers.update(FIXED_DT);
           this.acc -= FIXED_DT;
           steps++;
         }
-        if (steps >= 12) this.acc = 0;
+        if (steps >= maxSteps) this.acc = Math.min(this.acc, FIXED_DT);
       }
       this.handlers.render();
       this.raf = requestAnimationFrame(tick);

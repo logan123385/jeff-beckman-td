@@ -51,7 +51,7 @@ export const ATTIC: MapDef = {
     wave(grp('sludge', 4, 2.4), grp('hardWaterGnat', 4, 1.0, 4), grp('drip', 10, 0.75, 8)),
     wave(grp('drip', 12, 0.7), grp('condensateMoth', 2, 3.2, 2), grp('scaleCrab', 4, 2, 6)),
     wave(grp('sludge', 4, 2.4), grp('steamWisp', 5, 1.5, 3), grp('drip', 10, 0.75, 8)),
-    wave(grp('drip', 14, 0.65), grp('sludge', 4, 2.4, 4), grp('steamWisp', 5, 1.5, 8), grp('condensateMoth', 2, 2.8, 12)),
+    wave(grp('drip', 16, 0.6), grp('sludge', 5, 2.2, 4), grp('steamWisp', 7, 1.35, 8), grp('condensateMoth', 3, 2.4, 12)),
   ],
   palette: { bg: '#241f1c', wall: '#3a322c', pipe: '#8a7a68', pipeDark: '#5a4e42', accent: '#ab47bc' },
 };

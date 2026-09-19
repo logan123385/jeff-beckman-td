@@ -52,7 +52,7 @@ Choose your hero while packing the truck. Every hero is available immediately, t
 | Jeff Beckman | Frontline guardian | Wrench, Pipe Clamp, Emergency Shutoff, Manometer, Sleeve, Coffee | Greatest Plumber to Ever Live |
 | Big Mike | Mobile ranged support | Blue/cream truck with no logos, plunger javelins, horn knockback, supply crate, throttle, Royal Rain | The Truck King |
 | Robo Bob | Precision ranged destroyer | Laser hand cannon, You’re Fired piercing beam, reboot, EMP, overclock, target marks | Orbs Aren’t Real |
-| Mr. Chris | Melee skirmisher and summoner | Reciprocating saw, temporary scurrying Logan, ricocheting golf ball, saw combo, gas cloud, lifesteal | Big Farter |
+| Mr. Chris | Melee skirmisher and summoner | Reciprocating saw, temporary scurrying Logan, ricocheting golf ball, saw combo, gas cloud, lifesteal | Strongest Boy in the 8th Grade |
 | Becbec | Heavy bare-handed brawler | Cartoonishly muscular, haymaker, ground slam, extra holds, Iron Will, five-punch combo | Stronger Together |
 
 Five painted transparent atlases contain 120 movement, attack, and signature-cast poses for the new heroes and Logan. Contact-timed damage, projectile arcs, custom laser/impact effects, distinct sound cues, smooth pose transitions, and moving aura boundaries make the kits readable. Logan moves, fights, takes damage, expires, and releases enemies as a real ally. See [hero verification](docs/overhaul/hero-verification.md), [motion sheet](docs/overhaul/hero-motion-sheet.png), and [exact art prompts](docs/overhaul/hero-art-prompts.md).

@@ -75,9 +75,9 @@ export const MUNICIPAL_MAIN: MapDef = {
     wave(grp('steamWisp', 12, 1.2, 0, 0), grp('steamWisp', 6, 1.5, 6, 1), grp('scaleCrab', 6, 2, 8, 1)),
     wave(grp('sludge', 6, 2.5, 0, 1), grp('scaleCrab', 8, 1.8, 3, 0), grp('pressureSpike', 4, 2, 14, 1)),
     wave(grp('frozenMain', 3, 5, 0, 1), grp('airlock', 8, 1.6, 4, 0), grp('steamWisp', 8, 1.4, 10, 0)),
-    wave(grp('drip', 24, 0.45, 0, 0), grp('drip', 16, 0.5, 4, 1), grp('pressureSpike', 5, 1.8, 12, 0)),
-    wave(grp('scaleCrab', 10, 1.5, 0, 0), grp('sludge', 6, 2.5, 2, 1), grp('steamWisp', 10, 1.3, 8, 1), grp('frozenMain', 2, 6, 14, 0)),
-    wave(grp('rogueBoiler', 1, 1, 2, 1), grp('steamWisp', 8, 1.5, 12, 0), grp('drip', 16, 0.6, 20, 0), grp('scaleCrab', 6, 2, 30, 1)),
+    wave(grp('drip', 26, 0.44, 0, 0), grp('drip', 16, 0.48, 4, 1), grp('pressureSpike', 5, 1.7, 12, 0)),
+    wave(grp('scaleCrab', 11, 1.45, 0, 0), grp('sludge', 6, 2.4, 2, 1), grp('steamWisp', 11, 1.25, 8, 1), grp('frozenMain', 2, 5.5, 14, 0)),
+    wave(grp('rogueBoiler', 1, 1, 2, 1), grp('steamWisp', 9, 1.4, 12, 0), grp('drip', 18, 0.58, 20, 0), grp('scaleCrab', 7, 1.9, 30, 1)),
   ],
   palette: { bg: '#1c2326', wall: '#29343a', pipe: '#6f8a94', pipeDark: '#465a62', accent: '#4fc3f7' },
 };

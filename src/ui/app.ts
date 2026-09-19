@@ -68,4 +68,10 @@ export class App {
     this.current = view;
     this.root.append(view.el);
   }
+
+  dispose(): void {
+    this.current?.dispose?.();
+    this.current = null;
+    clear(this.root);
+  }
 }
