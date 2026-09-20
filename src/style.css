@@ -2608,3 +2608,108 @@ p {
     grid-template-columns: 110px 1fr 40px;
   }
 }
+
+/* ---- layered pops / rush / persist (App Builder slice) ---- */
+.medal.parts .ico {
+  background: radial-gradient(#90caf9, #1565c0);
+  color: #e3f2fd;
+}
+.medal.pipe .ico {
+  background: radial-gradient(#ffe082, #ef6c00);
+  color: #3e2723;
+}
+.medal.pipe {
+  min-width: 72px;
+}
+.rush-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: linear-gradient(#ff8a50, #c62828);
+  color: #fff8e1;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  box-shadow: 0 2px 0 #5d1a10, 0 0 10px rgba(255, 110, 64, 0.45);
+}
+.wave-pip.splits {
+  box-shadow: 0 0 0 1px #ffe082, 0 0 10px rgba(255, 224, 130, 0.55);
+}
+.wave-pip.rush {
+  box-shadow: 0 0 0 1px #ff8a50, 0 0 12px rgba(255, 110, 64, 0.7);
+  animation: pip-pulse 0.9s ease-in-out infinite;
+}
+.wave-pip.stacked {
+  outline: 1px dashed #b0bec5;
+  outline-offset: 2px;
+}
+.pip-split,
+.pip-props {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #ffe9b0;
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.pip-split { top: -9px; color: #fff3c4; }
+.pip-props { bottom: -11px; color: #b3e5fc; }
+.rush-line b { color: #ff8a50; }
+.prop-guide {
+  margin-top: 16px;
+  padding: 14px 16px;
+}
+.prop-guide h2 {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+.prop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.prop-card {
+  border: 1px solid rgba(201, 161, 91, 0.4);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.18);
+}
+.prop-card h3 {
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+.prop-card.prop-mineral { border-color: #d7ccc8; }
+.prop-card.prop-cast { border-color: #8d6e63; }
+.prop-card.prop-regen { border-color: #81c784; }
+.prop-card.prop-pressurized { border-color: #ef6c00; }
+.prop-card.prop-split { border-color: #ffe082; }
+.persist-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.persist-row.warn {
+  padding: 10px 12px;
+  background: rgba(80, 24, 18, 0.72);
+  border: 1px solid #ef6b5b;
+  border-radius: 8px;
+}
+.persist-warn {
+  margin: 0;
+  color: #ffccbc;
+  font-size: 13px;
+  max-width: 42ch;
+}
+.persist-actions {
+  display: flex;
+  gap: 8px;
+}

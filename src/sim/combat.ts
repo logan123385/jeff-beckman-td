@@ -1,11 +1,24 @@
 import { clamp, dist } from '../core/vec';
 import { ABILITY_RANK_CAP, type AbilitySlot } from '../data/heroes';
 import { BOSS_PHASE_SPEED_BONUS, BOSS_PHASE_THRESHOLDS, BOSS_SUMMON_COUNT } from '../data/enemies';
+import { inheritProperties, partsForKill } from '../data/leakProperties';
+import { inheritSplitProperties, splitCount, splitOf } from '../data/splits';
 import { MINERAL_ENEMIES, TOWERS } from '../data/towers';
-import type { DamageType, EnemyId, TargetMode, TowerId } from '../data/types';
+import type { DamageType, EnemyId, LeakProperty, TargetMode, TowerId } from '../data/types';
 import type { Game } from './game';
 import type { AimPriority, DamageSource, Enemy, Tower } from './state';
 
+export function hasProp(enemy: Enemy, prop: LeakProperty): boolean {
+  return enemy.properties.includes(prop);
+}
+
+export function leakRemaining(enemy: Enemy): number {
+  return Math.max(0, enemy.hp + enemy.shellHp);
+}
+
+export function leakMax(enemy: Enemy): number {
+  return Math.max(1, enemy.maxHp + enemy.maxShell);
+}
 export const MARKED_DAMAGE = 1.2;
 export const CORPSE_TIME = 0.46;
 export { ABILITY_RANK_CAP };
@@ -83,6 +96,13 @@ export function damageMultiplier(
   if ((source === 'descaler' || source === 'dirtSep') && (MINERAL_ENEMIES as readonly EnemyId[]).includes(enemy.def.id)) {
     mult *= source === 'descaler' ? 1.5 : 1.4;
   }
+  if (hasProp(enemy, 'mineral')) {
+    if (source === 'washer') return 0;
+    if (source === 'descaler' || source === 'dirtSep' || source === 'hammerDrill' || type === 'fire' || type === 'heat') {
+      mult *= source === 'hammerDrill' ? 1.35 : 1.2;
+    }
+  }
+  if (hasProp(enemy, 'cast') && (source === 'hammerDrill' || source === 'torch')) mult *= 1.25;
   if (enemy.marked) mult *= 1 + (enemy.markBonus || MARKED_DAMAGE - 1);
   if (source === 'jeff') mult *= heroRank(game);
   return mult;
@@ -111,9 +131,20 @@ export function applyDamage(
   opts: DamageOpts = {},
 ): number {
   if (enemy.dead || enemy.escaped || enemy.phased) return 0;
-  const dealt = Math.min(enemy.hp, estimateDamage(game, enemy, amount, type, source, opts));
+  const dealt = Math.min(leakRemaining(enemy), estimateDamage(game, enemy, amount, type, source, opts));
   if (dealt <= 0) return 0;
-  enemy.hp -= dealt;
+  if (type === 'fire' || type === 'heat') enemy.burnTimer = Math.max(enemy.burnTimer, 3.2);
+  let left = dealt;
+  if (enemy.shellHp > 0) {
+    const fromShell = Math.min(enemy.shellHp, left);
+    enemy.shellHp -= fromShell;
+    left -= fromShell;
+    if (fromShell > 0 && enemy.shellHp <= 0) {
+      game.addEffect({ kind: 'ring', pos: { ...enemy.pos }, radius: enemy.def.radius * 2.4, color: '#6d4c41', ttl: 0.36, max: 0.36 });
+      game.addEffect({ kind: 'text', pos: { x: enemy.pos.x, y: enemy.pos.y - 26 }, text: 'JACKET GONE', color: '#d7ccc8', ttl: 0.7, max: 0.7 });
+    }
+  }
+  if (left > 0) enemy.hp -= left;
   if (dealt >= 4) enemy.hitFlash = Math.max(enemy.hitFlash, Math.min(0.22, 0.08 + dealt / 180));
   // Discrete hits only — aura ticks and DoT are tiny per frame and would flood the yard.
   if (dealt >= 6 && amount >= 6 && game.effects.length < 280) {
@@ -136,13 +167,19 @@ export function applyDamage(
     enemy.heldBy = null;
     enemy.incoming = 0;
     enemy.deathAge = CORPSE_TIME;
-    const bounty = Math.round(enemy.def.bounty * game.mods.bounty * game.difficulty.bountyMult);
+    const pressurized = hasProp(enemy, 'pressurized');
+    const bounty = Math.round(enemy.def.bounty * game.mods.bounty * game.difficulty.bountyMult * (pressurized ? 1.35 : 1));
     game.money += bounty;
     game.stats.moneyEarned += bounty;
+    const parts = partsForKill(enemy.def.traits.includes('boss'), enemy.def.bounty, pressurized);
+    if (game.remaster !== 'cleanHands') {
+      game.parts += parts;
+      game.stats.partsEarned += parts;
+    }
     game.stats.kills++;
     game.combo += 1;
     game.comboTimer = 1.85;
-    game.grantHeroXp(Math.round(6 + enemy.def.bounty * 0.4 + enemy.maxHp * 0.012));
+    game.grantHeroXp(Math.round(6 + enemy.def.bounty * 0.4 + leakMax(enemy) * 0.012));
     if (game.combo >= 8) game.requestHitstop(0.05);
     else if (game.combo >= 3) game.requestHitstop(0.028);
     game.addEffect({ kind: 'death', pos: { ...enemy.pos }, enemy: enemy.def.id, radius: enemy.def.radius, ttl: 0.48, max: 0.48 });
@@ -151,17 +188,38 @@ export function applyDamage(
     game.addEffect({ kind: 'splash', pos: { ...enemy.pos }, radius: Math.max(22, enemy.def.radius * 2.8), color: enemy.def.color, ttl: 0.32, max: 0.32 });
     game.addEffect({ kind: 'hit', pos: { ...enemy.pos }, color: enemy.def.color, ttl: 0.2, max: 0.2 });
     game.addEffect({ kind: 'ring', pos: { ...enemy.pos }, radius: Math.max(28, enemy.def.radius * 3.4), color: enemy.def.color, ttl: 0.28, max: 0.28 });
-    if (enemy.def.traits.includes('splits')) {
-      const pathLen = game.paths[enemy.pathIdx]?.length ?? enemy.progress;
-      const childAt = (back: number) => Math.max(0, Math.min(enemy.progress - back, pathLen * 0.72));
-      game.spawnEnemy('drip', enemy.pathIdx, childAt(90));
-      game.spawnEnemy('drip', enemy.pathIdx, childAt(150));
-      game.addEffect({ kind: 'splash', pos: { ...enemy.pos }, radius: 22, color: enemy.def.color, ttl: 0.28, max: 0.28 });
-    }
+    spawnChildren(game, enemy);
   } else if (enemy.def.traits.includes('boss')) {
     checkBossPhase(game, enemy);
   }
   return dealt;
+}
+
+function spawnChildren(game: Game, enemy: Enemy): void {
+  const def = splitOf(enemy.def.id);
+  if (!def) return;
+  const n = splitCount(enemy.def.id, hasProp(enemy, 'pressurized'));
+  if (n <= 0) return;
+  const kids = inheritSplitProperties(enemy.properties);
+  const pathLen = game.paths[enemy.pathIdx]?.length ?? enemy.progress;
+  for (let i = 0; i < n; i++) {
+    const back = 8 + i * 16;
+    const at = Math.max(0, Math.min(enemy.progress - back, pathLen - 4));
+    const child = game.spawnEnemy(def.child, enemy.pathIdx, at, kids);
+    child.hitFlash = Math.max(child.hitFlash, 0.28);
+    child.wobble += 3 + i;
+  }
+  game.requestHitstop(n >= 3 ? 0.055 : 0.04);
+  game.addEffect({ kind: 'splash', pos: { ...enemy.pos }, radius: Math.max(28, enemy.def.radius * 3.2), color: enemy.def.color, ttl: 0.36, max: 0.36 });
+  game.addEffect({ kind: 'ring', pos: { ...enemy.pos }, radius: Math.max(40, enemy.def.radius * 4.2), color: '#ffe082', ttl: 0.42, max: 0.42 });
+  game.addEffect({
+    kind: 'text',
+    pos: { x: enemy.pos.x, y: enemy.pos.y - 36 },
+    text: n === 1 ? 'STILL WALKING' : `${n} MORE`,
+    color: '#ffe082',
+    ttl: 0.85,
+    max: 0.85,
+  });
 }
 
 function checkBossPhase(game: Game, boss: Enemy): void {
@@ -171,7 +229,7 @@ function checkBossPhase(game: Game, boss: Enemy): void {
   boss.bossPhase++;
   boss.speedMult += BOSS_PHASE_SPEED_BONUS;
   for (let i = 0; i < BOSS_SUMMON_COUNT; i++) {
-    game.spawnEnemy('drip', boss.pathIdx, Math.max(0, boss.progress - 12 * (i + 1)));
+    game.spawnEnemy('drip', boss.pathIdx, Math.max(0, boss.progress - 12 * (i + 1)), inheritProperties(boss.properties));
   }
   game.addEffect({ kind: 'ring', pos: { ...boss.pos }, radius: 90, color: '#ff7043', ttl: 0.6, max: 0.6 });
   game.addEffect({ kind: 'text', pos: { x: boss.pos.x, y: boss.pos.y - 40 }, text: 'PRESSURE RISING', color: '#ff7043', ttl: 1.4, max: 1.4 });
@@ -222,7 +280,7 @@ export function pickTarget(game: Game, tower: Tower, range: number): Enemy | nul
   const aim = tower.aim ?? 'first';
   for (const e of game.enemies) {
     if (!isTargetable(e) || !matchesTargetMode(tower.def.targets, e)) continue;
-    if (e.hp - e.incoming <= 0) continue;
+    if (e.hp + e.shellHp - e.incoming <= 0) continue;
     const d = dist(e.pos, tower.pos);
     if (d > range + e.def.radius) continue;
     if (!best || preferTarget(game, aim, e, best, d, bestDist)) {
@@ -246,9 +304,9 @@ function preferTarget(game: Game, aim: AimPriority, e: Enemy, best: Enemy, d: nu
     case 'last':
       return rem > bestRem + 0.5 || (Math.abs(rem - bestRem) <= 0.5 && d < bestDist);
     case 'strong':
-      return e.maxHp > best.maxHp + 0.5 || (Math.abs(e.maxHp - best.maxHp) <= 0.5 && rem < bestRem);
+      return leakMax(e) > leakMax(best) + 0.5 || (Math.abs(leakMax(e) - leakMax(best)) <= 0.5 && rem < bestRem);
     case 'weak':
-      return e.hp < best.hp - 0.5 || (Math.abs(e.hp - best.hp) <= 0.5 && rem < bestRem);
+      return leakRemaining(e) < leakRemaining(best) - 0.5 || (Math.abs(leakRemaining(e) - leakRemaining(best)) <= 0.5 && rem < bestRem);
     case 'close':
       return d < bestDist - 0.5 || (Math.abs(d - bestDist) <= 0.5 && rem < bestRem);
     default: {

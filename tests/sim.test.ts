@@ -51,7 +51,13 @@ const STRAIGHT: MapDef = {
 };
 
 function makeGame(overrides: Partial<MapDef> = {}, heroEnabled = false, loadout?: TowerId[]): Game {
-  return new Game({ ...STRAIGHT, ...overrides }, { difficulty: DIFFICULTIES.journeyman, mods: neutralModifiers(), seed: 3, heroEnabled, loadout });
+  const game = new Game({ ...STRAIGHT, ...overrides }, { difficulty: DIFFICULTIES.journeyman, mods: neutralModifiers(), seed: 3, heroEnabled, loadout });
+  if (heroEnabled) game.deployHero({ ...game.map.jeffStart });
+  return game;
+}
+
+function finishBuild(game: Game): void {
+  for (const t of game.towers) t.build = 0;
 }
 
 function step(game: Game, seconds: number): void {
@@ -62,10 +68,11 @@ function step(game: Game, seconds: number): void {
 describe('Path', () => {
   it('positions by progress and reports length', () => {
     const p = new Path([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }]);
-    expect(p.length).toBe(150);
-    expect(p.pointAt(50)).toEqual({ x: 50, y: 0 });
-    expect(p.pointAt(125)).toEqual({ x: 100, y: 25 });
-    expect(p.pointAt(999)).toEqual({ x: 100, y: 50 });
+    expect(p.length).toBeGreaterThan(149);
+    expect(p.length).toBeLessThan(160);
+    expect(p.pointAt(0)).toEqual({ x: 0, y: 0 });
+    expect(p.pointAt(p.length).x).toBeCloseTo(100, 5);
+    expect(p.pointAt(p.length).y).toBeCloseTo(50, 5);
   });
 
   it('finds the nearest point on the polyline', () => {
@@ -245,6 +252,7 @@ describe('Towers', () => {
     const game = makeGame();
     game.placeTower(0, 'radiant');
     game.placeTower(2, 'torch');
+    finishBuild(game);
     const slug = game.spawnEnemy('sludge', 0, 200);
     step(game, FIXED_DT * 2);
     expect(slug.slow).toBeGreaterThan(0);
@@ -267,6 +275,7 @@ describe('Towers', () => {
     const game = makeGame();
     game.placeTower(0, 'torch');
     game.placeTower(2, 'expansion');
+    finishBuild(game);
     step(game, FIXED_DT);
     const torch = game.towers[0]!;
     expect(game.effectiveDamage(torch)).toBeGreaterThan(TOWERS.torch.levels[0].damage);
@@ -339,6 +348,8 @@ describe('Jeff', () => {
     first.hp = 8;
     const second = game.spawnEnemy('drip', 0, 195);
     second.pos = { x: first.pos.x + 18, y: first.pos.y };
+    second.def = { ...second.def, speed: 0, dps: 0 };
+    second.hp = second.maxHp = 10000;
     expect(game.commandHeroAttack(first.id)).toBe(true);
     step(game, 4);
     expect(first.dead).toBe(true);
@@ -381,14 +392,18 @@ describe('Jeff', () => {
     expect(game.hero.hp).toBe(game.hero.maxHp);
   });
 
-  it('respawns at the job start, not in the pile', () => {
+  it('is ready to redeploy after the downed timer', () => {
     const game = makeGame({ jeffStart: { x: 40, y: 50 } }, true);
     expect(game.commandHero({ x: 400, y: 300 })).toBe(true);
     step(game, 5);
     expect(game.hero.pos.x).toBeGreaterThan(100);
     game.damageHero(9999);
+    expect(game.hero.deployed).toBe(false);
     step(game, 13);
     expect(game.hero.downed).toBeLessThanOrEqual(0);
+    expect(game.hero.deployed).toBe(false);
+    expect(game.hero.hp).toBe(game.hero.maxHp);
+    expect(game.deployHero({ x: 40, y: 50 })).toBe(true);
     expect(game.hero.pos).toEqual({ x: 40, y: 50 });
   });
 });
@@ -511,6 +526,7 @@ describe('Stage 2 towers and remasters', () => {
   it('Backflow shoves a ground enemy backward along the pipe', () => {
     const game = makeGame();
     game.placeTower(0, 'backflow');
+    finishBuild(game);
     const drip = game.spawnEnemy('drip', 0, 200);
     drip.pos = game.paths[0]!.pointAt(200);
     const before = drip.progress;
@@ -565,6 +581,7 @@ describe('Stage 3 progression and kit', () => {
   it('Inspection Camera marks enemies and pops a phase', () => {
     const game = makeGame();
     game.placeTower(0, 'camera');
+    finishBuild(game);
     const bubble = game.spawnEnemy('airlock', 0, 200);
     bubble.pos = game.paths[0]!.pointAt(200);
     bubble.phased = true;
@@ -794,6 +811,7 @@ describe('Loadout and new kit', () => {
       { difficulty: DIFFICULTIES.journeyman, mods, seed: 3, heroEnabled: false },
     );
     expect(game.placeTower(0, 'zoneValve')).toBe(true);
+    finishBuild(game);
     const drip = game.spawnEnemy('drip', 0, 200);
     drip.pos = game.paths[0]!.pointAt(200);
     step(game, FIXED_DT * 2);

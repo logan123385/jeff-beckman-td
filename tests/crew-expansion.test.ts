@@ -112,8 +112,8 @@ describe('Neverending call pacing',()=>{
     const g=new Game(SERVICE_CALL,{difficulty:DIFFICULTIES.apprentice,mods:neutralModifiers(),heroEnabled:false,manualStart:true});
     g.callNextWave();step(g,10);for(const e of g.enemies)e.def={...e.def,speed:0};step(g,32);expect(g.waveIdx).toBe(1);expect(g.completedWaves).toBe(0);
     for(const e of g.enemies)e.dead=true;
-    const cash=g.money;step(g,.1);expect(g.completedWaves).toBe(1);expect(g.money).toBe(cash+79);
-    step(g,1);expect(g.money).toBe(cash+79);
+    const cash=g.money;step(g,.1);expect(g.completedWaves).toBe(1);expect(g.money).toBe(cash+97);
+    step(g,1);expect(g.money).toBe(cash+97);
   });
   it('calling waves early and retiring cannot manufacture cleared-wave rewards',()=>{
     const g=new Game(SERVICE_CALL,{difficulty:DIFFICULTIES.apprentice,mods:neutralModifiers(),manualStart:true});

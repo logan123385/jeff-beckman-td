@@ -15,10 +15,12 @@ function game(): Game {
   }, { difficulty: DIFFICULTIES.journeyman, mods: neutralModifiers(), manualStart: true, heroEnabled: false });
 }
 function step(g: Game, seconds: number): void { for (let i = 0; i < seconds * 60; i++) g.update(1 / 60); }
+function finishBuild(g: Game): void { for (const t of g.towers) t.build = 0; }
 function elite(g: Game, id: TowerId): number {
   expect(g.placeTower(0, id)).toBe(true);
   const t = g.towers[0]!;
   expect(g.upgradeTower(t.id)).toBe(true); expect(g.upgradeTower(t.id)).toBe(true);
+  finishBuild(g);
   return t.id;
 }
 
@@ -31,7 +33,7 @@ describe('Player preparation and wave intelligence', () => {
   });
   it('previews exact counts per route without consuming waves', () => {
     const g = game();
-    expect(g.nextWavePreview()).toEqual([{ enemy: 'drip', count: 6, path: 0 }]);
+    expect(g.nextWavePreview()).toEqual([{ enemy: 'drip', count: 6, path: 0, properties: [] }]);
     expect(g.waveIdx).toBe(0); expect(g.seen.size).toBe(0);
   });
 });
@@ -72,12 +74,14 @@ describe('Elite investments', () => {
   });
   it('medic barracks heal nearby Jeff without reviving a downed hero', () => {
     const g = game(); Object.defineProperty(g, 'heroEnabled', { value: true });
+    expect(g.deployHero({ ...g.map.jeffStart })).toBe(true);
     const tid = elite(g, 'barricade'); g.specializeTower(tid, 'control');
     g.hero.hp = 50; step(g, 0.1); expect(g.hero.hp).toBeGreaterThan(50);
-    g.hero.hp = 0; g.hero.downed = 10; step(g, 0.1); expect(g.hero.hp).toBe(0);
+    g.hero.hp = 0; g.hero.downed = 10; g.hero.deployed = false; step(g, 0.1); expect(g.hero.hp).toBe(0);
   });
   it('an elite camera strengthens the mark without stacking several cameras', () => {
     const g = game(); const tid = elite(g, 'camera'); g.specializeTower(tid, 'power'); g.placeTower(1, 'camera');
+    finishBuild(g);
     const enemy = g.spawnEnemy('sludge', 0, 300); step(g, 1 / 60);
     expect(enemy.markBonus).toBe(0.38);
     const dealt = applyDamage(g, enemy, 10, 'heat', 'radiant');
@@ -99,7 +103,7 @@ describe('Support crew and rally orders', () => {
   it('holds only ground enemies and attributes damage separately from Jeff and towers', () => {
     const g = game(); g.reinforce({ x: 300, y: 200 });
     const enemy = g.spawnEnemy('sludge', 0, 280), flyer = g.spawnEnemy('steamWisp', 0, 280);
-    const hp = enemy.hp; step(g, 0.5);
+    const hp = enemy.hp; step(g, 1);
     expect(enemy.heldBy?.kind).toBe('crew'); expect(flyer.heldBy).toBeNull();
     expect(enemy.hp).toBeLessThan(hp); expect(g.stats.crewDamage).toBeGreaterThan(0);
     expect(g.stats.jeffDamage).toBe(0);
@@ -108,13 +112,13 @@ describe('Support crew and rally orders', () => {
     const g = game(); g.reinforce({ x: 300, y: 200 });
     const enemy = g.spawnEnemy('sludge', 0, 280);
     enemy.def = { ...enemy.def, dps: 0 }; enemy.hp = enemy.maxHp = 10000;
-    step(g, 0.1); expect(enemy.heldBy?.kind).toBe('crew');
+    step(g, 1); expect(enemy.heldBy?.kind).toBe('crew');
     step(g, 18); expect(g.crew).toHaveLength(0); expect(enemy.heldBy).toBeNull();
     step(g, 12); expect(g.reinforce({ x: 500, y: 200 })).toBe(true);
   });
   it('releases a killed helper immediately', () => {
     const g = game(); g.reinforce({ x: 300, y: 200 });
-    const e = g.spawnEnemy('sludge', 0, 280); step(g, 0.1);
+    const e = g.spawnEnemy('sludge', 0, 280); step(g, 1);
     const id = e.heldBy?.kind === 'crew' ? e.heldBy.id : -1;
     const c = g.crew.find(crew => crew.id === id)!;
     c.hp = 1; e.attackTimer = 0; step(g, 1 / 60);

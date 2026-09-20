@@ -81,6 +81,7 @@ export function runHeadless(map: MapDef, opts: HarnessOptions = {}): HarnessResu
   const difficulty = DIFFICULTIES[opts.difficulty ?? 'apprentice'];
   const mods = buildModifiers(opts.skills ?? []);
   const game = new Game(map, { heroId: opts.heroId, difficulty, mods, seed: opts.seed ?? 7, heroEnabled: opts.heroEnabled ?? true });
+  if (game.heroEnabled) game.deployHero({ ...map.jeffStart });
   const order = (opts.buildOrder ?? DEFAULT_ORDER).filter((id) => map.allowedTowers.includes(id));
   const hasFliers = map.waves.some((w) => w.groups.some((g) => ENEMIES[g.enemy].flying));
   const plan = order.filter((id) => id !== 'vent' || hasFliers);

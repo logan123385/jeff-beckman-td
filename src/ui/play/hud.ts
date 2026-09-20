@@ -1,11 +1,14 @@
 import { ENEMIES } from '../../data/enemies';
+import { PROPERTY_LABEL } from '../../data/leakProperties';
+import { previewRbe, splitPreview } from '../../data/splits';
+import { isOneLife, isNoPowers } from '../../data/remasters';
 import { ABILITY_KEYS, COOLDOWN_FIELDS, type AbilitySlot } from '../../data/heroes';
 import { NIGHT_MUTATORS, proceduralMutator } from '../../data/night';
 import type { TowerId } from '../../data/types';
 import { TOWERS } from '../../data/towers';
 import type { Game } from '../../sim/game';
 import { EARLY_CALL_BONUS_PER_SECOND, HERO_LEVEL_CAP, STRIKE_COOLDOWN } from '../../sim/game';
-import { missionXpToNext, scaledAbilityCooldown } from '../../sim/combat';
+import { leakMax, leakRemaining, missionXpToNext, scaledAbilityCooldown } from '../../sim/combat';
 import { CREW_COOLDOWN } from '../../sim/crew';
 import { clear, h } from '../dom';
 import { enemyPortrait, heroPortrait, towerPortrait } from '../portraits';
@@ -36,7 +39,10 @@ export class Hud {
   readonly bottom: HTMLElement;
   private readonly lives = h('b');
   private readonly money = h('b');
+  private readonly parts = h('b');
   private readonly wave = h('b');
+  private readonly pipeLoad = h('b');
+  private readonly pipeMedal: HTMLElement;
   private readonly next = h('span', { class: 'next-wave' });
   private readonly callBtn = h('button', { class: 'btn primary call' });
   private readonly speedBtn = h('button', { class: 'btn small-btn' });
@@ -121,11 +127,22 @@ export class Hud {
     this.stickyChip.setAttribute('role', 'button');
     this.stickyChip.tabIndex = 0;
 
+    this.pipeMedal = h(
+      'div',
+      {
+        class: 'medal pipe',
+        title: 'Lives on the line if they walk — including children still inside parents.',
+      },
+      h('span', { class: 'ico', text: '≡' }),
+      this.pipeLoad,
+    );
     this.top = h(
       'div',
       { class: 'hud-top plate' },
       h('div', { class: 'medal heart' }, h('span', { class: 'ico', text: '♥' }), this.lives),
+      this.pipeMedal,
       h('div', { class: 'medal coin' }, h('span', { class: 'ico', text: '$' }), this.money),
+      h('div', { class: 'medal parts', title: game.remaster === 'cleanHands' ? 'Clean Hands — no spare-parts actives.' : 'Spare parts. Earned on pops, spent on tool actives (V).' }, h('span', { class: 'ico', text: '⚙' }), this.parts),
       this.comboChip,
       this.stickyChip,
       h('div', { class: 'medal wave' }, h('span', { class: 'label', text: 'Wave' }), this.wave),
@@ -174,6 +191,10 @@ export class Hud {
 
     ability(this.crewBtn, this.crewCd, 'D', 'Support crew', '2 helpers · 18 seconds', handlers.onCrew);
     ability(this.strikeBtn, this.strikeCd, 'X', 'Torch rain', '3 fire dumps on a point', handlers.onStrike);
+    if (isNoPowers(game.remaster)) {
+      this.crewBtn.title = 'Clean Hands — no support crew.';
+      this.strikeBtn.title = 'Clean Hands — no torch rain.';
+    }
 
     this.jeffCard = h(
       'button',
@@ -297,6 +318,7 @@ export class Hud {
 
   private prevLives = -1;
   private prevMoney = -1;
+  private prevParts = -1;
   private shownMoney = -1;
   private prevHp = -1;
   private prevLevel = 1;
@@ -321,7 +343,7 @@ export class Hud {
     if (this.set(this.lives, String(g.lives)) && this.prevLives !== -1) {
       this.replay(this.lives.parentElement ?? this.lives, g.lives < this.prevLives ? 'hurt' : 'bump');
     }
-    this.lives.parentElement?.classList.toggle('critical', g.lives > 0 && g.lives <= 2 && g.map.lives > 3 && g.remaster !== 'frozenMain');
+    this.lives.parentElement?.classList.toggle('critical', g.lives > 0 && g.lives <= 2 && g.map.lives > 3 && !isOneLife(g.remaster));
     this.prevLives = g.lives;
     if (this.shownMoney < 0) this.shownMoney = g.money;
     const gap = g.money - this.shownMoney;
@@ -331,38 +353,72 @@ export class Hud {
       this.replay(this.money.parentElement ?? this.money, 'bump');
     }
     this.prevMoney = g.money;
+    if (this.set(this.parts, String(g.parts)) && this.prevParts !== -1 && g.parts !== this.prevParts) {
+      this.replay(this.parts.parentElement ?? this.parts, 'bump');
+    }
+    this.prevParts = g.parts;
     if (this.set(this.wave, g.endless ? String(Math.max(g.waveIdx, 0)) : `${Math.min(g.waveIdx, g.map.waves.length)} / ${g.map.waves.length}`)) {
       this.replay(this.wave.parentElement ?? this.wave, 'bump');
     }
+    this.wave.parentElement?.classList.toggle('rushing', g.waveRush && g.waveActive);
+    if (g.waveRush && g.waveActive) this.wave.parentElement?.setAttribute('title', 'RUSH — packed parents. Splash the children.');
+    else this.wave.parentElement?.removeAttribute('title');
+
+    const upcoming = g.allWavesStarted ? 0 : previewRbe(g.nextWavePreview());
+    const load = g.waveActive ? g.pipeRbe() : upcoming;
+    this.pipeMedal.classList.toggle('hidden', load <= 0);
+    this.pipeMedal.classList.toggle('hot', load > g.lives);
+    this.pipeMedal.title = g.waveActive
+      ? `On the pipe: ${load} ${load === 1 ? 'life' : 'lives'} if they walk — including children still inside parents.`
+      : `If they walk: ${load} ${load === 1 ? 'life' : 'lives'} — including children still inside parents.`;
+    this.set(this.pipeLoad, String(load));
 
     if (g.allWavesStarted) {
-      this.set(this.next, g.waveActive ? 'Last wave — hold the line!' : '');
+      this.set(this.next, g.waveActive ? (g.waveRush ? 'RUSH — splash the children!' : 'Last wave — hold the line!') : '');
+      this.next.classList.toggle('is-rush', g.waveRush && g.waveActive);
       this.nextKey = '';
       this.callBtn.classList.add('hidden');
     } else {
-      const ids = g.nextWaveEnemies();
+      const preview = g.nextWavePreview();
+      const rushing = g.nextWaveIsRush();
       const secs = Math.max(0, Math.ceil(g.waveCountdown));
-      const key = `${secs}|${g.waveActive}|${ids.join(',')}`;
+      const key = `${secs}|${g.waveActive}|${rushing ? 'R' : ''}|${preview.map((p) => `${p.enemy}:${p.count}:${p.properties.join('.')}`).join(',')}`;
       if (key !== this.nextKey) {
         this.nextKey = key;
         clear(this.next);
+        this.next.classList.toggle('is-rush', rushing);
         this.next.append(h('span', { class: 'next-label', text: g.manualStart && g.waveIdx === 0 ? 'Prepare your defense' : g.endless && g.waveActive ? 'Next after this call' : `Next in ${secs}s` }));
-        const preview = g.nextWavePreview();
-        this.next.title = preview.map(p => `${p.count} × ${ENEMIES[p.enemy].name} · route ${p.path + 1}\n${ENEMIES[p.enemy].counters}`).join('\n\n');
+        if (rushing) this.next.append(h('span', { class: 'rush-pill', text: 'RUSH', title: 'Tight pack — splash the children or they flood.' }));
+        this.next.title = [
+          rushing ? 'RUSH — packed parents. Splash the children.' : '',
+          `If they walk: ${previewRbe(preview)} ${previewRbe(preview) === 1 ? 'life' : 'lives'}`,
+          ...preview.map((p) => {
+            const tags = p.properties.length ? ` · ${p.properties.map((x) => PROPERTY_LABEL[x]).join(', ')}` : '';
+            const kids = splitPreview(p.enemy, p.count, p.properties.includes('pressurized'));
+            const split = kids ? ` → ${kids.count} ${ENEMIES[kids.child].name}` : '';
+            return `${p.count} × ${ENEMIES[p.enemy].name}${split}${tags} · route ${p.path + 1}\n${ENEMIES[p.enemy].counters}`;
+          }),
+        ].filter(Boolean).join('\n\n');
         for (const p of preview) {
           const def = ENEMIES[p.enemy];
+          const tags = p.properties.map((x) => PROPERTY_LABEL[x]).join(', ');
+          const kids = splitPreview(p.enemy, p.count, p.properties.includes('pressurized'));
+          const split = kids ? ` → ${kids.count} ${ENEMIES[kids.child].name}` : '';
           this.next.append(
             h('span', {
-              class: `wave-pip${def.flying ? ' air' : ''}${def.armor >= 0.4 ? ' arm' : ''}`,
-              title: `${p.count} × ${def.name}${def.flying ? ' · flying' : ''}${def.armor >= 0.4 ? ` · armor ${Math.round(def.armor * 100)}%` : ''} · route ${p.path + 1}`,
-              attrs: { 'aria-label': `${p.count} ${def.name}` },
-            }, enemyPortrait(p.enemy, 28), h('span', { class: 'pip-count', text: `${p.count}` })),
+              class: `wave-pip${def.flying ? ' air' : ''}${def.armor >= 0.4 ? ' arm' : ''}${p.properties.length ? ' stacked' : ''}${kids ? ' splits' : ''}${rushing ? ' rush' : ''}`,
+              title: `${p.count} × ${def.name}${split}${tags ? ` · ${tags}` : ''}${def.flying ? ' · flying' : ''}${def.armor >= 0.4 ? ` · armor ${Math.round(def.armor * 100)}%` : ''} · route ${p.path + 1}`,
+              attrs: { 'aria-label': `${p.count} ${def.name}${split}${tags ? ` ${tags}` : ''}` },
+            }, enemyPortrait(p.enemy, 28), h('span', { class: 'pip-count', text: `${p.count}` }), p.properties.length ? h('span', { class: 'pip-props', text: p.properties.map((x) => x[0]!.toUpperCase()).join('') }) : null, kids ? h('span', { class: 'pip-split', text: `→${kids.count}` }) : null),
           );
         }
-        this.next.append(h('span', { class: 'next-names', text: preview.map((p) => `${p.count} ${ENEMIES[p.enemy].name}`).join(' · ') }));
+        this.next.append(h('span', { class: 'next-names', text: preview.map((p) => {
+          const kids = splitPreview(p.enemy, p.count, p.properties.includes('pressurized'));
+          return kids ? `${p.count} ${ENEMIES[p.enemy].name} → ${kids.count} ${ENEMIES[kids.child].name}` : `${p.count} ${ENEMIES[p.enemy].name}`;
+        }).join(' · ') }));
       }
       const bonus = Math.floor(Math.max(0, g.waveCountdown) * EARLY_CALL_BONUS_PER_SECOND);
-      this.set(this.callBtn, g.waveIdx === 0 ? `Start job  (+$${bonus})` : `Call wave  (+$${bonus})`);
+      this.set(this.callBtn, g.waveIdx === 0 ? `Start job  (+$${bonus})` : rushing ? `Call rush  (+$${bonus})` : `Call wave  (+$${bonus})`);
       this.callBtn.classList.toggle('hidden', g.endless && g.waveActive);
     }
 
@@ -410,8 +466,8 @@ export class Hud {
       this.rankPips[i]?.forEach((dot, n) => dot.classList.toggle('on', n < rank));
       buttons[i]!.classList.toggle('rank-pending', g.pendingRankUps > 0 && rank < 3);
     });
-    this.cooldownButton(this.crewBtn, this.crewCd, g.crewCooldown, CREW_COOLDOWN, false);
-    this.cooldownButton(this.strikeBtn, this.strikeCd, g.strikeCooldown, STRIKE_COOLDOWN, false);
+    this.cooldownButton(this.crewBtn, this.crewCd, g.crewCooldown, CREW_COOLDOWN, isNoPowers(g.remaster));
+    this.cooldownButton(this.strikeBtn, this.strikeCd, g.strikeCooldown, STRIKE_COOLDOWN, isNoPowers(g.remaster));
     this.strikeBtn.classList.toggle('active', g.strikes.some((s) => !s.fired));
     this.sleeveBtn.classList.toggle('active', hero.sleeveTimer > 0 || (hero.overdrive ?? 0) > 0);
     this.coffeeBtn.classList.toggle('active', hero.coffeeTimer > 0);
@@ -420,7 +476,7 @@ export class Hud {
     const boss = g.enemies.find(e => e.def.traits.includes('boss') && !e.dead && !e.escaped);
     this.bossPanel.classList.toggle('hidden', !boss);
     if (boss) {
-      const pct = Math.max(0, boss.hp / boss.maxHp) * 100;
+      const pct = Math.max(0, leakRemaining(boss) / leakMax(boss)) * 100;
       this.set(this.bossName, `${boss.def.name} · Phase ${boss.bossPhase + 1}`);
       this.bossHp.style.width = `${pct}%`;
       this.bossHp.setAttribute('aria-valuenow', String(Math.round(pct)));

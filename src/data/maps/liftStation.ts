@@ -1,6 +1,6 @@
 import { vec } from '../../core/vec';
 import type { MapDef } from '../types';
-import { grp, wave } from './helpers';
+import { grp, pack, rush, wave } from './helpers';
 
 export const LIFT_STATION: MapDef = {
   id: 'liftStation',
@@ -65,17 +65,17 @@ export const LIFT_STATION: MapDef = {
   waves: [
     wave(grp('drip', 8, 1.0, 0, 0), grp('drip', 8, 1.0, 0, 1)),
     wave(grp('sludge', 2, 3, 0, 1), grp('drip', 10, 0.85, 3, 0)),
-    wave(grp('scaleCrab', 4, 2.2, 0, 0), grp('drip', 8, 0.9, 3, 1)),
+    wave(grp('scaleCrab', 4, 1.6, 0, 0), grp('drip', 8, 0.9, 3, 1)),
     wave(grp('sedimentBoulder', 1, 1, 0, 1), grp('drip', 10, 0.8, 4, 0)),
     wave(grp('codeViolation', 1, 1, 0, 0), grp('drip', 10, 0.8, 3, 1)),
     wave(grp('pressureSpike', 3, 2, 0, 0), grp('sludge', 3, 2.6, 5, 1)),
-    wave(grp('sedimentBoulder', 2, 4, 0, 0), grp('scaleCrab', 5, 1.8, 4, 1)),
+    rush(pack('scaleCrab', 5, 4, 1), grp('sedimentBoulder', 2, 4, 0, 0)),
     wave(grp('codeViolation', 2, 3.2, 0, 1), grp('drip', 12, 0.7, 2, 0), grp('airlock', 3, 2, 8, 1)),
-    wave(grp('sludge', 4, 2.4, 0, 1), grp('pressureSpike', 3, 2, 6, 0), grp('scaleCrab', 5, 1.8, 8, 1)),
-    wave(grp('sedimentBoulder', 2, 3.8, 0, 0), grp('sedimentBoulder', 2, 3.8, 4, 1), grp('drip', 12, 0.65, 6, 0)),
-    wave(grp('codeViolation', 2, 3, 0, 0), grp('codeViolation', 1, 1, 8, 1), grp('scaleCrab', 6, 1.6, 3, 1)),
+    rush(pack('scaleCrab', 5, 8, 1), grp('sludge', 4, 2.4, 0, 1), grp('pressureSpike', 3, 2, 6, 0)),
+    rush(pack('sedimentBoulder', 2, 0, 0), pack('sedimentBoulder', 2, 4, 1), grp('drip', 12, 0.65, 6, 0)),
+    wave(grp('codeViolation', 2, 3, 0, 0), grp('codeViolation', 1, 1, 8, 1), grp('scaleCrab', 6, 1.2, 3, 1)),
     wave(grp('pressureSpike', 4, 1.8, 0, 1), grp('sludge', 5, 2.2, 4, 0), grp('airlock', 5, 1.7, 8, 1)),
-    wave(grp('glycolGolem', 1, 1, 2, 0), grp('sedimentBoulder', 2, 4, 8, 1), grp('drip', 14, 0.55, 10, 0), grp('codeViolation', 1, 1, 18, 1)),
+    rush(pack('sedimentBoulder', 2, 8, 1), grp('glycolGolem', 1, 1, 2, 0), grp('drip', 14, 0.55, 10, 0), grp('codeViolation', 1, 1, 18, 1)),
   ],
   palette: { bg: '#1c2220', wall: '#2a3330', pipe: '#6d8a7e', pipeDark: '#455850', accent: '#5c6bc0' },
 };

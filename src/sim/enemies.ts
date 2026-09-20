@@ -17,7 +17,8 @@ import { damageFriendly } from './friendlies';
 import { CREW_REACH } from './crew';
 import type { Game } from './game';
 import type { Enemy } from './state';
-import { applyDamage, heroOnYard } from './combat';
+import { applyDamage, hasProp, heroOnYard } from './combat';
+import { leakRbe } from '../data/splits';
 import { damageBarricade, releaseHeldBy, towerHasFreezeProtection } from './towers';
 
 export function updateEnemies(game: Game, dt: number): void {
@@ -28,6 +29,9 @@ export function updateEnemies(game: Game, dt: number): void {
       continue;
     }
     tickTimers(game, e, dt);
+    if (!e.dead && hasProp(e, 'regen') && e.burnTimer <= 0 && e.hp > 0 && e.hp < e.maxHp) {
+      e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.035 * dt);
+    }
     validateHold(game, e);
     if (!e.heldBy) e.attackSwing = 0;
     if (e.heldBy === null && e.stun <= 0) {
@@ -39,11 +43,12 @@ export function updateEnemies(game: Game, dt: number): void {
     if (e.progress >= path.length) {
       e.escaped = true;
       e.heldBy = null;
-      game.lives -= e.def.livesCost;
+      const cost = leakRbe(e.def.id, hasProp(e, 'pressurized'));
+      game.lives -= cost;
       game.stats.escaped++;
       game.waveLeaks++;
       game.requestHitstop(0.06);
-      game.addEffect({ kind: 'text', pos: { x: e.pos.x - 30, y: e.pos.y - 20 }, text: `-${e.def.livesCost} life`, color: '#ff5252', ttl: 1.2, max: 1.2 });
+      game.addEffect({ kind: 'text', pos: { x: e.pos.x - 30, y: e.pos.y - 20 }, text: `-${cost} life`, color: '#ff5252', ttl: 1.2, max: 1.2 });
       continue;
     }
     const base = path.pointAt(e.progress);
@@ -90,6 +95,8 @@ function tickTimers(game: Game, e: Enemy, dt: number): void {
   }
   if (e.stun > 0) e.stun -= dt;
   if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt);
+  if (e.burnTimer > 0) e.burnTimer = Math.max(0, e.burnTimer - dt);
+  if (e.markHold > 0) e.markHold = Math.max(0, e.markHold - dt);
   if (e.shredTimer > 0) {
     e.shredTimer -= dt;
     if (e.shredTimer <= 0) e.armorShred = 0;

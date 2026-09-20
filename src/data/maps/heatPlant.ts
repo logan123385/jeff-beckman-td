@@ -1,6 +1,6 @@
 import { vec } from '../../core/vec';
 import type { MapDef } from '../types';
-import { grp, wave } from './helpers';
+import { grp, pack, rush, wave } from './helpers';
 
 export const HEAT_PLANT: MapDef = {
   id: 'heatPlant',
@@ -67,13 +67,13 @@ export const HEAT_PLANT: MapDef = {
     wave(grp('drip', 8, 1.0, 0, 0), grp('drip', 8, 1.0, 0, 1)),
     wave(grp('zincWhisker', 4, 1.0, 0, 0), grp('drip', 6, 1.0, 3, 1)),
     wave(grp('vacuumBreak', 2, 2.4, 0, 1), grp('steamWisp', 3, 2.0, 2, 0)),
-    wave(grp('limeScale', 2, 3.2, 0, 0), grp('biofilm', 1, 1, 4, 1)),
+    wave(grp('limeScale', 2, 2.4, 0, 0), grp('biofilm', 1, 1, 4, 1)),
     wave(grp('zincWhisker', 3, 1.1, 0, 0), grp('drip', 6, 0.9, 3, 1)),
-    wave(grp('flangeGremlin', 2, 2.6, 0, 0), grp('vacuumBreak', 2, 2.2, 5, 1)),
+    rush(pack('flangeGremlin', 2, 0, 0), grp('vacuumBreak', 2, 2.2, 5, 1)),
     wave(grp('pexKink', 1, 1, 0, 1), grp('waterHammer', 1, 1, 4, 0), grp('drip', 8, 0.8, 6, 1)),
-    wave(grp('condensateMoth', 1, 1, 0, 0), grp('zincWhisker', 5, 0.85, 3, 1), grp('steamWisp', 3, 1.8, 6, 0)),
-    wave(grp('biofilm', 2, 3.0, 0, 1), grp('waterHammer', 2, 2.2, 5, 0), grp('vacuumBreak', 2, 2.0, 8, 1)),
-    wave(grp('glycolGolem', 1, 1, 2, 0), grp('limeScale', 3, 3.2, 8, 1), grp('zincWhisker', 8, 0.7, 10, 0), grp('pexKink', 2, 1, 16, 1), grp('steamWisp', 6, 1.4, 6, 1)),
+    rush(pack('condensateMoth', 1, 0, 0), pack('zincWhisker', 5, 3, 1), grp('steamWisp', 3, 1.8, 6, 0)),
+    rush(pack('biofilm', 2, 0, 1), grp('waterHammer', 2, 2.2, 5, 0), grp('vacuumBreak', 2, 2.0, 8, 1)),
+    rush(pack('limeScale', 3, 8, 1), grp('glycolGolem', 1, 1, 2, 0), grp('zincWhisker', 8, 0.7, 10, 0), grp('pexKink', 2, 1, 16, 1), grp('steamWisp', 6, 1.4, 6, 1)),
   ],
   palette: { bg: '#241816', wall: '#3a2420', pipe: '#bf360c', pipeDark: '#6d2110', accent: '#ffab91' },
 };

@@ -1,12 +1,12 @@
 import { vec } from '../../core/vec';
 import type { MapDef } from '../types';
-import { grp, wave } from './helpers';
+import { grp, pack, rush, wave } from './helpers';
 
 export const BOILER_ROOM: MapDef = {
   id: 'boilerRoom',
   name: 'Boiler Room Blues',
   subtitle: 'Service Call #2',
-  blurb: 'Mineral scale has grown legs. Wrenches bounce off armor — bring the torch. The Expansion Tank keeps everything running smooth.',
+  blurb: 'Mineral scale has grown legs. Wrenches bounce off armor — bring the torch. Late rushes dump crabs in a pack. Splash the children or they flood the floor.',
   paths: [
     [
       vec(480, -30),
@@ -41,17 +41,17 @@ export const BOILER_ROOM: MapDef = {
   inspectionBan: ['torch', 'expansion'],
   waves: [
     wave(grp('drip', 8, 1.0)),
-    wave(grp('scaleCrab', 3, 3), grp('drip', 6, 1, 4)),
-    wave(grp('drip', 12, 0.8), grp('scaleCrab', 3, 2.5, 8)),
-    wave(grp('sludge', 3, 3), grp('scaleCrab', 4, 2.5, 6)),
+    wave(grp('scaleCrab', 3, 1.8), grp('drip', 6, 1, 4)),
+    wave(grp('drip', 12, 0.8), grp('scaleCrab', 3, 1.6, 8)),
+    wave(grp('sludge', 3, 3), grp('scaleCrab', 4, 1.8, 6)),
     wave(grp('airlock', 4, 2.5), grp('drip', 10, 0.8, 5)),
-    wave(grp('scaleCrab', 6, 2), grp('pressureSpike', 2, 3, 10)),
+    rush(pack('scaleCrab', 6), grp('pressureSpike', 2, 3, 8)),
     wave(grp('drip', 16, 0.6), grp('airlock', 5, 2, 8)),
-    wave(grp('sludge', 5, 2.5), grp('scaleCrab', 6, 2, 4), grp('pressureSpike', 2, 2, 16)),
+    wave(grp('sludge', 5, 2.5), grp('scaleCrab', 6, 1.4, 4), grp('pressureSpike', 2, 2, 16)),
     wave(grp('airlock', 8, 1.8), grp('drip', 14, 0.7, 6)),
-    wave(grp('scaleCrab', 10, 1.6), grp('sludge', 4, 3, 8)),
+    rush(pack('scaleCrab', 10), grp('sludge', 4, 3, 6)),
     wave(grp('drip', 22, 0.48), grp('pressureSpike', 5, 1.8, 8), grp('airlock', 7, 1.8, 12)),
-    wave(grp('scaleCrab', 14, 1.3), grp('sludge', 7, 2.3, 6), grp('airlock', 10, 1.4, 12), grp('pressureSpike', 5, 1.4, 22)),
+    rush(pack('scaleCrab', 14), grp('sludge', 7, 2.3, 6), grp('airlock', 10, 1.4, 12), grp('pressureSpike', 5, 1.4, 22)),
   ],
   palette: { bg: '#1f2429', wall: '#2c343b', pipe: '#7a7f85', pipeDark: '#4f5559', accent: '#ff9f43' },
 };

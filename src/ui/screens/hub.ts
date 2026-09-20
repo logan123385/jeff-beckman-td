@@ -7,6 +7,7 @@ import type { MapDef, RemasterId } from '../../data/types';
 import { paintYard } from '../../render/yard';
 import type { App, ScreenView } from '../app';
 import { clear, h, stars } from '../dom';
+import { persistRow } from '../persist';
 import { jeffPortrait } from '../portraits';
 
 export function renderHub(app: App): ScreenView {
@@ -20,6 +21,7 @@ export function renderHub(app: App): ScreenView {
     const xp = levelFromXp(save.data.jeffXp);
     const metaLocked = !save.hasAnyProgress();
     const metaTip = 'Clear a job first — the truck unlocks after your first call.';
+    const persist = persistRow(app.save);
     el.append(
       h(
         'header',
@@ -50,6 +52,9 @@ export function renderHub(app: App): ScreenView {
           h('button', { class: 'btn link', text: 'Title', onClick: () => app.go({ kind: 'title' }) }),
         ),
       ),
+    );
+    if (persist) el.append(persist);
+    el.append(
       h(
         'section',
         { class: 'difficulty sheet' },
@@ -156,7 +161,7 @@ function campaignCard(app: App, map: MapDef, index: number, unlocked: boolean, f
             ...REMASTER_ORDER.map((id) => remasterBtn(app, map, id)),
           )
         : unlocked
-          ? h('p', { class: 'small muted', text: 'Clear Classic once to unlock Code Inspection and Frozen Main.' })
+          ? h('p', { class: 'small muted', text: 'Clear Classic once to unlock Code Inspection, Frozen Main, Cash Job, and Clean Hands.' })
           : null,
     ),
   );

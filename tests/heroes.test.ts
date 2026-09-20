@@ -13,16 +13,25 @@ import type { EnemyId } from '../src/data/types';
 import { runHeadless } from './harness';
 
 function field(heroId: HeroId) {
-  return new Game({ ...CRAWLSPACE, paths: [[{ x: 20, y: 250 }, { x: 940, y: 250 }]],
+  const g = new Game({ ...CRAWLSPACE, paths: [[{ x: 20, y: 250 }, { x: 940, y: 250 }]],
     jeffStart: { x: 300, y: 250 }, slots: [{ x: 320, y: 190 }, { x: 700, y: 180 }],
     allowedTowers: TOWER_ORDER, startMoney: 100000 }, { difficulty: DIFFICULTIES.journeyman, mods: neutralModifiers(), heroId, manualStart: true });
+  g.deployHero({ ...g.map.jeffStart });
+  return g;
 }
 function enemy(g: Game, x = 340, id: EnemyId = 'sludge') {
   const e = g.spawnEnemy(id, 0, x - 20); e.lane = 0; e.pos = { x, y: 250 };
   e.def = { ...e.def, dps: 0, speed: 0 }; e.hp = e.maxHp = 10000; return e;
 }
 function step(g: Game, secs: number) { for (let i = 0; i < Math.ceil(secs * 60); i++) g.update(1 / 60); }
-function cast(g: Game, slot: AbilitySlot) { expect(g.useAbility(slot)).toBe(true); step(g, g.heroDef.abilities[slot].cast + .03); }
+function aimFor(g: Game, slot: AbilitySlot) {
+  const ability = g.heroDef.abilities[slot];
+  if (!ability.target) return undefined;
+  const prey = g.enemies.find((e) => !e.dead && !e.escaped);
+  return { pos: prey ? { ...prey.pos } : { ...g.hero.pos }, enemyId: prey?.id };
+}
+function fire(g: Game, slot: AbilitySlot) { return g.useAbility(slot, aimFor(g, slot)); }
+function cast(g: Game, slot: AbilitySlot) { expect(fire(g, slot)).toBe(true); step(g, g.heroDef.abilities[slot].cast + .03); }
 
 describe('Playable hero selection and legacy saves', () => {
   it.each(HERO_ORDER)('%s has an independent full kit, stats and persistent selection', id => {
@@ -64,15 +73,15 @@ describe('Attack and cast timing', () => {
     enemy(g); g.damageHero(100000); expect(g.useAbility(slot)).toBe(false); expect(g.hero.cast).toBeUndefined();
   });
   it('casts cannot overlap; damage waits for frame five and death interrupts unreleased casts', () => {
-    const g = field('bob'), e = enemy(g); expect(g.useAbility(0)).toBe(true); expect(g.useAbility(2)).toBe(false);
+    const g = field('bob'), e = enemy(g); expect(fire(g, 0)).toBe(true); expect(fire(g, 2)).toBe(false);
     step(g, .3); expect(e.hp).toBe(e.maxHp); g.damageHero(10000); step(g, 1);
     expect(e.hp).toBe(e.maxHp); expect(g.heroVisuals).toHaveLength(0); expect(g.hero.cast).toBeUndefined();
   });
   it.each(HERO_ORDER)('%s can activate all five abilities with separate cooldowns', id => {
     const g = field(id); enemy(g); g.hero.attackTimer = 100;
     for (const slot of [0, 1, 2, 3, 4] as const) {
-      expect(g.useAbility(slot)).toBe(true); expect(g.hero[COOLDOWN_FIELDS[slot]]).toBeGreaterThan(0);
-      step(g, HEROES[id].abilities[slot].cast + .03); expect(g.useAbility(slot)).toBe(false);
+      expect(fire(g, slot)).toBe(true); expect(g.hero[COOLDOWN_FIELDS[slot]]).toBeGreaterThan(0);
+      step(g, HEROES[id].abilities[slot].cast + .03); expect(fire(g, slot)).toBe(false);
     }
   });
 });
@@ -80,7 +89,7 @@ describe('Attack and cast timing', () => {
 describe('Distinct active abilities', () => {
   it('Mike throws a three-plunger volley and nine timed rain projectiles, with no lingering zone', () => {
     const g = field('mike'); enemy(g, 480); g.hero.attackTimer = 100;
-    expect(g.useAbility(0)).toBe(true); step(g, .47); expect(g.heroMissiles).toHaveLength(3);
+    expect(fire(g, 0)).toBe(true); step(g, .47); expect(g.heroMissiles).toHaveLength(3);
     step(g, 1); expect(g.heroMissiles).toHaveLength(0);
     cast(g, 4); const rain = g.heroZones.find(z => z.kind === 'rain')!;
     expect(rain).toBeDefined(); step(g, 4); expect(rain.ticks).toBe(9); expect(g.heroZones).toHaveLength(0);
@@ -93,7 +102,7 @@ describe('Distinct active abilities', () => {
   });
   it("You're Fired pierces enemies along its beam and spares enemies outside its width", () => {
     const g = field('bob'), a = enemy(g, 380), b = enemy(g, 570), c = enemy(g, 440);
-    c.pos.y = 350; g.hero.attackTimer = 100; expect(g.useAbility(0)).toBe(true);
+    c.pos.y = 350; g.hero.attackTimer = 100; expect(fire(g, 0)).toBe(true);
     updateHero(g, .6); expect(a.hp).toBeLessThan(a.maxHp); expect(b.hp).toBeLessThan(b.maxHp); expect(c.hp).toBe(c.maxHp);
     expect(g.heroVisuals.some(f => f.kind === 'laser' && f.radius === 22)).toBe(true);
   });
@@ -105,7 +114,7 @@ describe('Distinct active abilities', () => {
   });
   it('FORE ricochets to three distinct targets at impact, never hitting the same target twice', () => {
     const g = field('chris'); const es = [enemy(g, 450), enemy(g, 510), enemy(g, 580)]; g.hero.attackTimer = 100;
-    expect(g.useAbility(1)).toBe(true); step(g, .3); expect(es.every(e => e.hp === e.maxHp)).toBe(true);
+    expect(fire(g, 1)).toBe(true); step(g, .3); expect(es.every(e => e.hp === e.maxHp)).toBe(true);
     step(g, 2); expect(es.every(e => e.hp < e.maxHp)).toBe(true); expect(g.heroMissiles).toHaveLength(0);
     expect(es[0]!.maxHp - es[0]!.hp).toBeGreaterThan(es[1]!.maxHp - es[1]!.hp);
   });

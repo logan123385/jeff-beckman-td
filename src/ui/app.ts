@@ -43,12 +43,24 @@ export class App {
         view = renderHub(this);
         break;
       case 'skills':
+        if (!this.save.hasAnyProgress()) {
+          view = renderHub(this);
+          break;
+        }
         view = renderSkills(this);
         break;
       case 'talents':
+        if (!this.save.hasAnyProgress()) {
+          view = renderHub(this);
+          break;
+        }
         view = renderTalents(this);
         break;
       case 'locker':
+        if (!this.save.hasAnyProgress()) {
+          view = renderHub(this);
+          break;
+        }
         view = renderLocker(this);
         break;
       case 'encyclopedia':

@@ -1,5 +1,6 @@
 import { dist, moveToward, type Vec } from '../core/vec';
 import { COOLDOWN_FIELDS, type AbilitySlot } from '../data/heroes';
+import { JEFF } from '../data/jeff';
 import { applyDamage, abilityPower, abilityRangeFactor, abilityRank, heroOnYard, isTargetable, scaledAbilityCooldown, scaledCastRange } from './combat';
 import type { Game } from './game';
 import type { Enemy, HeroMissile, HeroVisual, HeroZone } from './state';
@@ -338,4 +339,70 @@ export function updateHeroSummons(game: Game, dt: number): void {
     }
   }
   game.heroSummons = game.heroSummons.filter(s => s.hp > 0 && s.left > 0);
+}
+
+/** Jeff's five kit skills. Same timing as before — fire on press, not after a wind-up. */
+export function fireJeffAbility(game: Game, slot: AbilitySlot): boolean {
+  if (game.heroDef.id !== 'jeff') return useHeroAbility(game, slot);
+  if (!heroOnYard(game) || game.status !== 'playing') return false;
+  const h = game.hero;
+  switch (slot) {
+    case 0: {
+      if (h.clampCooldown > 0) return false;
+      const pwr = abilityPower(game, 0);
+      h.clampCooldown = scaledAbilityCooldown(game, 0);
+      game.clamp = { pos: { ...h.pos }, timeLeft: JEFF.clamp.duration * pwr };
+      h.castTimer = 0.72;
+      game.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'clamp', ttl: 1.15, max: 1.15 });
+      return true;
+    }
+    case 1: {
+      if (h.shutoffCooldown > 0) return false;
+      const pwr = abilityPower(game, 1);
+      h.shutoffCooldown = scaledAbilityCooldown(game, 1);
+      game.globalSlow = Math.min(0.9, JEFF.shutoff.slow * (1 + abilityRank(game, 1) * 0.06));
+      game.globalSlowTimer = JEFF.shutoff.duration * pwr;
+      game.spawnPause = JEFF.shutoff.duration * pwr;
+      h.castTimer = 0.72;
+      game.addEffect({ kind: 'skill', pos: { x: 480, y: 300 }, skill: 'shutoff', ttl: 1.8, max: 1.8 });
+      return true;
+    }
+    case 2: {
+      if (h.pulseCooldown > 0) return false;
+      const pwr = abilityPower(game, 2);
+      const radius = JEFF.pulse.radius * abilityRangeFactor(game, 2);
+      h.pulseCooldown = scaledAbilityCooldown(game, 2);
+      h.castTimer = 0.72;
+      game.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'pulse', ttl: 1.05, max: 1.05 });
+      for (const e of game.enemies) {
+        if (!isTargetable(e) || dist(e.pos, h.pos) > radius + e.def.radius) continue;
+        e.armorShred = Math.max(e.armorShred, Math.min(0.7, JEFF.pulse.shred * (1 + abilityRank(game, 2) * 0.1)));
+        e.shredTimer = Math.max(e.shredTimer, 3 * pwr);
+        e.stun = Math.max(e.stun, JEFF.pulse.stun * pwr * game.mods.stunDuration);
+        applyDamage(game, e, JEFF.pulse.damage * pwr * game.mods.jeffDamage, 'physical', 'jeff');
+        game.addEffect({ kind: 'hit', pos: { ...e.pos }, color: '#ffb74d', ttl: 0.38, max: 0.38 });
+      }
+      return true;
+    }
+    case 3: {
+      if (h.sleeveCooldown > 0) return false;
+      h.sleeveCooldown = scaledAbilityCooldown(game, 3);
+      h.sleeveTimer = JEFF.sleeve.duration * abilityPower(game, 3);
+      h.castTimer = 0.72;
+      game.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'sleeve', ttl: 1.1, max: 1.1 });
+      return true;
+    }
+    case 4: {
+      if (h.coffeeCooldown > 0) return false;
+      const pwr = abilityPower(game, 4);
+      h.coffeeCooldown = scaledAbilityCooldown(game, 4);
+      h.coffeeTimer = JEFF.coffee.duration * pwr;
+      h.hp = Math.min(h.maxHp, h.hp + JEFF.coffee.heal * pwr);
+      h.castTimer = 0.72;
+      game.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'coffee', ttl: 1.15, max: 1.15 });
+      return true;
+    }
+    default:
+      return false;
+  }
 }

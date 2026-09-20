@@ -1,6 +1,6 @@
 import { vec } from '../../core/vec';
 import type { MapDef } from '../types';
-import { grp, wave } from './helpers';
+import { grp, pack, rush, wave } from './helpers';
 
 export const RADIANT_FLOOR: MapDef = {
   id: 'radiantFloor',
@@ -42,15 +42,15 @@ export const RADIANT_FLOOR: MapDef = {
     wave(grp('drip', 10, 0.9)),
     wave(grp('sludge', 3, 3), grp('drip', 8, 0.9, 4)),
     wave(grp('frozenMain', 1, 1), grp('drip', 10, 0.8, 6)),
-    wave(grp('scaleCrab', 5, 2.2), grp('airlock', 3, 2.5, 6)),
-    wave(grp('frozenMain', 2, 8), grp('drip', 12, 0.7, 4)),
+    wave(grp('scaleCrab', 5, 1.6), grp('airlock', 3, 2.5, 6)),
+    wave(grp('frozenMain', 2, 6), grp('drip', 12, 0.7, 4)),
     wave(grp('pressureSpike', 3, 2.5), grp('sludge', 4, 2.5, 6)),
-    wave(grp('airlock', 6, 2), grp('frozenMain', 2, 6, 8)),
-    wave(grp('drip', 18, 0.6), grp('scaleCrab', 6, 2, 8)),
-    wave(grp('frozenMain', 3, 5), grp('pressureSpike', 3, 2, 10)),
+    wave(grp('airlock', 6, 2), grp('frozenMain', 2, 5, 8)),
+    rush(pack('scaleCrab', 6), grp('drip', 18, 0.6, 4)),
+    wave(grp('frozenMain', 3, 4.2), grp('pressureSpike', 3, 2, 10)),
     wave(grp('sludge', 6, 2.5), grp('airlock', 6, 2, 5), grp('drip', 12, 0.7, 12)),
-    wave(grp('scaleCrab', 10, 1.5), grp('frozenMain', 3, 5, 6)),
-    wave(grp('frozenMain', 4, 3.6), grp('drip', 24, 0.48, 6), grp('pressureSpike', 6, 1.6, 14), grp('sludge', 6, 2.3, 20)),
+    rush(pack('scaleCrab', 10), pack('frozenMain', 3, 4)),
+    rush(pack('frozenMain', 4), grp('drip', 24, 0.48, 6), grp('pressureSpike', 6, 1.6, 14), grp('sludge', 6, 2.3, 20)),
   ],
   palette: { bg: '#26221f', wall: '#3a332d', pipe: '#8c6f5a', pipeDark: '#5c4a3d', accent: '#ff7043' },
 };

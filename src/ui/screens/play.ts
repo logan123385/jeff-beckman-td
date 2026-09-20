@@ -8,13 +8,16 @@ import { MAPS, WORLD_H, WORLD_W, mapById } from '../../data/maps';
 import { availableTowers, resolveLoadout } from '../../data/loadout';
 import { TOWERS, TOWER_ORDER } from '../../data/towers';
 import { NIGHT_MUTATORS } from '../../data/night';
-import { remasterTitle } from '../../data/remasters';
+import { remasterTitle, isOneLife, isNoPowers, isNoSell } from '../../data/remasters';
+import { PROPERTY_LABEL } from '../../data/leakProperties';
+import { splitLine, splitOf } from '../../data/splits';
+import { AIM_HINT, AIM_LABEL, scaledCastRange } from '../../sim/combat';
+import { towerAbilityReady } from '../../sim/towerAbilities';
 import { buildRunModifiers, grantRunRewards } from '../../data/progress';
 import type { EnemyId, RemasterId, TowerId } from '../../data/types';
 import { Renderer, type RenderView } from '../../render/renderer';
 import { JEFF_SELECT_RADIUS } from '../../render/sprites';
 import { Game } from '../../sim/game';
-import { scaledCastRange } from '../../sim/combat';
 import { starsForClear } from '../../save/save';
 import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
@@ -222,7 +225,11 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     },
     onSell: (towerId) => {
       if (!live()) return;
-      game.sellTower(towerId);
+      if (isNoSell(game.remaster)) {
+        hud.setHint(`${remasterTitle(game.remaster)} — no selling. That fitting stays.`);
+        return;
+      }
+      if (!game.sellTower(towerId)) return;
       audio.sell();
       view.selectedTowerId = null;
       popover.hide();
@@ -245,13 +252,14 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       if (!aim) return;
       audio.order();
       popover.showTower(towerId);
-      hud.setHint(`Aim: ${aim === 'first' ? 'First — closest to the valve' : aim === 'strong' ? 'Strong — toughest in range' : aim === 'close' ? 'Close — nearest leak' : 'Last — newest in range'}.`);
+      hud.setHint(`Aim: ${AIM_LABEL[aim]} — ${AIM_HINT[aim]}.`);
     },
     onSpecialize: (towerId, choice) => {
       if (!live()) return;
       if (game.specializeTower(towerId, choice)) { audio.upgrade(); popover.showTower(towerId); hud.setHint('Elite defense ready.'); }
     },
     onRally: (towerId) => beginRally(towerId),
+    onAbility: (towerId) => fireSelectedAbility(towerId),
   });
   stage.append(popover.el);
 
@@ -350,9 +358,13 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       ? 'Frozen Main — one life. Freezes linger.'
       : remaster === 'codeInspection'
         ? 'Code Inspection — the obvious tools are locked.'
-        : game.endless
-          ? 'The Neverending Service Call — the endgame. Mutators rotate. Clock out any time; XP and crates bank. Same kit, no exclusive power.'
-          : `Arm a tool in the tray (keys 1–5), then tap a pad. Tap ${game.heroDef.name} (or J), then tap the yard to deploy. Space starts the job.`;
+        : remaster === 'cashJob'
+          ? 'Cash Job — no selling, truck money only, one leak and you’re done. Upgrade a tool, then V for its active. Spare parts come from pops.'
+          : remaster === 'cleanHands'
+            ? 'Clean Hands — no selling, no actives, no crew, no torch rain. Truck money only. One leak and you’re done. Your hero still works.'
+          : game.endless
+            ? 'The Neverending Service Call — the endgame. Mutators rotate. Clock out any time; XP and crates bank. Same kit, no exclusive power.'
+            : `Arm a tool in the tray (keys 1–5), then tap a pad. Tap ${game.heroDef.name} (or J), then tap the yard to deploy. Space starts the job. Upgrade a tool and press V to fire its active.`;
   hud.setHint(coach ? coach.hint() : modeHint);
 
   const job = h(
@@ -527,6 +539,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
 
   function beginCrew(): void {
     if (!live()) return;
+    if (isNoPowers(game.remaster)) { hud.setHint('Clean Hands — no support crew.'); return; }
     if (game.crewCooldown > 0) { hud.setHint(`Support crew ready in ${Math.ceil(game.crewCooldown)}s.`); return; }
     view.targeting = 'crew';
     view.abilitySlot = null;
@@ -541,6 +554,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
 
   function beginStrike(): void {
     if (!live()) return;
+    if (isNoPowers(game.remaster)) { hud.setHint('Clean Hands — no torch rain.'); return; }
     if (game.strikeCooldown > 0) { hud.setHint(`Torch rain ready in ${Math.ceil(game.strikeCooldown)}s.`); return; }
     view.targeting = 'strike';
     view.abilitySlot = null;
@@ -551,6 +565,22 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     hud.setAbilityArmed(null);
     popover.hide();
     hud.setHint('Torch rain: click the yard. Three fire dumps. Hits ground and air. Esc cancels.');
+  }
+
+  function fireSelectedAbility(towerId: number): void {
+    if (!live()) return;
+    const t = game.towerById(towerId);
+    if (!t) return;
+    const gate = towerAbilityReady(game, t);
+    if (!gate.ok) {
+      hud.setHint(gate.reason);
+      return;
+    }
+    if (game.useTowerAbility(towerId)) {
+      audio.order();
+      popover.showTower(towerId);
+      hud.setHint(`${t.def.name} active. Spare parts ${game.parts}.`);
+    }
   }
 
   function beginRally(towerId: number): void {
@@ -957,7 +987,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   const onKey = (ev: KeyboardEvent) => {
     if (ev.repeat) return;
     const key = ev.key.toLowerCase();
-    if (' qertcdgjufpsanx123456789'.includes(key) || ev.key === ' ' || key === 'escape') ev.preventDefault();
+    if (' vqertcdgjufpsanx123456789'.includes(key) || ev.key === ' ' || key === 'escape') ev.preventDefault();
     if (game.pendingRankUps > 0 && game.status === 'playing') {
       const rankKeys: Record<string, AbilitySlot> = { q: 0, e: 1, r: 2, t: 3, c: 4 };
       if (key in rankKeys) {
@@ -1029,13 +1059,22 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         if (aim) {
           audio.order();
           popover.showTower(view.selectedTowerId);
-          hud.setHint(`Aim: ${aim}.`);
+          hud.setHint(`Aim: ${AIM_LABEL[aim]} — ${AIM_HINT[aim]}.`);
         }
+        break;
+      }
+      case 'v': {
+        if (!live() || view.selectedTowerId === null) break;
+        fireSelectedAbility(view.selectedTowerId);
         break;
       }
       case 's': {
         if (!live() || view.selectedTowerId === null) break;
         const id = view.selectedTowerId;
+        if (isNoSell(game.remaster)) {
+          hud.setHint(`${remasterTitle(game.remaster)} — no selling.`);
+          break;
+        }
         if (game.sellTower(id)) {
           audio.sell();
           view.selectedTowerId = null;
@@ -1094,12 +1133,15 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     const first = fresh[0]!;
     const def = ENEMIES[first];
     const extra = fresh.length > 1 ? ` + ${fresh.length - 1} more new` : '';
+    const pop = splitLine(first);
     clear(banner);
     banner.append(
       h('div', { class: 'banner-title', text: game.waveIdx === 0 ? 'Incoming' : `Incoming · wave ${game.waveIdx + 1}` }),
       h('div', { class: 'banner-new' }, h('span', { class: 'pill new', text: 'NEW' }), h('b', { text: def.name }), h('span', { class: 'small', text: ` — ${def.fantasy}${extra}` })),
-      h('div', { class: 'small counter', html: `<b>Counter:</b> ${def.counters}` }),
     );
+    if (game.nextWaveIsRush()) banner.append(h('div', { class: 'small counter rush-line', html: '<b>RUSH:</b> Packed parents. Splash the children or they flood.' }));
+    if (pop) banner.append(h('div', { class: 'small counter', html: `<b>Splits:</b> ${pop}. Splash the children.` }));
+    banner.append(h('div', { class: 'small counter', html: `<b>Counter:</b> ${def.counters}` }));
     bannerTimer = 6;
     banner.classList.remove('hidden');
   }
@@ -1112,8 +1154,24 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     banner.append(
       h('div', { class: 'banner-title', text: game.endless ? `The Neverending Service Call · wave ${game.waveIdx}${mut}` : game.allWavesStarted ? `Final wave ${game.waveIdx}` : `${remasterTitle(remaster)} · Wave ${game.waveIdx}` }),
     );
+    if (game.waveRush) {
+      banner.append(h('div', { class: 'small counter rush-line', html: '<b>RUSH:</b> Packed parents. Splash the children or they flood.' }));
+    }
     if (game.nightMutator) {
       banner.append(h('div', { class: 'small muted', text: NIGHT_MUTATORS[game.nightMutator].blurb }));
+    }
+    const stacked = [...new Set(game.enemies.flatMap((e) => e.properties).concat(game.spawns.flatMap((s) => s.properties)))];
+    if (stacked.length > 0) {
+      banner.append(h('div', { class: 'small counter', html: `<b>Stacked leaks:</b> ${stacked.map((p) => PROPERTY_LABEL[p]).join(' · ')}` }));
+    }
+    const splitters = [...new Set(ids.filter((id) => splitOf(id)))];
+    if (splitters.length > 0) {
+      banner.append(
+        h('div', {
+          class: 'small counter',
+          html: `<b>Splits:</b> ${splitters.map((id) => splitLine(id)).filter(Boolean).join(' · ')}`,
+        }),
+      );
     }
     const first = fresh[0];
     if (first) {
@@ -1131,7 +1189,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     loop.stop();
     audio.stopAmbient();
     app.save.markSeen(game.seen);
-    const startLives = game.remaster === 'frozenMain' ? 1 : Math.max(1, Math.round(map.lives * difficulty.livesMult));
+    const startLives = isOneLife(game.remaster) ? 1 : Math.max(1, Math.round(map.lives * difficulty.livesMult));
     let earned = 0;
     let firstClear = true;
     if (game.status === 'won' && !game.endless) {

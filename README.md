@@ -4,7 +4,7 @@ A Kingdom Rush–style tower defense with a plumbing / hydronic-heating theme. F
 
 Twenty-seven unique towers across nine campaign maps. Before each job you pack up to
 five tools — Kingdom Rush style — from what later calls have taught you. Opt-in
-remasters after a Classic clear (Code Inspection / Frozen Main), and The Neverending Service Call
+remasters after a Classic clear (Code Inspection / Frozen Main / Cash Job / Clean Hands), and The Neverending Service Call
 after the first four service calls. Heroes share crew XP, talent points, and equipped locker gear. Each has a different combat kit and aura.
 
 ## Illustrated defense overhaul
@@ -23,10 +23,12 @@ skill emblems, numeric cooldowns, enemy previews, and a boss health bar.
 - **D** arms Support Crew targeting. Click a route to deploy two helpers for
   18 seconds; the ability recharges in 30 seconds. They block ground enemies and
   can be defeated. Invalid placement never spends the cooldown.
-- Select a barricade and press **G** to set its rally point on a nearby route.
-- Hover the next-wave preview for enemy counts, routes, and counters.
+- Select a barricade or barracks and press **G** to move its hold / rally point. Stock shutoff valves rally the hold; workshops rally their crew.
+- Hover the next-wave preview for enemy counts, routes, and counters. A **RUSH** pill means packed parents — splash or the children flood. The pipe medal counts lives on the line, including kids still inside parents.
+- Big leaks **split** when they pop: Scale Crabs shed drips, Frozen Mains shed crabs, Sediment Boulders become Lime Scale. Pressurized mains shed one extra child. Child pips sit under a parent on the yard; hover it to read the family. Splash the children; letting a parent walk off costs the whole family.
+- **Clean Hands** is the CHIMPS remaster: no selling, no actives, no crew, no torch rain, truck money only, one leak.
 
-Progress remains in the existing save format. Original PNG sources and optimized
+Progress remains in the existing save format (`jbtd-save-v1`). A backup copy (`jbtd-save-v1.bak`) is written before reset. Title and the van offer **Download save** if you have progress; a banner appears if this device couldn’t write, or if a backup was restored. Original PNG sources and optimized
 WebP runtime assets live in `assets/remaster/`; see [art direction and prompts](docs/overhaul/art-direction.md)
 and [verification with screenshots](docs/overhaul/verification.md).
 
@@ -45,7 +47,7 @@ See [crew update verification](docs/overhaul/crew-verification.md) and [generati
 
 ## Five playable heroes
 
-Choose your hero while packing the truck. Every hero is available immediately, the choice persists, and old saves default to Jeff without losing progress.
+Choose your hero while packing the truck. Every hero is available immediately, the choice persists, and old saves default to Jeff without losing progress. Each kit has its own respawn timer after going down.
 
 | Hero | Playstyle | Signature kit | Aura |
 |---|---|---|---|
@@ -68,7 +70,7 @@ npx vite --host    # also prints a Network URL for phones on the same Wi-Fi
 ```bash
 npm run build      # typecheck + production bundle in dist/
 npm run preview    # serve dist/ locally (relative assets)
-npm test           # vitest: sim unit tests + Stage 0 falsifiers
+npm test           # vitest — sim, heroes, splits, save, audit, and crawlspace Stage 0
 npm run balance    # headless auto-play across every map/difficulty; prints clear rates + damage share
 ```
 
@@ -87,7 +89,7 @@ Local check: `npm run build && npm run preview`.
 | Input | Action |
 |-------|--------|
 | Tap / click pipe node, then **1–5** | Build that tool |
-| Tower selected, **A** | Cycle aim (First / Strong / Close / Last) |
+| Tower selected, **A** | Cycle aim (First / Strong / Close / Last / Weak) |
 | Tower selected, **U** | Upgrade |
 | Tower selected, **S** | Sell |
 | Tap / click tower | Upgrade / sell |
@@ -97,9 +99,10 @@ Local check: `npm run build && npm run preview`.
 | Tap / click your hero (or **J**) | Select your hero |
 | **Q / E / R / T / C** | Your selected hero’s five abilities; names and cooldowns appear in the HUD |
 | **D**, then click a route | Deploy two temporary support crew |
-| Barricade selected, **G**, then click a nearby route | Set crew rally point |
+| **X**, then click the yard | Torch rain — three fire dumps (hits ground and air) |
+| Barricade or barracks selected, **G**, then click a nearby route | Move the valve’s hold point, or the crew rally |
 | **Space** / **N** | Call next wave early for bonus cash |
-| **F** | Toggle 2× speed |
+| **F** | Cycle 1× / 2× / 3× speed |
 | **P** | Pause (Resume / sound / Quit panel) |
 | **Esc** | Deselect, or open/close pause when nothing is selected |
 | Clock out | The Neverending Service Call soft-exit (keeps the wave record) |

@@ -1,6 +1,6 @@
 import { vec } from '../../core/vec';
 import type { MapDef } from '../types';
-import { grp, wave } from './helpers';
+import { grp, pack, rush, wave } from './helpers';
 
 export const MUNICIPAL_MAIN: MapDef = {
   id: 'municipalMain',
@@ -65,19 +65,20 @@ export const MUNICIPAL_MAIN: MapDef = {
   waves: [
     wave(grp('drip', 8, 1.0, 0, 0), grp('drip', 8, 1.0, 0, 1)),
     wave(grp('steamWisp', 4, 2, 0, 0), grp('drip', 8, 0.9, 3, 1)),
-    wave(grp('scaleCrab', 4, 2.5, 0, 1), grp('steamWisp', 4, 2, 4, 0)),
+    wave(grp('scaleCrab', 4, 1.8, 0, 1), grp('steamWisp', 4, 2, 4, 0)),
     wave(grp('sludge', 3, 3, 0, 0), grp('sludge', 3, 3, 0, 1), grp('drip', 10, 0.8, 6, 0)),
     wave(grp('steamWisp', 8, 1.5, 0, 1), grp('pressureSpike', 2, 3, 6, 0)),
     wave(grp('airlock', 5, 2, 0, 0), grp('frozenMain', 1, 1, 4, 1), grp('drip', 10, 0.8, 8, 1)),
-    wave(grp('scaleCrab', 6, 2, 0, 0), grp('steamWisp', 6, 1.6, 4, 1), grp('drip', 10, 0.7, 10, 0)),
+    rush(pack('scaleCrab', 6, 0, 0), grp('steamWisp', 6, 1.6, 4, 1), grp('drip', 10, 0.7, 10, 0)),
     wave(grp('pressureSpike', 4, 2, 0, 1), grp('sludge', 5, 2.5, 4, 0), grp('steamWisp', 5, 1.5, 12, 0)),
-    wave(grp('frozenMain', 2, 6, 0, 0), grp('airlock', 6, 2, 2, 1), grp('drip', 14, 0.6, 8, 1)),
-    wave(grp('steamWisp', 12, 1.2, 0, 0), grp('steamWisp', 6, 1.5, 6, 1), grp('scaleCrab', 6, 2, 8, 1)),
-    wave(grp('sludge', 6, 2.5, 0, 1), grp('scaleCrab', 8, 1.8, 3, 0), grp('pressureSpike', 4, 2, 14, 1)),
-    wave(grp('frozenMain', 3, 5, 0, 1), grp('airlock', 8, 1.6, 4, 0), grp('steamWisp', 8, 1.4, 10, 0)),
+    rush(pack('flangeGremlin', 4, 0, 0), pack('flangeGremlin', 4, 2, 1), grp('drip', 12, 0.55, 6, 0)),
+    wave(grp('frozenMain', 2, 5, 0, 0), grp('airlock', 6, 2, 2, 1), grp('drip', 14, 0.6, 8, 1)),
+    wave(grp('steamWisp', 12, 1.2, 0, 0), grp('steamWisp', 6, 1.5, 6, 1), grp('scaleCrab', 6, 1.5, 8, 1)),
+    rush(pack('scaleCrab', 8, 3, 0), grp('sludge', 6, 2.5, 0, 1), grp('pressureSpike', 4, 2, 14, 1)),
+    wave(grp('frozenMain', 3, 4.2, 0, 1), grp('airlock', 8, 1.6, 4, 0), grp('steamWisp', 8, 1.4, 10, 0)),
     wave(grp('drip', 26, 0.44, 0, 0), grp('drip', 16, 0.48, 4, 1), grp('pressureSpike', 5, 1.7, 12, 0)),
-    wave(grp('scaleCrab', 11, 1.45, 0, 0), grp('sludge', 6, 2.4, 2, 1), grp('steamWisp', 11, 1.25, 8, 1), grp('frozenMain', 2, 5.5, 14, 0)),
-    wave(grp('rogueBoiler', 1, 1, 2, 1), grp('steamWisp', 9, 1.4, 12, 0), grp('drip', 18, 0.58, 20, 0), grp('scaleCrab', 7, 1.9, 30, 1)),
+    rush(pack('scaleCrab', 11, 0, 0), pack('frozenMain', 2, 8, 0), grp('sludge', 6, 2.4, 2, 1), grp('steamWisp', 11, 1.25, 8, 1)),
+    wave(grp('rogueBoiler', 1, 1, 2, 1), grp('steamWisp', 9, 1.4, 12, 0), grp('drip', 18, 0.58, 20, 0), grp('scaleCrab', 7, 1.4, 30, 1)),
   ],
   palette: { bg: '#1c2326', wall: '#29343a', pipe: '#6f8a94', pipeDark: '#465a62', accent: '#4fc3f7' },
 };

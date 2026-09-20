@@ -1,6 +1,6 @@
 import { affixLabel, chestBlurb, RARITY_LABEL } from '../../data/loot';
 import type { RunReward } from '../../data/progress';
-import { remasterTitle } from '../../data/remasters';
+import { remasterTitle, isOneLife } from '../../data/remasters';
 import { TOWERS, TOWER_ORDER } from '../../data/towers';
 import type { Game } from '../../sim/game';
 import { h, stars } from '../dom';
@@ -35,7 +35,7 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
   const headline = retired
     ? `Call ${game.completedWaves}.`
     : won
-      ? game.lives >= (game.remaster === 'frozenMain' ? 1 : Math.round(game.map.lives * game.difficulty.livesMult))
+      ? game.lives >= (isOneLife(game.remaster) ? 1 : Math.round(game.map.lives * game.difficulty.livesMult))
         ? 'Clean sheet.'
         : 'Customer’s happy.'
       : 'The basement flooded.';

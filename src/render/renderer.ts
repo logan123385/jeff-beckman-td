@@ -6,10 +6,12 @@ import { TOWERS } from '../data/towers';
 import type { TowerId } from '../data/types';
 import { AIM_LABEL, scaledCastRange } from '../sim/combat';
 import type { AbilitySlot } from '../data/heroes';
+import { isOneLife } from '../data/remasters';
+import { leakRbe, splitLine } from '../data/splits';
 import type { Game } from '../sim/game';
 import type { Effect, JeffSkillId } from '../sim/state';
 import { blotch, CANVAS_UI, disc, filmGrain, glow, lampCone, noGlow, pulseRing, radial, rgba, stampText, vignette } from './ink';
-import { drawBuildPad, drawEnemy, drawJeff, drawTower, drawTowerBase, drawValveGate } from './sprites';
+import { drawBuildPad, drawEnemy, drawJeff, drawSplitTell, drawTower, drawTowerBase, drawValveGate } from './sprites';
 import { paintAtmosphere, paintForeground, paintPipeFlow, paintYard } from './yard';
 import { paintedCrew, paintedFriendly } from './paintedActors';
 import { ENEMY_ART, paintedSprite } from './art';
@@ -113,7 +115,7 @@ export class Renderer {
     this.drawHeroGround(game, view);
     this.drawHeroCombat(game, view);
     this.drawHeroAuras(game);
-    this.drawActors(game);
+    this.drawActors(game, view.hoverEnemyId);
     this.drawProjectiles(game);
     drawHeroMissiles(ctx, game);
     drawHeroVisuals(ctx, game);
@@ -164,14 +166,15 @@ export class Renderer {
     if (!imminent && !briefing) return;
     const ctx = this.ctx;
     const urgency = imminent ? 1 - game.waveCountdown / 4.5 : 0.16;
-    const pulse = 0.35 + Math.sin(game.time * (imminent ? 6 + urgency * 8 : 2.2)) * 0.5 + 0.5;
+    const packed = game.nextWaveIsRush();
+    const pulse = 0.35 + Math.sin(game.time * (imminent ? 6 + urgency * 8 : packed ? 5.5 : 2.2)) * 0.5 + 0.5;
     ctx.save();
     ctx.globalAlpha = (briefing ? 0.12 : 0.08) + urgency * 0.5 * pulse;
-    ctx.strokeStyle = urgency > 0.65 ? '#ff8a65' : '#ffd27a';
-    ctx.lineWidth = (briefing ? 5 : 6) + urgency * 7;
+    ctx.strokeStyle = packed || urgency > 0.65 ? '#ff8a65' : '#ffd27a';
+    ctx.lineWidth = (briefing ? 5 : 6) + urgency * 7 + (packed ? 2 : 0);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    glow(ctx, urgency > 0.65 ? '#ff7043' : '#ffd27a', 14);
+    glow(ctx, packed || urgency > 0.65 ? '#ff7043' : '#ffd27a', packed ? 18 : 14);
     game.map.paths.forEach((path, i) => {
       if (!hot.has(i) || path.length === 0) return;
       ctx.beginPath();
@@ -189,6 +192,7 @@ export class Renderer {
     const preview = game.nextWavePreview();
     const hot = new Set(preview.map((p) => p.path));
     const urgent = !game.allWavesStarted && game.waveCountdown >= 0 && game.waveCountdown < 5.5;
+    const packed = !game.allWavesStarted && game.nextWaveIsRush();
     ctx.save();
     game.map.paths.forEach((path, i) => {
       if (path.length < 2) return;
@@ -213,7 +217,7 @@ export class Renderer {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      if (hot.has(i)) stampText(ctx, `IN ${i + 1}`, x - uy * 18, y + ux * 18, { size: 10, color: '#ffe082' });
+      if (hot.has(i)) stampText(ctx, packed ? `RUSH ${i + 1}` : `IN ${i + 1}`, x - uy * 18, y + ux * 18, { size: 10, color: packed ? '#ff8a65' : '#ffe082' });
     });
     ctx.restore();
   }
@@ -241,7 +245,7 @@ export class Renderer {
 
   /** Soft red edge when the job is one or two leaks from a callback. */
   private drawLowLives(game: Game): void {
-    if (game.remaster === 'frozenMain') return;
+    if (isOneLife(game.remaster)) return;
     if (game.lives <= 0 || game.lives > 2 || game.map.lives <= 3) return;
     const ctx = this.ctx;
     const pulse = 0.22 + Math.sin(game.time * (game.lives === 1 ? 6 : 3.2)) * 0.08;
@@ -629,7 +633,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawActors(game: Game): void {
+  private drawActors(game: Game, hoverEnemyId: number | null): void {
     const ctx = this.ctx;
     const a = this.interp;
     const items: { y: number; z: number; draw: () => void }[] = [];
@@ -661,6 +665,7 @@ export class Renderer {
         const keep = e.pos;
         e.pos = vis;
         drawEnemy(ctx, e, game.time, dir);
+        drawSplitTell(ctx, e, hoverEnemyId === e.id);
         e.pos = keep;
       } });
     }
@@ -958,17 +963,23 @@ export class Renderer {
         noGlow(ctx);
         ctx.fillStyle = 'rgba(20,12,8,0.82)';
         ctx.beginPath();
-        ctx.roundRect(hover.pos.x - 58, hover.pos.y - hover.def.radius - 52, 116, 40, 5);
+        const pop = splitLine(hover.def.id, hover.properties.includes('pressurized'));
+        const boxH = pop ? 54 : 40;
+        ctx.roundRect(hover.pos.x - 64, hover.pos.y - hover.def.radius - 12 - boxH, 128, boxH, 5);
         ctx.fill();
         ctx.fillStyle = '#ffe082';
         ctx.font = '700 11px Source Sans 3, Trebuchet MS, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(hover.def.name.toUpperCase(), hover.pos.x, hover.pos.y - hover.def.radius - 38);
+        ctx.fillText(hover.def.name.toUpperCase(), hover.pos.x, hover.pos.y - hover.def.radius - boxH + 4);
         ctx.fillStyle = '#f3e6c8';
         ctx.font = '600 10px Source Sans 3, Trebuchet MS, sans-serif';
         const arm = Math.round(hover.def.armor * 100);
         const tags = [hover.def.flying ? 'AIR' : 'GND', arm > 0 ? `ARM ${arm}%` : null].filter(Boolean).join(' · ');
-        ctx.fillText(`${Math.ceil(hover.hp)} / ${hover.maxHp}  ${tags}`, hover.pos.x, hover.pos.y - hover.def.radius - 24);
+        ctx.fillText(`${Math.ceil(hover.hp)} / ${hover.maxHp}  ${tags}`, hover.pos.x, hover.pos.y - hover.def.radius - boxH + 18);
+        if (pop) {
+          ctx.fillStyle = '#ffe082';
+          ctx.fillText(`${pop} · ${leakRbe(hover.def.id, hover.properties.includes('pressurized'))} lives`, hover.pos.x, hover.pos.y - hover.def.radius - boxH + 30);
+        }
         ctx.fillStyle = '#c8e6c9';
         ctx.fillText('CLICK TO ATTACK', hover.pos.x, hover.pos.y - hover.def.radius - 12);
         ctx.restore();
