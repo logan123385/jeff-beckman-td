@@ -13,6 +13,8 @@ export interface Enemy {
   pathIdx: number;
   progress: number;
   pos: Vec;
+  /** Last sim-tick position for render interpolation. */
+  prev: Vec;
   /** Visual lateral offset so groups don't stack perfectly. */
   lane: number;
   speedMult: number;
@@ -31,6 +33,8 @@ export interface Enemy {
   ventTimer: number;
   dead: boolean;
   escaped: boolean;
+  /** Seconds the corpse stays on the yard after death. */
+  deathAge: number;
   /** Attack cooldown while held. */
   attackTimer: number;
   wobble: number;
@@ -45,6 +49,8 @@ export interface Enemy {
   hitFlash: number;
   attackSwing?: number;
   attackLanded?: boolean;
+  /** Unresolved projectile damage so other towers do not pile onto a doomed leak. */
+  incoming: number;
 }
 
 export type HoldRef = { kind: 'tower'; id: number } | { kind: 'crew'; id: number } | { kind: 'friendly'; id: number } | { kind: 'summon'; id: number } | { kind: 'hero' } | { kind: 'clamp' };
@@ -53,6 +59,8 @@ export interface Crew {
   pendingTarget?: number;
   id: number;
   pos: Vec;
+  prev: Vec;
+  home: Vec;
   hp: number;
   maxHp: number;
   timeLeft: number;
@@ -64,7 +72,7 @@ export interface Crew {
 export type FriendlyRole = 'apprentice' | 'jayjay' | 'cbj' | 'doni';
 export interface Friendly {
   id: number; towerId: number; role: FriendlyRole; slot: number;
-  pos: Vec; home: Vec; hp: number; maxHp: number; armor: number;
+  pos: Vec; prev: Vec; home: Vec; hp: number; maxHp: number; armor: number;
   damage: number; range: number; rate: number; holds: number;
   respawn: number; targetId: number | null; attackTimer: number;
   moveBlend?: number; fall?: number;
@@ -90,6 +98,8 @@ export interface Tower {
   shieldCooldown: number;
   /** Visual: last target position for beams / turret facing. */
   facing: number;
+  /** Presentation facing — lerped in the renderer. */
+  drawFacing?: number;
   recoil: number;
   invested: number;
   /** PRV charge (enemy-seconds in range). */
@@ -99,23 +109,34 @@ export interface Tower {
   specialization?: Specialization;
   eliteCooldown?: number;
   windup?: number;
+  /** Seconds left of Kingdom Rush–style construction. Can't fire while > 0. */
+  build?: number;
+  /** Last aimed enemy, for the selected-tower aim line. */
+  lastTargetId?: number;
 }
 
 /** Kingdom Rush–style target priority for shooters. */
-export type AimPriority = 'first' | 'strong' | 'close' | 'last';
+export type AimPriority = 'first' | 'strong' | 'close' | 'last' | 'weak';
 
 export interface Projectile {
   id: number;
   pos: Vec;
+  prev: Vec;
+  from: Vec;
   targetId: number;
   lastTargetPos: Vec;
   speed: number;
   damage: number;
+  /** Mitigated amount already counted on `Enemy.incoming`. */
+  reserved: number;
   damageType: DamageType;
   splash: number;
   source: DamageSource;
   groundMult: number;
   color: string;
+  life: number;
+  ttl: number;
+  home: boolean;
   /** Descaler (and similar) carry their own tower stats so two pads do not share one roll. */
   shred?: number;
   dot?: number;
@@ -131,6 +152,7 @@ export interface Hero {
   lifesteal?: number;
   taunt?: number;
   pos: Vec;
+  prev: Vec;
   /** Last move / hunt focus for ground markers and repair. */
   anchor: Vec;
   dest: Vec | null;
@@ -147,6 +169,8 @@ export interface Hero {
   sleeveTimer: number;
   coffeeTimer: number;
   downed: number;
+  /** False while waiting in the truck or after a down — click the yard to drop them. */
+  deployed: boolean;
   facing: number;
   swing: number;
   /** Sticky Diablo-style attack order — Jeff only swings this enemy until it dies. */
@@ -163,7 +187,7 @@ export interface Hero {
 }
 
 export interface HeroMissile {
-  id: number; kind: 'plunger' | 'golf'; from: Vec; pos: Vec; goal: Vec; targetId?: number;
+  id: number; kind: 'plunger' | 'golf'; from: Vec; pos: Vec; prev: Vec; goal: Vec; targetId?: number;
   age: number; duration: number; damage: number; splash: number; bounces: number; hitIds: number[];
 }
 export interface HeroZone {
@@ -175,7 +199,7 @@ export interface HeroVisual {
   from: Vec; to: Vec; radius: number; color: string; left: number; duration: number;
 }
 export interface HeroSummon {
-  id: number; pos: Vec; hp: number; maxHp: number; left: number; duration: number;
+  id: number; pos: Vec; prev: Vec; hp: number; maxHp: number; left: number; duration: number;
   facing: number; walkPhase: number; moving: boolean; moveBlend: number;
   swing: number; attackTimer: number; targetId?: number; pendingTarget?: number;
 }
@@ -183,6 +207,14 @@ export interface HeroSummon {
 export interface Clamp {
   pos: Vec;
   timeLeft: number;
+}
+
+export interface StrikeDrop {
+  pos: Vec;
+  delay: number;
+  radius: number;
+  damage: number;
+  fired: boolean;
 }
 
 export type JeffSkillId = 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee';

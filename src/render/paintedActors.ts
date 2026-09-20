@@ -4,6 +4,7 @@ import type { Enemy, Hero, Tower, Friendly } from '../sim/state';
 import { humanoid, monster } from './animation';
 import { FRIENDLY_SWING } from '../sim/friendlies';
 import { artReady, ENEMY_ART, paintedSprite, TOWER_ART } from './art';
+import { BUILD_TIME } from '../sim/game';
 import { castShadow, disc, pulseRing, radial, rgba, stampText } from './ink';
 
 type Ctx = CanvasRenderingContext2D;
@@ -72,14 +73,19 @@ export function paintedEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number
   castShadow(ctx, x, y + 7, height * 0.31, height * 0.1, 0.28);
   if (e.slow > 0.05) pulseRing(ctx, x, y + 5, height * 0.4, '#b5f3ff', 0.65, 1.5);
   ctx.save(); ctx.translate(x, y + 11 - lift);
-  if (e.phased) ctx.globalAlpha = 0.32;
+  if (e.dead) {
+    const k = Math.max(0, Math.min(1, e.deathAge / 0.46));
+    ctx.globalAlpha = k * (e.phased ? 0.32 : 1);
+    ctx.rotate((1 - k) * 1.15);
+    ctx.scale(0.85 + k * 0.15, 0.55 + k * 0.45);
+  } else if (e.phased) ctx.globalAlpha = 0.32;
   if (e.hitFlash > 0.08) ctx.filter = 'brightness(1.65)';
   const squash = moving && !e.def.flying ? stride * 0.045 : Math.sin(time * 3 + e.id) * 0.018;
   ctx.scale((dir && dir.x < -0.2 ? -1 : 1) * (1 + squash), 1 - squash);
   const phase = 1 - (e.attackSwing ?? 0) / .64;
   monster(ctx, index, height, e.wobble * 1.7, moving, time + e.id, phase, (e.attackSwing ?? 0) > 0, e.def.flying, ['drip','sludge','steamWisp','airlock','biofilm','vacuumBreak'].includes(e.def.id));
   ctx.restore();
-  if (e.hp < e.maxHp || e.heldBy || boss) health(ctx, x, y - height - lift + 5, boss ? 65 : 23, e.hp / e.maxHp, boss ? '#f27e55' : '#83ce5b');
+  if (!e.dead && (e.hp < e.maxHp || e.heldBy || boss)) health(ctx, x, y - height - lift + 5, boss ? 65 : 23, e.hp / e.maxHp, boss ? '#f27e55' : '#83ce5b');
   if (e.stun > 0) for (let i = 0; i < 3; i++) {
     const a = time * 6 + i * Math.PI * 2 / 3;
     stampText(ctx, '✦', x + Math.cos(a) * 13, y - height - lift + Math.sin(a) * 4, { size: 11, color: '#ffe79e' });
@@ -113,6 +119,12 @@ export function paintedTower(ctx: Ctx, t: Tower, time: number): boolean {
   castShadow(ctx, x + 6, y + 6, 29 + t.level * 2, 9, 0.32);
   if (t.def.kind === 'aura' || elite) radial(ctx, x, y, 6, 39, t.def.color, 0.09 + Math.sin(time * 3) * 0.025);
   ctx.save(); ctx.translate(x, y + 13);
+  const building = t.build ?? 0;
+  if (building > 0) {
+    const k = 1 - building / BUILD_TIME;
+    ctx.globalAlpha = 0.4 + k * 0.6;
+    ctx.scale(0.58 + k * 0.42, 0.5 + k * 0.5);
+  }
   if (t.frozen > 0) ctx.filter = 'saturate(0.25) brightness(1.35)';
   if (t.rebuild > 0) ctx.globalAlpha = 0.55;
   const recoil = Math.sin(Math.PI * Math.min(1, Math.max(0, t.recoil) / .28));
@@ -136,6 +148,17 @@ export function paintedTower(ctx: Ctx, t: Tower, time: number): boolean {
     stampText(ctx, '★', x + 31, y - 49, { size: 8, color: '#fff3c4' });
   }
   if (t.frozen > 0) pulseRing(ctx, x, y, 30, rgba('#b8eaff', 0.8), 0.75, 2);
+  if ((t.build ?? 0) > 0) {
+    const k = 1 - (t.build ?? 0) / BUILD_TIME;
+    stampText(ctx, 'INSTALLING', x, y - height * 0.55, { size: 10, color: '#ffe082' });
+    ctx.save();
+    ctx.strokeStyle = rgba('#c9a15b', 0.7);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y - 8, 16, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
   return true;
 }
 

@@ -16,6 +16,12 @@ export class GameLoop {
 
   constructor(private readonly handlers: LoopHandlers) {}
 
+  /** 0..1 leftover toward the next sim tick — used to interpolate drawing. */
+  get alpha(): number {
+    if (this.paused) return 1;
+    return Math.max(0, Math.min(1, this.acc / FIXED_DT));
+  }
+
   start(): void {
     if (this.running) return;
     this.running = true;
@@ -27,13 +33,13 @@ export class GameLoop {
       if (!this.paused) {
         this.acc += elapsed * this.speed;
         let steps = 0;
-        const maxSteps = this.speed > 1.25 ? 10 : 8;
+        const maxSteps = Math.min(36, Math.max(8, Math.ceil((this.speed * 0.25) / FIXED_DT)));
         while (this.acc >= FIXED_DT && steps < maxSteps) {
           this.handlers.update(FIXED_DT);
           this.acc -= FIXED_DT;
           steps++;
         }
-        if (steps >= maxSteps) this.acc = Math.min(this.acc, FIXED_DT);
+        if (steps >= maxSteps) this.acc = Math.min(this.acc, FIXED_DT * 4);
       }
       this.handlers.render();
       this.raf = requestAnimationFrame(tick);

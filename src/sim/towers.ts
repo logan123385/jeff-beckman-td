@@ -3,7 +3,7 @@ import { dist } from '../core/vec';
 import { PHASE_VISIBLE_SECONDS } from '../data/enemies';
 import { BARRICADE_REBUILD_SECONDS, BARRICADE_REGEN_PER_SEC, MINERAL_ENEMIES } from '../data/towers';
 import type { EnemyId } from '../data/types';
-import { applyDamage, isTargetable, matchesTargetMode, pickTarget } from './combat';
+import { applyDamage, estimateDamage, heroOnYard, isTargetable, matchesTargetMode, pickTarget, predictedPos } from './combat';
 import type { Game } from './game';
 import type { Enemy, Tower } from './state';
 
@@ -31,11 +31,11 @@ export function updateAuras(game: Game, dt: number): void {
 
   // Buff pads first so zone tools and Jeff haste read this frame's auras.
   for (const t of game.towers) {
-    if (t.frozen > 0) continue;
+    if (t.frozen > 0 || (t.build ?? 0) > 0) continue;
     applySupportAura(game, t);
   }
   for (const t of game.towers) {
-    if (t.frozen > 0) continue;
+    if (t.frozen > 0 || (t.build ?? 0) > 0) continue;
     applyZoneAura(game, t, dt);
   }
 
@@ -160,7 +160,7 @@ function applyHeatZone(game: Game, t: Tower, dt: number, source: 'radiant' | 'bo
   const range = game.effectiveRange(t);
   t.cooldown -= dt;
   const tick = t.cooldown <= 0;
-  if (tick) t.cooldown += 1 / Math.max(0.2, lvl.fireRate);
+  if (tick) t.cooldown += 1 / Math.max(0.2, lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0)));
   for (const e of game.enemies) {
     if (!isTargetable(e) || e.def.flying || dist(e.pos, t.pos) > range + e.def.radius) continue;
     e.slow = Math.max(e.slow, lvl.slow ?? 0);
@@ -195,8 +195,7 @@ function applySump(game: Game, t: Tower, dt: number): void {
     if (!path) continue;
     const basin = path.nearestPoint(t.pos).progress;
     if (e.progress <= basin) continue;
-    e.progress = Math.max(basin, e.progress - pull * Math.max(1, e.speedMult));
-    e.heldBy = null;
+    e.progress = Math.max(basin, e.progress - pull);
     pulled = true;
   }
   if (pulled) {
@@ -298,8 +297,7 @@ function applyBackflow(game: Game, t: Tower, dt: number): void {
   let shoved = false;
   for (const e of game.enemies) {
     if (!isTargetable(e) || e.def.flying || dist(e.pos, t.pos) > range + e.def.radius) continue;
-    e.progress = Math.max(0, e.progress - push * Math.max(1, e.speedMult));
-    e.heldBy = null;
+    e.progress = Math.max(0, e.progress - push);
     shoved = true;
   }
   if (shoved) {
@@ -332,6 +330,11 @@ function applyPrv(game: Game, t: Tower, dt: number): void {
 
 export function updateTowers(game: Game, dt: number): void {
   for (const t of game.towers) {
+    if ((t.build ?? 0) > 0) {
+      t.build = Math.max(0, (t.build ?? 0) - dt);
+      if (t.build > 0) continue;
+      game.addEffect({ kind: 'ring', pos: { ...t.pos }, radius: 28, color: '#c8e6c9', ttl: 0.32, max: 0.32 });
+    }
     if (t.frozen > 0) t.frozen -= dt;
     if (t.shieldCooldown > 0) t.shieldCooldown -= dt;
     if (t.recoil > 0) t.recoil -= dt;
@@ -354,11 +357,11 @@ export function updateTowers(game: Game, dt: number): void {
 }
 
 function updateElite(game: Game, t: Tower, dt: number): void {
-  if (t.specialization !== 'control' || t.frozen > 0 || t.rebuild > 0) return;
+  if (t.specialization !== 'control' || t.frozen > 0 || t.rebuild > 0 || (t.build ?? 0) > 0) return;
   if (t.def.kind === 'barricade') {
     t.hp = Math.min(t.maxHp, t.hp + 8 * dt);
     for (const f of game.friendlies) if (f.respawn <= 0 && dist(f.pos, t.rally) < 90) f.hp = Math.min(f.maxHp, f.hp + 8 * dt);
-    if (game.heroEnabled && game.hero.downed <= 0 && dist(game.hero.pos, t.rally) < 90) game.hero.hp = Math.min(game.hero.maxHp, game.hero.hp + 8 * dt);
+    if (heroOnYard(game) && dist(game.hero.pos, t.rally) < 90) game.hero.hp = Math.min(game.hero.maxHp, game.hero.hp + 8 * dt);
     return;
   }
   t.eliteCooldown = Math.max(0, (t.eliteCooldown ?? 0) - dt);
@@ -377,21 +380,21 @@ function updateElite(game: Game, t: Tower, dt: number): void {
 
 function updateShooter(game: Game, t: Tower, dt: number): void {
   if ((t.windup ?? 0) > 0) {
-    t.windup = Math.max(0, t.windup! - dt);
-    if (t.windup === 0) fireShooter(game, t, 0);
+    t.windup = Math.max(0, (t.windup ?? 0) - dt);
+    if ((t.windup ?? 0) <= 0) fireShooter(game, t);
     return;
   }
   t.cooldown -= dt;
   if (t.cooldown > 0) return;
   const target = pickTarget(game, t, game.effectiveRange(t));
+  t.lastTargetId = target?.id ?? 0;
   if (!target && t.def.id !== 'pipeSnake') return;
   if (target) t.facing = Math.atan2(target.pos.y - t.pos.y, target.pos.x - t.pos.x);
-  t.windup = 0.16;
+  const rate = t.def.levels[t.level]!.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0));
+  t.windup = Math.min(0.12, Math.max(0.05, 0.16 / Math.max(0.6, rate)));
 }
 
-function fireShooter(game: Game, t: Tower, dt: number): void {
-  t.cooldown -= dt;
-  if (t.cooldown > 0) return;
+function fireShooter(game: Game, t: Tower): void {
   const lvl = t.def.levels[t.level]!;
   if (t.def.id === 'pipeSnake') {
     const { pathIdx, progress } = game.nearestPath(t.pos);
@@ -403,7 +406,7 @@ function fireShooter(game: Game, t: Tower, dt: number): void {
       t.cooldown = 0;
       return;
     }
-    t.cooldown = Math.max(0.05, 1 / (lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0))) - 0.16);
+    t.cooldown = Math.max(0.08, 1 / (lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0))));
     t.recoil = 0.28;
     firePipeSnake(game, t);
     return;
@@ -412,33 +415,46 @@ function fireShooter(game: Game, t: Tower, dt: number): void {
   const target = pickTarget(game, t, range);
   if (!target) {
     t.cooldown = 0;
+    t.lastTargetId = 0;
     return;
   }
+  t.lastTargetId = target.id;
   const rate = lvl.fireRate * (1 + (game.buffs.get(t.id)?.rate ?? 0));
-  t.cooldown = Math.max(0.05, 1 / Math.max(0.2, rate) - 0.16);
+  t.cooldown = Math.max(0.08, 1 / Math.max(0.2, rate));
   t.facing = Math.atan2(target.pos.y - t.pos.y, target.pos.x - t.pos.x);
   t.recoil = 0.28;
   const damage = game.effectiveDamage(t);
   if (t.def.projectileSpeed === undefined) {
     applyDamage(game, target, damage, t.def.damageType, t.def.id, { groundMult: t.def.groundMult });
-    game.addEffect({ kind: 'beam', from: { ...t.pos }, to: { ...target.pos }, color: t.def.color, ttl: 0.1, max: 0.1 });
+    game.addEffect({ kind: 'beam', from: { ...t.pos }, to: { ...target.pos }, color: t.def.color, ttl: 0.14, max: 0.14 });
     game.addEffect({ kind: 'hit', pos: { ...target.pos }, color: t.def.color, ttl: 0.18, max: 0.18 });
     if (t.def.id === 'manifold') fireManifoldExtras(game, t, target, damage);
     if (t.def.id === 'heatExchanger') fireHeatJump(game, t, target, damage);
     return;
   }
+  const splash = lvl.splash ?? 0;
+  const eta = dist(t.pos, target.pos) / Math.max(40, t.def.projectileSpeed);
+  const aim = splash > 0 ? predictedPos(game, target, eta) : { ...target.pos };
+  const reserved = estimateDamage(game, target, damage, t.def.damageType, t.def.id, { groundMult: t.def.groundMult });
+  target.incoming += reserved;
   game.projectiles.push({
     id: game.nextEntityId(),
     pos: { ...t.pos },
+    prev: { ...t.pos },
+    from: { ...t.pos },
     targetId: target.id,
-    lastTargetPos: { ...target.pos },
+    lastTargetPos: aim,
     speed: t.def.projectileSpeed,
     damage,
+    reserved,
     damageType: t.def.damageType,
-    splash: lvl.splash ?? 0,
+    splash,
     source: t.def.id,
     groundMult: t.def.groundMult ?? 1,
     color: t.def.color,
+    life: 0,
+    ttl: eta + 0.85,
+    home: splash <= 0,
     shred: lvl.shred,
     dot: lvl.dot,
     dotTime: lvl.dotTime,
@@ -508,6 +524,7 @@ export function applyDescaler(e: Enemy, shred: number, dot: number, dotTime: num
 }
 
 function updateBarricade(game: Game, t: Tower, dt: number): void {
+  if ((t.build ?? 0) > 0) return;
   if (t.rebuild > 0) {
     t.rebuild -= dt;
     t.hp = t.maxHp * (1 - Math.max(0, t.rebuild) / BARRICADE_REBUILD_SECONDS);

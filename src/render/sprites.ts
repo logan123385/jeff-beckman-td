@@ -1779,8 +1779,20 @@ export function drawEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number; y
       stampText(ctx, '✶', sx, sy, { size: 11 + Math.sin(a) * 2, color: '#fff59d' });
     }
   }
-  if (e.hp < e.maxHp) {
+  if (e.hp < e.maxHp || e.def.armor > 0.05 || e.def.flying) {
     hpBar(ctx, x, y - lift - r - 8, Math.max(18, r * 2.3), e.hp / e.maxHp, e.def.traits.includes('boss') ? '#ff7043' : '#ef5350');
+    if (e.def.armor > 0.15) {
+      ctx.fillStyle = '#cfd8dc';
+      ctx.font = '700 8px Source Sans 3, Trebuchet MS, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('ARM', x + Math.max(10, r * 1.2), y - lift - r - 6);
+    }
+    if (e.def.flying) {
+      ctx.fillStyle = '#b3e5fc';
+      ctx.font = '700 8px Source Sans 3, Trebuchet MS, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText('AIR', x - Math.max(10, r * 1.2), y - lift - r - 6);
+    }
   }
 }
 

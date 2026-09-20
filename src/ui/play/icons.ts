@@ -8,6 +8,7 @@ export function skillGlyph(key: string): string {
     T: '<path d="M20 5l13 5v11c0 7-13 14-13 14S7 28 7 21V10z" fill="#679c8f"/><path d="M20 10v18m-7-12h14"/><path d="M14 32h12"/>',
     C: '<path d="M9 15h20v15a5 5 0 0 1-5 5H14a5 5 0 0 1-5-5z" fill="#aa6945"/><path d="M29 18h3a5 5 0 0 1 0 10h-3M13 10c-4-4 4-4 0-8m8 8c-4-4 4-4 0-8"/><path d="M10 19h18"/>',
     D: '<path d="M6 27v-7a14 14 0 0 1 28 0v7" fill="#e8b853"/><path d="M17 5h6v18h-6z" fill="#f8d989"/><path d="M4 27h32v5H4z" fill="#e1a343"/><path d="M10 18v5m20-5v5"/>',
+    X: '<path d="M12 6h16l4 8-12 20L8 14z" fill="#d45c31"/><path d="M20 10v10m-6 0h12"/><path d="M14 34h12"/>',
   };
   return `<svg viewBox="0 0 40 40" aria-hidden="true" fill="none" stroke="#f7e3b3" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${heroGlyphs[key] ?? shapes[({ clamp: 'Q', valve: 'E', pulse: 'R', shield: 'T', coffee: 'C' } as Record<string, string>)[key] ?? key] ?? ''}</svg>`;
 }

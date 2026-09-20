@@ -4,12 +4,13 @@ import { JEFF } from '../data/jeff';
 import { WORLD_H, WORLD_W } from '../data/maps';
 import { TOWERS } from '../data/towers';
 import type { TowerId } from '../data/types';
-import { AIM_LABEL } from '../sim/combat';
+import { AIM_LABEL, scaledCastRange } from '../sim/combat';
+import type { AbilitySlot } from '../data/heroes';
 import type { Game } from '../sim/game';
 import type { Effect, JeffSkillId } from '../sim/state';
 import { blotch, CANVAS_UI, disc, filmGrain, glow, lampCone, noGlow, pulseRing, radial, rgba, stampText, vignette } from './ink';
 import { drawBuildPad, drawEnemy, drawJeff, drawTower, drawTowerBase, drawValveGate } from './sprites';
-import { paintAtmosphere, paintForeground, paintYard } from './yard';
+import { paintAtmosphere, paintForeground, paintPipeFlow, paintYard } from './yard';
 import { paintedCrew, paintedFriendly } from './paintedActors';
 import { ENEMY_ART, paintedSprite } from './art';
 
@@ -23,8 +24,10 @@ interface Spark {
   r: number;
   color: string;
   g: number;
-  /** 0 disc, 1 streak, 2 bead */
-  shape: 0 | 1 | 2;
+  /** 0 disc, 1 streak, 2 bead, 3 gold coin homing to the HUD */
+  shape: 0 | 1 | 2 | 3;
+  hx?: number;
+  hy?: number;
 }
 
 export interface RenderView {
@@ -37,7 +40,13 @@ export interface RenderView {
   mouse: Vec | null;
   /** Enemy under the cursor for Diablo-style attack aim. */
   hoverEnemyId: number | null;
-  targeting?: 'crew' | 'rally' | null;
+  targeting?: 'crew' | 'rally' | 'strike' | 'ability' | 'deploy' | null;
+  /** Slot of a click-to-cast hero skill while `targeting === 'ability'`. */
+  abilitySlot?: number | null;
+  /** Tower currently armed in the persistent tray (sticky place). */
+  armed?: TowerId | null;
+  /** 0..1 leftover toward the next sim tick. */
+  interp?: number;
 }
 
 export class Renderer {
@@ -49,15 +58,16 @@ export class Renderer {
   private seededFx = new WeakSet<object>();
   private lastSparkTime = 0;
   private fxTime = 0;
-  private shake = 0;
+  private trauma = 0;
   private shakeSeed = 0;
   private lastLives = -1;
   private hurt = 0;
   private lastDrawTime = 0;
+  private interp = 1;
   private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('2D canvas not supported');
     this.ctx = ctx;
   }
@@ -77,15 +87,19 @@ export class Renderer {
   draw(game: Game, view: RenderView): void {
     const ctx = this.ctx;
     this.fxTime = game.time;
+    this.interp = view.interp ?? 1;
     ctx.save();
-    if (this.shake > 0.02) {
-      const s = this.shake;
+    const shake = this.trauma * this.trauma;
+    if (shake > 0.004) {
       this.shakeSeed += 1;
-      const dx = Math.sin(this.shakeSeed * 12.9898) * s;
-      const dy = Math.cos(this.shakeSeed * 78.233) * s;
+      const dx = Math.sin(this.shakeSeed * 12.9898 + this.fxTime * 18) * shake * 11;
+      const dy = Math.cos(this.shakeSeed * 78.233 + this.fxTime * 14) * shake * 9;
       ctx.translate(dx, dy);
+      ctx.rotate(shake * 0.012 * Math.sin(this.shakeSeed));
     }
     this.drawBackground(game);
+    paintPipeFlow(ctx, game.map.paths, game.time, game.map.palette.pipe);
+    this.drawEntrances(game);
     this.drawWaveWarning(game);
     paintAtmosphere(ctx, game.map, game.time);
     this.drawAmbient(game);
@@ -110,6 +124,7 @@ export class Renderer {
     this.tickSparks(game.time);
     this.drawSparks();
     this.drawMuzzleFlashes(game);
+    this.drawStrikes(game, view);
     this.drawForeground(game);
     if (game.globalSlowTimer > 0) this.drawShutoffHud(game);
     for (const fx of game.effects) {
@@ -123,11 +138,10 @@ export class Renderer {
     this.drawSkillNotice(game);
     drawHeroNotice(ctx, game);
     ctx.restore();
-    if (this.shake > 0.02) {
-      // cover the sliver exposed by the shake offset
+    if (this.trauma * this.trauma > 0.004) {
       ctx.save();
       ctx.strokeStyle = '#0a0908';
-      ctx.lineWidth = this.shake * 2 + 2;
+      ctx.lineWidth = this.trauma * 8 + 2;
       ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
       ctx.restore();
     }
@@ -136,29 +150,71 @@ export class Renderer {
   /** Nudge the camera; decays each frame. */
   private kick(amount: number): void {
     if (this.reducedMotion) return;
-    this.shake = Math.min(14, Math.max(this.shake, amount));
+    this.trauma = Math.min(1, this.trauma + amount / 14);
   }
 
-  /** Brass pulse along the pipes in the last few seconds before a wave. */
+  /** Brass pulse along the pipes that the next wave will actually use. */
   private drawWaveWarning(game: Game): void {
-    if (game.allWavesStarted || game.waveCountdown <= 0 || game.waveCountdown > 4.5) return;
+    if (game.allWavesStarted) return;
+    const preview = game.nextWavePreview();
+    const hot = new Set(preview.map((p) => p.path));
+    if (hot.size === 0) return;
+    const imminent = game.waveCountdown > 0 && game.waveCountdown <= 4.5 && !(game.endless && game.waveActive);
+    const briefing = !game.waveActive && game.waveCountdown > 0;
+    if (!imminent && !briefing) return;
     const ctx = this.ctx;
-    const urgency = 1 - game.waveCountdown / 4.5;
-    const pulse = 0.35 + Math.sin(game.time * (6 + urgency * 8)) * 0.5 + 0.5;
+    const urgency = imminent ? 1 - game.waveCountdown / 4.5 : 0.16;
+    const pulse = 0.35 + Math.sin(game.time * (imminent ? 6 + urgency * 8 : 2.2)) * 0.5 + 0.5;
     ctx.save();
-    ctx.globalAlpha = 0.18 + urgency * 0.45 * pulse;
+    ctx.globalAlpha = (briefing ? 0.12 : 0.08) + urgency * 0.5 * pulse;
     ctx.strokeStyle = urgency > 0.65 ? '#ff8a65' : '#ffd27a';
-    ctx.lineWidth = 8 + urgency * 6;
+    ctx.lineWidth = (briefing ? 5 : 6) + urgency * 7;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    glow(ctx, urgency > 0.65 ? '#ff7043' : '#ffd27a', 16);
-    for (const path of game.map.paths) {
-      if (path.length === 0) continue;
+    glow(ctx, urgency > 0.65 ? '#ff7043' : '#ffd27a', 14);
+    game.map.paths.forEach((path, i) => {
+      if (!hot.has(i) || path.length === 0) return;
       ctx.beginPath();
-      path.forEach((pt, i) => (i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+      path.forEach((pt, n) => (n === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
       ctx.stroke();
-    }
+    });
     noGlow(ctx);
+    ctx.restore();
+  }
+
+  /** Lane chevrons so dual-path maps read like Kingdom Rush. */
+  private drawEntrances(game: Game): void {
+    if (game.allWavesStarted && !game.waveActive) return;
+    const ctx = this.ctx;
+    const preview = game.nextWavePreview();
+    const hot = new Set(preview.map((p) => p.path));
+    const urgent = !game.allWavesStarted && game.waveCountdown >= 0 && game.waveCountdown < 5.5;
+    ctx.save();
+    game.map.paths.forEach((path, i) => {
+      if (path.length < 2) return;
+      const a = path[0]!;
+      const b = path[1]!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len;
+      const uy = dy / len;
+      const pulse = 0.55 + Math.sin(game.time * (urgent && hot.has(i) ? 8 : 3) + i) * 0.25;
+      ctx.globalAlpha = (hot.has(i) ? 0.85 : 0.35) * pulse;
+      ctx.fillStyle = urgent && hot.has(i) ? '#ff8a65' : '#ffe082';
+      ctx.strokeStyle = '#1a1208';
+      ctx.lineWidth = 2;
+      const x = a.x + ux * 18;
+      const y = a.y + uy * 18;
+      ctx.beginPath();
+      ctx.moveTo(x + ux * 14, y + uy * 14);
+      ctx.lineTo(x - uy * 10 - ux * 4, y + ux * 10 - uy * 4);
+      ctx.lineTo(x + uy * 10 - ux * 4, y - ux * 10 - uy * 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      if (hot.has(i)) stampText(ctx, `IN ${i + 1}`, x - uy * 18, y + ux * 18, { size: 10, color: '#ffe082' });
+    });
     ctx.restore();
   }
 
@@ -293,7 +349,7 @@ export class Renderer {
       const peak = t.recoil > 0 ? 0.38 : t.frozen > 0 ? 0.16 : 0.14;
       radial(ctx, t.pos.x, t.pos.y - 10, 6, t.recoil > 0 ? 70 : 48, t.frozen > 0 ? '#81d4fa' : t.def.color, peak);
     }
-    if (game.heroEnabled && game.hero.downed <= 0) {
+    if (game.heroEnabled && game.hero.deployed && game.hero.downed <= 0) {
       const h = game.hero;
       const swing = h.swing;
       radial(ctx, h.pos.x, h.pos.y - 8, 4, swing > 0 ? 56 : 28, swing > 0 ? '#ffe082' : '#a5d6a7', swing > 0 ? 0.32 : 0.1);
@@ -332,6 +388,9 @@ export class Renderer {
       if (game.towerAt(i)) return;
       const hot = view.hoverSlot === i || view.selectedSlot === i;
       drawBuildPad(ctx, s.x, s.y, hot, game.map.palette.pipe, game.time);
+      if (view.armed && !hot) {
+        pulseRing(ctx, s.x, s.y + 2, 22 + Math.sin(game.time * 3) * 1.5, '#9ccc8a', 0.28, 1.3);
+      }
     });
   }
 
@@ -360,6 +419,24 @@ export class Renderer {
         drawRange(center, t.def.kind === 'barricade' ? t.def.levels[t.level]!.range : game.effectiveRange(t), 'rgba(255,255,255,ALPHA)');
         if (t.def.kind === 'shooter') {
           stampText(ctx, AIM_LABEL[t.aim], center.x, center.y - 28, { size: 13, color: '#ffe082' });
+          const prey = t.lastTargetId ? game.enemies.find((e) => e.id === t.lastTargetId && !e.dead && !e.escaped) : null;
+          if (prey) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 224, 130, 0.55)';
+            ctx.lineWidth = 1.8;
+            ctx.setLineDash([5, 6]);
+            ctx.lineDashOffset = -game.time * 40;
+            ctx.beginPath();
+            ctx.moveTo(t.pos.x, t.pos.y - 16);
+            ctx.lineTo(prey.pos.x, prey.pos.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.strokeStyle = 'rgba(255, 224, 130, 0.85)';
+            ctx.beginPath();
+            ctx.arc(prey.pos.x, prey.pos.y, prey.def.radius + 8 + Math.sin(game.time * 8) * 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
         }
       }
     }
@@ -373,7 +450,18 @@ export class Renderer {
       drawTowerBase(ctx, pos.x, pos.y, def.color);
       ctx.restore();
     }
-    if (view.heroSelected && game.heroEnabled && game.hero.downed <= 0) {
+    const ghostSlot = view.armed && view.hoverSlot !== null && !game.towerAt(view.hoverSlot) ? view.hoverSlot : null;
+    if (ghostSlot !== null && !(view.selectedSlot === ghostSlot && view.previewTower)) {
+      const def = TOWERS[view.armed!];
+      const pos = game.map.slots[ghostSlot]!;
+      const center = def.kind === 'barricade' ? game.nearestPathPoint(pos) : pos;
+      drawRange(center, def.levels[0].range * game.mods.towerRange, 'rgba(156,204,138,ALPHA)');
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      drawTowerBase(ctx, pos.x, pos.y, def.color);
+      ctx.restore();
+    }
+    if (view.heroSelected && game.heroEnabled && game.hero.deployed && game.hero.downed <= 0 && view.targeting !== 'ability' && view.targeting !== 'deploy') {
       drawRange(game.hero.pos, game.heroDef.reach * game.mods.jeffReach, 'rgba(255,236,179,ALPHA)');
     }
     if (view.selectedTowerId === null && view.selectedSlot === null && view.mouse) {
@@ -398,7 +486,7 @@ export class Renderer {
     const c = game.clamp!;
     const ctx = this.ctx;
     const pulse = 0.82 + Math.sin(game.time * 8) * 0.18;
-    const r = JEFF.clamp.radius;
+    const r = game.clampRadius();
     ctx.save();
     ctx.globalAlpha = Math.min(1, c.timeLeft) * pulse;
     glow(ctx, '#e74c3c', 22);
@@ -443,7 +531,7 @@ export class Renderer {
   }
 
   private drawHeroAuras(game: Game): void {
-    if (!game.heroEnabled || game.hero.downed > 0) return;
+    if (!game.heroEnabled || !game.hero.deployed || game.hero.downed > 0) return;
     const ctx = this.ctx;
     const h = game.hero;
     if (h.sleeveTimer > 0) {
@@ -543,8 +631,18 @@ export class Renderer {
 
   private drawActors(game: Game): void {
     const ctx = this.ctx;
+    const a = this.interp;
     const items: { y: number; z: number; draw: () => void }[] = [];
+    const slide = (pos: Vec, prev: Vec | undefined): Vec => {
+      if (!prev || a >= 0.995) return pos;
+      return { x: prev.x + (pos.x - prev.x) * a, y: prev.y + (pos.y - prev.y) * a };
+    };
     for (const t of game.towers) {
+      if (t.drawFacing === undefined) t.drawFacing = t.facing;
+      let d = t.facing - t.drawFacing;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      t.drawFacing += d * 0.18;
       if (t.def.kind === 'barricade' && !t.def.recruits) {
         items.push({ y: t.rally.y, z: 0, draw: () => {
           if (t.rebuild > 0) { drawValveGate(ctx, t); return; }
@@ -554,25 +652,77 @@ export class Renderer {
       items.push({ y: t.pos.y, z: 1, draw: () => drawTower(ctx, t, game.time) });
     }
     for (const e of game.enemies) {
+      const vis = slide(e.pos, e.prev);
       let dir = game.paths[e.pathIdx]?.directionAt(e.progress);
       const hold=e.heldBy;
       const opponent=hold?.kind==='friendly'?game.friendlies.find(f=>f.id===hold.id)?.pos:hold?.kind==='crew'?game.crew.find(f=>f.id===hold.id)?.pos:hold?.kind==='summon'?game.heroSummons.find(s=>s.id===hold.id)?.pos:hold?.kind==='hero'?game.hero.pos:hold?.kind==='tower'?game.towerById(hold.id)?.rally:null;
-      if(opponent)dir={x:opponent.x-e.pos.x,y:opponent.y-e.pos.y};
-      items.push({ y: e.pos.y, z: e.def.flying ? 4 : 2, draw: () => drawEnemy(ctx, e, game.time, dir) });
+      if(opponent)dir={x:opponent.x-vis.x,y:opponent.y-vis.y};
+      items.push({ y: vis.y, z: e.def.flying ? 4 : 2, draw: () => {
+        const keep = e.pos;
+        e.pos = vis;
+        drawEnemy(ctx, e, game.time, dir);
+        e.pos = keep;
+      } });
     }
-    for (const f of game.friendlies) items.push({ y: f.pos.y, z: 2, draw: () => paintedFriendly(ctx, f, game.time) });
-    for (const summon of game.heroSummons) items.push({ y: summon.pos.y, z: 2, draw: () => drawLogan(ctx, summon, game.time) });
-    for (const crew of game.crew) items.push({ y: crew.pos.y, z: 2, draw: () => paintedCrew(ctx, crew.pos, game.time, crew.swing, crew.facing, crew.hp / crew.maxHp, crew.timeLeft / 18) });
-    if (game.heroEnabled) {
-      items.push({ y: game.hero.pos.y, z: 3, draw: () => drawJeff(ctx, game.hero, game.time) });
+    for (const f of game.friendlies) {
+      const vis = slide(f.pos, f.prev);
+      items.push({ y: vis.y, z: 2, draw: () => {
+        const keep = f.pos; f.pos = vis; paintedFriendly(ctx, f, game.time); f.pos = keep;
+      } });
+    }
+    for (const summon of game.heroSummons) {
+      const vis = slide(summon.pos, summon.prev);
+      items.push({ y: vis.y, z: 2, draw: () => {
+        const keep = summon.pos; summon.pos = vis; drawLogan(ctx, summon, game.time); summon.pos = keep;
+      } });
+    }
+    for (const crew of game.crew) {
+      const vis = slide(crew.pos, crew.prev);
+      items.push({ y: vis.y, z: 2, draw: () => paintedCrew(ctx, vis, game.time, crew.swing, crew.facing, crew.hp / crew.maxHp, crew.timeLeft / 18) });
+    }
+    if (game.heroEnabled && (game.hero.deployed || game.hero.downed > 0)) {
+      const vis = slide(game.hero.pos, game.hero.prev);
+      items.push({ y: vis.y, z: 3, draw: () => {
+        const keep = game.hero.pos; game.hero.pos = vis; drawJeff(ctx, game.hero, game.time); game.hero.pos = keep;
+      } });
     }
     items.sort((a, b) => a.y - b.y || a.z - b.z);
     for (const item of items) item.draw();
   }
 
   private drawTargeting(game: Game, view: RenderView): void {
-    if (!view.targeting || !view.mouse) return;
-    const ctx = this.ctx, p = game.nearestPathPoint(view.mouse);
+    if (!view.targeting) return;
+    if (view.targeting === 'ability') {
+      this.drawAbilityAim(game, view);
+      return;
+    }
+    if (!view.mouse) return;
+    const ctx = this.ctx;
+    if (view.targeting === 'deploy') {
+      this.drawDeployGhost(game, view.mouse);
+      return;
+    }
+    if (view.targeting === 'strike') {
+      const p = view.mouse;
+      const valid = p.x >= 12 && p.x <= 948 && p.y >= 18 && p.y <= 582;
+      const color = valid ? '#ff8a50' : '#ff8c76';
+      const pulse = 0.7 + Math.sin(game.time * 7) * 0.3;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = rgba(color, 0.14 * pulse);
+      ctx.lineWidth = 2.6;
+      ctx.setLineDash([8, 5]);
+      ctx.lineDashOffset = -game.time * 28;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 80, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      stampText(ctx, valid ? 'TORCH RAIN' : 'AIM ON THE YARD', p.x, p.y - 92, { size: 13, color });
+      ctx.restore();
+      return;
+    }
+    const p = game.nearestPathPoint(view.mouse);
     const tower = view.selectedTowerId === null ? null : game.towerById(view.selectedTowerId);
     const valid = dist(view.mouse, p) <= 55 && p.x >= 16 && p.x <= 944 && p.y >= 24 && p.y <= 576 && (view.targeting !== 'rally' || !!tower && dist(tower.pos, p) <= 150);
     const color = valid ? '#b8ef9a' : '#ff8c76';
@@ -584,8 +734,124 @@ export class Renderer {
     ctx.restore();
   }
 
+  private drawDeployGhost(game: Game, p: Vec): void {
+    const ctx = this.ctx;
+    const valid = p.x >= 12 && p.x <= 948 && p.y >= 18 && p.y <= 582;
+    const color = valid ? game.heroDef.color : '#ff8c76';
+    const pulse = 0.7 + Math.sin(game.time * 7) * 0.3;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = rgba(color, 0.12 * pulse);
+    ctx.lineWidth = 2.4;
+    ctx.setLineDash([8, 5]);
+    ctx.lineDashOffset = -game.time * 26;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 10, 28, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.5;
+    const keep = game.hero.pos;
+    const keepPrev = game.hero.prev;
+    game.hero.pos = p;
+    game.hero.prev = p;
+    drawJeff(ctx, game.hero, game.time);
+    game.hero.pos = keep;
+    game.hero.prev = keepPrev;
+    ctx.globalAlpha = 1;
+    stampText(ctx, valid ? `DEPLOY ${game.heroDef.name.toUpperCase()}` : 'AIM ON THE YARD', p.x, p.y - 56, { size: 13, color });
+    ctx.restore();
+  }
+
+  private drawAbilityAim(game: Game, view: RenderView): void {
+    const ability = game.heroDef.abilities[view.abilitySlot ?? 0];
+    if (!ability) return;
+    const ctx = this.ctx;
+    const origin = game.hero.pos;
+    const range = scaledCastRange(game, (view.abilitySlot ?? 0) as AbilitySlot);
+    const color = game.heroDef.color;
+    ctx.save();
+    ctx.strokeStyle = rgba(color, 0.75);
+    ctx.fillStyle = rgba(color, 0.08);
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    ctx.lineDashOffset = -game.time * 24;
+    ctx.beginPath();
+    ctx.arc(origin.x, origin.y, range, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const mouse = view.mouse;
+    if (ability.aim === 'ground' && mouse) {
+      const inRange = dist(origin, mouse) <= range;
+      const tint = inRange ? color : '#ff8c76';
+      ctx.strokeStyle = tint;
+      ctx.fillStyle = rgba(tint, 0.14);
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([7, 5]);
+      ctx.beginPath();
+      ctx.arc(mouse.x, mouse.y, 90, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      stampText(ctx, inRange ? ability.name.toUpperCase() : 'OUT OF RANGE', mouse.x, mouse.y - 102, { size: 13, color: tint });
+    } else {
+      for (const e of game.enemies) {
+        if (e.dead || e.escaped) continue;
+        if (game.heroDef.id === 'becbec' && e.def.flying) continue;
+        const reach = range + e.def.radius;
+        if (dist(origin, e.pos) > reach) continue;
+        const hover = view.hoverEnemyId === e.id;
+        ctx.strokeStyle = rgba(color, hover ? 0.95 : 0.45);
+        ctx.lineWidth = hover ? 2.6 : 1.4;
+        ctx.beginPath();
+        ctx.arc(e.pos.x, e.pos.y, e.def.radius + 10 + (hover ? Math.sin(game.time * 8) * 2 : 0), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (mouse) {
+        const hover = view.hoverEnemyId !== null ? game.enemies.find((e) => e.id === view.hoverEnemyId && !e.dead && !e.escaped) : null;
+        const inRange = hover ? dist(origin, hover.pos) <= range + hover.def.radius : false;
+        const tint = hover ? (inRange ? color : '#ff8c76') : rgba(color, 0.7);
+        ctx.strokeStyle = tint;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(mouse.x - 10, mouse.y);
+        ctx.lineTo(mouse.x + 10, mouse.y);
+        ctx.moveTo(mouse.x, mouse.y - 10);
+        ctx.lineTo(mouse.x, mouse.y + 10);
+        ctx.stroke();
+        stampText(ctx, hover ? (inRange ? ability.name.toUpperCase() : 'OUT OF RANGE') : 'CLICK A LEAK', mouse.x, mouse.y - 28, { size: 12, color: tint });
+      }
+    }
+    ctx.restore();
+  }
+
+  private drawStrikes(game: Game, _view: RenderView): void {
+    if (game.strikes.length === 0) return;
+    const ctx = this.ctx;
+    ctx.save();
+    for (const s of game.strikes) {
+      if (s.fired) continue;
+      const k = Math.max(0.2, 1 - s.delay / 1.2);
+      ctx.globalAlpha = 0.55 * k;
+      ctx.strokeStyle = '#ff8a50';
+      ctx.fillStyle = rgba('#ff7043', 0.12 * k);
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([7, 5]);
+      ctx.lineDashOffset = -game.time * 40;
+      ctx.beginPath();
+      ctx.arc(s.pos.x, s.pos.y, s.radius * (0.7 + 0.3 * k), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      stampText(ctx, `${Math.max(0, s.delay).toFixed(1)}s`, s.pos.x, s.pos.y - 8, { size: 12, color: '#ffcc80' });
+    }
+    ctx.restore();
+  }
+
   private drawHeroGround(game: Game, view: RenderView): void {
-    if (!game.heroEnabled) return;
+    if (!game.heroEnabled || !game.hero.deployed) return;
     const ctx = this.ctx;
     const h = game.hero;
     if (h.dest) {
@@ -624,7 +890,7 @@ export class Renderer {
   }
 
   private drawHeroCombat(game: Game, view: RenderView): void {
-    if (!game.heroEnabled || game.hero.downed > 0) return;
+    if (!game.heroEnabled || !game.hero.deployed || game.hero.downed > 0) return;
     const ctx = this.ctx;
     const h = game.hero;
     const ordered = h.orderTargetId !== null ? game.enemies.find((e) => e.id === h.orderTargetId) : null;
@@ -690,14 +956,21 @@ export class Renderer {
         ctx.arc(hover.pos.x, hover.pos.y, hover.def.radius + 10 + Math.sin(game.time * 8) * 2, 0, Math.PI * 2);
         ctx.stroke();
         noGlow(ctx);
-        ctx.fillStyle = 'rgba(20,12,8,0.78)';
+        ctx.fillStyle = 'rgba(20,12,8,0.82)';
         ctx.beginPath();
-        ctx.roundRect(hover.pos.x - 46, hover.pos.y - hover.def.radius - 28, 92, 16, 4);
+        ctx.roundRect(hover.pos.x - 58, hover.pos.y - hover.def.radius - 52, 116, 40, 5);
         ctx.fill();
         ctx.fillStyle = '#ffe082';
         ctx.font = '700 11px Source Sans 3, Trebuchet MS, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('CLICK TO ATTACK', hover.pos.x, hover.pos.y - hover.def.radius - 16);
+        ctx.fillText(hover.def.name.toUpperCase(), hover.pos.x, hover.pos.y - hover.def.radius - 38);
+        ctx.fillStyle = '#f3e6c8';
+        ctx.font = '600 10px Source Sans 3, Trebuchet MS, sans-serif';
+        const arm = Math.round(hover.def.armor * 100);
+        const tags = [hover.def.flying ? 'AIR' : 'GND', arm > 0 ? `ARM ${arm}%` : null].filter(Boolean).join(' · ');
+        ctx.fillText(`${Math.ceil(hover.hp)} / ${hover.maxHp}  ${tags}`, hover.pos.x, hover.pos.y - hover.def.radius - 24);
+        ctx.fillStyle = '#c8e6c9';
+        ctx.fillText('CLICK TO ATTACK', hover.pos.x, hover.pos.y - hover.def.radius - 12);
         ctx.restore();
       }
     }
@@ -722,7 +995,10 @@ export class Renderer {
         this.burst(fx.pos.x, fx.pos.y, fx.color, 12, 80);
         break;
       case 'text':
-        if (fx.text.startsWith('+$')) this.burst(fx.pos.x, fx.pos.y, '#ffe082', 8, 90);
+        if (fx.text.startsWith('+$')) {
+          this.burst(fx.pos.x, fx.pos.y, '#ffe082', 8, 90);
+          this.flyGold(fx.pos.x, fx.pos.y, 3);
+        }
         break;
       case 'beam':
         break;
@@ -733,6 +1009,26 @@ export class Renderer {
         const _exhaustive: never = fx;
         return _exhaustive;
       }
+    }
+  }
+
+  private flyGold(x: number, y: number, n: number): void {
+    for (let i = 0; i < n; i++) {
+      const life = 0.55 + Math.random() * 0.25;
+      this.sparks.push({
+        x: x + (Math.random() - 0.5) * 10,
+        y: y + (Math.random() - 0.5) * 8,
+        vx: (Math.random() - 0.5) * 40,
+        vy: -40 - Math.random() * 30,
+        life,
+        max: life,
+        r: 3.2 + Math.random() * 1.4,
+        color: '#ffe082',
+        g: 0,
+        shape: 3,
+        hx: 78,
+        hy: 22,
+      });
     }
   }
 
@@ -762,12 +1058,19 @@ export class Renderer {
   private tickSparks(time: number): void {
     const dt = this.lastSparkTime === 0 ? 0 : Math.min(0.05, Math.max(0, time - this.lastSparkTime));
     this.lastSparkTime = time;
-    this.shake = dt > 0 ? this.shake * Math.pow(0.0008, dt) : this.shake;
+    this.trauma = dt > 0 ? Math.max(0, this.trauma - dt * 1.85) : this.trauma;
     for (const s of this.sparks) {
       s.life -= dt;
-      s.x += s.vx * dt;
-      s.y += s.vy * dt;
-      s.vy += s.g * dt;
+      if (s.shape === 3 && s.hx !== undefined && s.hy !== undefined) {
+        const k = 1 - Math.max(0, s.life / s.max);
+        const ease = k * k * (3 - 2 * k);
+        s.x += (s.hx - s.x) * Math.min(1, 0.12 + ease * 0.35);
+        s.y += (s.hy - s.y) * Math.min(1, 0.12 + ease * 0.35);
+      } else {
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        s.vy += s.g * dt;
+      }
     }
     if (this.sparks.length > 360) this.sparks.splice(0, this.sparks.length - 360);
     this.sparks = this.sparks.filter((s) => s.life > 0);
@@ -798,6 +1101,20 @@ export class Renderer {
         ctx.fillStyle = s.color;
         ctx.fill();
         disc(ctx, s.x - s.r * 0.25, s.y - s.r * 0.35, s.r * 0.35, rgba('#ffffff', 0.7));
+      } else if (s.shape === 3) {
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fffde7';
+        ctx.beginPath();
+        ctx.arc(s.x - s.r * 0.25, s.y - s.r * 0.25, s.r * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#c9a15b';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.stroke();
       } else {
         disc(ctx, s.x, s.y, s.r, s.color);
       }
@@ -807,27 +1124,40 @@ export class Renderer {
 
   private drawProjectiles(game: Game): void {
     const ctx = this.ctx;
+    const a = this.interp;
     for (const p of game.projectiles) {
-      const dx = p.lastTargetPos.x - p.pos.x;
-      const dy = p.lastTargetPos.y - p.pos.y;
+      const px = p.prev && a < 0.995 ? p.prev.x + (p.pos.x - p.prev.x) * a : p.pos.x;
+      const py = p.prev && a < 0.995 ? p.prev.y + (p.pos.y - p.prev.y) * a : p.pos.y;
+      const dx = p.lastTargetPos.x - px;
+      const dy = p.lastTargetPos.y - py;
       const len = Math.hypot(dx, dy) || 1;
       const ux = dx / len;
       const uy = dy / len;
+      const span = Math.hypot(p.lastTargetPos.x - p.from.x, p.lastTargetPos.y - p.from.y) || 1;
+      const flight = Math.max(0, Math.min(1, 1 - len / span));
+      const arc = Math.sin(flight * Math.PI) * (p.splash > 0 ? 34 : 11);
+      const x = px;
+      const y = py - arc;
       const big = p.splash > 0;
       const ang = Math.atan2(uy, ux);
       ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = '#1a1208';
+      ctx.beginPath();
+      ctx.ellipse(px, py + 6, big ? 7 : 4, big ? 3 : 1.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'lighter';
       for (let i = 1; i <= 7; i++) {
         const back = i * (big ? 6 : 4.5);
         ctx.globalAlpha = 0.4 - i * 0.05;
-        disc(ctx, p.pos.x - ux * back, p.pos.y - uy * back, (big ? 6 : 3.6) * (1 - i * 0.1), p.color);
+        disc(ctx, x - ux * back, y - uy * back, (big ? 6 : 3.6) * (1 - i * 0.1), p.color);
       }
       glow(ctx, p.color, big ? 18 : 14);
-      ctx.translate(p.pos.x, p.pos.y);
-      ctx.rotate(ang);
+      ctx.translate(x, y);
+      ctx.rotate(ang + (big ? game.time * 6 : 0));
       ctx.globalAlpha = 1;
       if (big) {
-        // washer / splash slug
         ctx.beginPath();
         ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2);
         ctx.fillStyle = p.color;
@@ -837,7 +1167,6 @@ export class Renderer {
         ctx.ellipse(-2, -1.5, 3, 2, 0, 0, Math.PI * 2);
         ctx.fill();
       } else if (p.color.includes('ff') && (p.color.includes('6') || p.color.includes('a') || p.color.includes('e'))) {
-        // flame wedge (torch-ish warm tones)
         ctx.beginPath();
         ctx.moveTo(10, 0);
         ctx.lineTo(-4, -5);
@@ -854,7 +1183,6 @@ export class Renderer {
         ctx.closePath();
         ctx.fill();
       } else {
-        // default bolt / shard
         ctx.beginPath();
         ctx.moveTo(9, 0);
         ctx.lineTo(-5, -3.2);
@@ -956,14 +1284,19 @@ export class Renderer {
       case 'ring':
         pulseRing(ctx, fx.pos.x, fx.pos.y, fx.radius * (1 - k * 0.5), fx.color, k, 4.5);
         break;
-      case 'text':
-        ctx.globalAlpha = Math.min(1, k * 2);
-        stampText(ctx, fx.text, fx.pos.x, fx.pos.y - (1 - k) * 22, {
-          size: fx.text.length > 14 ? 12 : 14,
+      case 'text': {
+        const t = 1 - k;
+        const rise = (1 - Math.pow(1 - Math.min(1, t * 1.15), 3)) * 36;
+        const pop = 1 + 0.4 * Math.sin(Math.min(1, t * 5) * Math.PI);
+        const bounty = fx.text.startsWith('+$');
+        ctx.globalAlpha = Math.min(1, k * 2.2);
+        stampText(ctx, fx.text, fx.pos.x, fx.pos.y - rise, {
+          size: (bounty ? 16 : fx.text.length > 14 ? 12 : 14) * pop,
           color: fx.color,
           display: fx.text === fx.text.toUpperCase() && fx.text.length > 3,
         });
         break;
+      }
       case 'skill':
         this.drawSkillEffect(fx.skill, fx.pos, k);
         break;

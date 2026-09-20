@@ -2,7 +2,7 @@ import { dist, moveToward } from '../core/vec';
 import { applyDamage, isTargetable } from './combat';
 import { friendlyDamageBuff, friendlyMitigation } from './heroPowers';
 import type { Game } from './game';
-import type { Friendly, Tower } from './state';
+import type { Enemy, Friendly, Tower } from './state';
 
 export const FRIENDLY_SWING = 0.68;
 export function releaseFriendly(game: Game, id: number): void {
@@ -19,7 +19,7 @@ export function syncRecruits(game: Game, t: Tower): void {
     const angle = i * Math.PI * 2 / count;
     const home = { x: t.rally.x + (count > 1 ? Math.cos(angle) * 19 : 0), y: t.rally.y + (count > 1 ? Math.sin(angle) * 15 : 0) };
     if (!f) {
-      f = { id: game.nextEntityId(), towerId: t.id, role, slot: i, pos: { ...t.pos }, home,
+      f = { id: game.nextEntityId(), towerId: t.id, role, slot: i, pos: { ...t.pos }, prev: { ...t.pos }, home,
         hp, maxHp: hp, armor: 0, damage: 0, range: 0, rate: 1, holds: 1, respawn: 0,
         targetId: null, attackTimer: 0, swing: 0, hitLanded: false, facing: 1, moving: false, walkPhase: i, tier: t.level };
       game.friendlies.push(f);
@@ -47,10 +47,22 @@ export function updateFriendlies(game: Game, dt: number): void {
     f.fall = Math.max(0,(f.fall??0)-dt);
     if (f.respawn > 0) {
       f.respawn = Math.max(0, f.respawn - dt);
-      if (f.respawn === 0) { f.hp = f.maxHp; f.pos = { ...tower.pos }; game.addEffect({ kind: 'ring', pos: { ...f.pos }, radius: 24, color: '#b1e5bd', ttl: 0.5, max: 0.5 }); }
+      if (f.respawn === 0) { f.hp = f.maxHp; f.pos = { ...tower.pos }; f.prev = { ...tower.pos }; game.addEffect({ kind: 'ring', pos: { ...f.pos }, radius: 24, color: '#b1e5bd', ttl: 0.5, max: 0.5 }); }
       continue;
     }
     if (tower.frozen > 0 || tower.rebuild > 0) { releaseFriendly(game, f.id); f.targetId = null; f.swing = 0; continue; }
+    if ((tower.build ?? 0) > 0) {
+      releaseFriendly(game, f.id);
+      f.targetId = null;
+      f.swing = 0;
+      f.hitLanded = false;
+      const goal = f.home;
+      if (dist(f.pos, goal) > 2) {
+        const step = moveToward(f.pos, goal, (f.role === 'jayjay' ? 65 : 92) * dt * (0.45 + 0.55 * (f.moveBlend ?? 0)));
+        f.walkPhase += dist(f.pos, step.pos) * 0.13; f.pos = step.pos; f.facing = goal.x >= f.pos.x ? 1 : -1; f.moving = true;
+      }
+      continue;
+    }
     f.attackTimer = Math.max(0, f.attackTimer - dt);
     if (f.swing > 0) {
       f.swing = Math.max(0, f.swing - dt);
@@ -67,17 +79,30 @@ export function updateFriendlies(game: Game, dt: number): void {
       continue;
     }
     const held = game.enemies.filter(e => e.heldBy?.kind === 'friendly' && e.heldBy.id === f.id && isTargetable(e));
-    // Recruits may pursue only within their rally leash, and physically walk there.
+    const leash = Math.max(112, f.range + 78);
     for (const e of game.enemies) {
       if (held.length >= f.holds) break;
-      if (!isTargetable(e) || e.def.flying || e.heldBy || dist(e.pos, f.home) > 65) continue;
+      if (!isTargetable(e) || e.def.flying || e.heldBy || dist(e.pos, f.home) > leash) continue;
       if (dist(e.pos, f.pos) <= f.range + e.def.radius) { e.heldBy = { kind: 'friendly', id: f.id }; held.push(e); }
     }
-    const target = held[0] ?? game.enemies.find(e => isTargetable(e) && !e.def.flying && !e.heldBy && dist(e.pos, f.home) <= 65);
+    let target: Enemy | null = held[0] ?? null;
+    if (!target) {
+      let best: Enemy | null = null;
+      let bestRem = Infinity;
+      for (const e of game.enemies) {
+        if (!isTargetable(e) || e.def.flying || e.heldBy || dist(e.pos, f.home) > leash) continue;
+        const rem = (game.paths[e.pathIdx]?.length ?? 0) - e.progress;
+        if (!best || rem < bestRem) { best = e; bestRem = rem; }
+      }
+      target = best;
+    }
+    if (held.length > 1 && f.holds > 1) {
+      target = held.reduce((a, b) => (a.hp <= b.hp ? a : b));
+    }
     f.targetId = target?.id ?? null;
     const goal = target ? target.pos : f.home;
     if (dist(f.pos, goal) > (target ? f.range + target.def.radius - 3 : 2)) {
-      const step = moveToward(f.pos, goal, (f.role === 'jayjay' ? 65 : 92) * dt);
+      const step = moveToward(f.pos, goal, (f.role === 'jayjay' ? 65 : 92) * dt * (0.45 + 0.55 * (f.moveBlend ?? 0)));
       f.walkPhase += dist(f.pos, step.pos) * 0.13; f.pos = step.pos; f.facing = goal.x >= f.pos.x ? 1 : -1; f.moving = true;
     } else if (target && f.attackTimer <= 0) {
       f.facing = target.pos.x >= f.pos.x ? 1 : -1; f.swing = FRIENDLY_SWING; f.hitLanded = false;

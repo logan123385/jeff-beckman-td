@@ -1,11 +1,14 @@
 import { ENEMIES } from '../../data/enemies';
-import { ABILITY_KEYS, COOLDOWN_FIELDS } from '../../data/heroes';
+import { ABILITY_KEYS, COOLDOWN_FIELDS, type AbilitySlot } from '../../data/heroes';
 import { NIGHT_MUTATORS, proceduralMutator } from '../../data/night';
+import type { TowerId } from '../../data/types';
+import { TOWERS } from '../../data/towers';
 import type { Game } from '../../sim/game';
-import { EARLY_CALL_BONUS_PER_SECOND } from '../../sim/game';
+import { EARLY_CALL_BONUS_PER_SECOND, HERO_LEVEL_CAP, STRIKE_COOLDOWN } from '../../sim/game';
+import { missionXpToNext, scaledAbilityCooldown } from '../../sim/combat';
 import { CREW_COOLDOWN } from '../../sim/crew';
 import { clear, h } from '../dom';
-import { enemyPortrait, heroPortrait } from '../portraits';
+import { enemyPortrait, heroPortrait, towerPortrait } from '../portraits';
 import { skillGlyph } from './icons';
 
 export interface HudHandlers {
@@ -23,6 +26,8 @@ export interface HudHandlers {
   onCoffee(): void;
   onSelectJeff(): void;
   onCrew(): void;
+  onStrike(): void;
+  onArm(id: TowerId): void;
 }
 
 /** Top and bottom bars. `update()` runs every frame and only touches text that changed. */
@@ -38,6 +43,10 @@ export class Hud {
   private readonly pauseBtn = h('button', { class: 'btn small-btn' });
   private readonly hpFill = h('div', { class: 'fill' });
   private readonly hpText = h('span', { class: 'small' });
+  private readonly xpFill = h('div', { class: 'fill xp' });
+  private readonly xpText = h('span', { class: 'xp-label' });
+  private readonly comboChip = h('span', { class: 'combo-chip hidden' });
+  private readonly stickyChip = h('span', { class: 'sticky-chip hidden' });
   private readonly clampBtn = h('button', { class: 'ability ab-clamp' });
   private readonly shutoffBtn = h('button', { class: 'ability ab-shutoff' });
   private readonly pulseBtn = h('button', { class: 'ability ab-pulse' });
@@ -50,6 +59,8 @@ export class Hud {
   private readonly coffeeCd = h('div', { class: 'cd' });
   private readonly crewBtn = h('button', { class: 'ability ab-crew' });
   private readonly crewCd = h('div', { class: 'cd' });
+  private readonly strikeBtn = h('button', { class: 'ability ab-strike' });
+  private readonly strikeCd = h('div', { class: 'cd' });
   private readonly bossPanel = h('div', { class: 'boss-panel hidden' });
   private readonly bossName = h('span');
   private readonly bossHp = h('span', {
@@ -69,8 +80,13 @@ export class Hud {
   private readonly mutator = h('span', { class: 'pill night-mut hidden' });
   private readonly jeffCard: HTMLElement;
   private readonly abilityRail: HTMLElement;
+  private readonly toolTray: HTMLElement;
+  private readonly trayBtns = new Map<TowerId, HTMLButtonElement>();
+  private readonly trayCosts = new Map<TowerId, HTMLElement>();
+  private readonly rankPips: HTMLElement[][] = [];
   private nextKey = '';
   private readonly muteLabelFn: () => string;
+  private armed: TowerId | null = null;
 
   constructor(
     private readonly game: Game,
@@ -99,12 +115,19 @@ export class Hud {
       handlers.onMute();
       this.muteBtn.textContent = handlers.muteLabel();
     });
+    this.stickyChip.addEventListener('click', () => {
+      if (this.armed) handlers.onArm(this.armed);
+    });
+    this.stickyChip.setAttribute('role', 'button');
+    this.stickyChip.tabIndex = 0;
 
     this.top = h(
       'div',
       { class: 'hud-top plate' },
       h('div', { class: 'medal heart' }, h('span', { class: 'ico', text: '♥' }), this.lives),
       h('div', { class: 'medal coin' }, h('span', { class: 'ico', text: '$' }), this.money),
+      this.comboChip,
+      this.stickyChip,
       h('div', { class: 'medal wave' }, h('span', { class: 'label', text: 'Wave' }), this.wave),
       h('div', { class: 'hud-group grow' }, this.next, this.mutator),
       this.callBtn,
@@ -142,16 +165,22 @@ export class Hud {
     game.heroDef.abilities.forEach((a, i) => {
       ability(buttons[i]!, cooldowns[i]!, ABILITY_KEYS[i]!, a.name, a.short, handlersBySlot[i]!);
       buttons[i]!.title = `${a.name} (${ABILITY_KEYS[i]}) · ${a.cooldown}s cooldown. ${a.description}`;
+      const pips = h('span', { class: 'rank-pips', attrs: { 'aria-hidden': 'true' } });
+      const dots = [0, 1, 2].map(() => h('span', { class: 'rank-pip' }));
+      pips.append(...dots);
+      buttons[i]!.append(pips);
+      this.rankPips[i] = dots;
     });
 
     ability(this.crewBtn, this.crewCd, 'D', 'Support crew', '2 helpers · 18 seconds', handlers.onCrew);
+    ability(this.strikeBtn, this.strikeCd, 'X', 'Torch rain', '3 fire dumps on a point', handlers.onStrike);
 
     this.jeffCard = h(
       'button',
       {
         class: 'jeff-card ornate',
         onClick: handlers.onSelectJeff,
-        title: `Select ${game.heroDef.name} (J). ${game.heroDef.aura.name}: ${game.heroDef.aura.description}`,
+        title: `Deploy or select ${game.heroDef.name} (J). ${game.heroDef.aura.name}: ${game.heroDef.aura.description}`,
       },
       h('div', { class: 'jeff-frame' }, heroPortrait(game.heroDef.id, 72)),
       h(
@@ -159,7 +188,8 @@ export class Hud {
         { class: 'jeff-info' },
         h('div', { class: 'jeff-name-row' }, h('b', { text: game.heroDef.name }), h('span', { class: 'jeff-title', text: game.heroDef.style })),
         h('div', { class: 'bar hp' }, this.hpFill),
-        h('div', { class: 'jeff-meta' }, this.hpText, this.status),
+        h('div', { class: 'bar xp', title: 'Hero XP this job — level-ups let you rank a skill' }, this.xpFill),
+        h('div', { class: 'jeff-meta' }, this.hpText, this.status, this.xpText),
         h('span', { class: 'hud-hero-aura', text: game.heroDef.aura.name, title: game.heroDef.aura.description }),
       ),
     );
@@ -173,13 +203,37 @@ export class Hud {
       this.sleeveBtn,
       this.coffeeBtn,
       this.crewBtn,
+      this.strikeBtn,
     );
+    this.toolTray = h('div', { class: 'tool-tray', attrs: { role: 'toolbar', 'aria-label': 'Build tray' } });
+    const kit = game.allowedTowers;
+    kit.forEach((id, i) => {
+      const def = TOWERS[id];
+      const cost = h('span', { class: 'tray-cost', text: `$${game.towerCost(id)}` });
+      const btn = h(
+        'button',
+        {
+          class: 'tray-tool',
+          title: `${def.name} ($${game.towerCost(id)}) · ${def.role}. Click to arm, then tap a pad.`,
+          attrs: { 'aria-label': `Arm ${def.name}`, 'data-tower': id },
+          onClick: () => handlers.onArm(id),
+        },
+        h('span', { class: 'tray-key', text: String(i + 1) }),
+        towerPortrait(id, 52),
+        h('span', { class: 'tray-name', text: def.name }),
+        cost,
+      ) as HTMLButtonElement;
+      this.trayBtns.set(id, btn);
+      this.trayCosts.set(id, cost);
+      this.toolTray.append(btn);
+    });
     this.bossPanel.append(this.bossName, h('div', { class: 'boss-track' }, this.bossHp));
 
     this.bottom = h(
       'div',
       { class: 'hud-bottom plate' },
       this.jeffCard,
+      this.toolTray,
       this.abilityRail,
       this.hint,
       this.bossPanel,
@@ -198,6 +252,29 @@ export class Hud {
 
   setHeroSelected(on: boolean): void {
     this.jeffCard.classList.toggle('selected', on);
+  }
+
+  setSticky(id: TowerId | null): void {
+    this.setArmed(id);
+  }
+
+  setArmed(id: TowerId | null): void {
+    this.armed = id;
+    for (const [tid, btn] of this.trayBtns) btn.classList.toggle('armed', tid === id);
+    if (!id) {
+      this.stickyChip.classList.add('hidden');
+      this.stickyChip.textContent = '';
+      return;
+    }
+    const def = TOWERS[id];
+    this.stickyChip.classList.remove('hidden');
+    this.set(this.stickyChip, `${def.name} ×`);
+    this.stickyChip.title = `${def.name} armed. Tap a pad to plant. Esc cancels.`;
+  }
+
+  setAbilityArmed(slot: number | null): void {
+    const buttons = [this.clampBtn, this.shutoffBtn, this.pulseBtn, this.sleeveBtn, this.coffeeBtn];
+    buttons.forEach((btn, i) => btn.classList.toggle('aiming', slot === i));
   }
 
   syncTransport(): void {
@@ -220,7 +297,9 @@ export class Hud {
 
   private prevLives = -1;
   private prevMoney = -1;
+  private shownMoney = -1;
   private prevHp = -1;
+  private prevLevel = 1;
   private readyState = new Map<HTMLElement, boolean>();
 
   private cooldownButton(btn: HTMLElement, cd: HTMLElement, remaining: number, max: number, downed: boolean): void {
@@ -234,7 +313,7 @@ export class Hud {
     let timer = btn.querySelector<HTMLElement>('.cooldown-number');
     if (!timer) { timer = h('span', { class: 'cooldown-number' }); btn.append(timer); }
     this.set(timer, downed ? '—' : remaining > 0 ? `${Math.ceil(remaining)}` : '');
-    (btn as HTMLButtonElement).disabled = !ready;
+    (btn as HTMLButtonElement).disabled = downed;
   }
 
   update(): void {
@@ -244,7 +323,11 @@ export class Hud {
     }
     this.lives.parentElement?.classList.toggle('critical', g.lives > 0 && g.lives <= 2 && g.map.lives > 3 && g.remaster !== 'frozenMain');
     this.prevLives = g.lives;
-    if (this.set(this.money, String(g.money)) && this.prevMoney !== -1) {
+    if (this.shownMoney < 0) this.shownMoney = g.money;
+    const gap = g.money - this.shownMoney;
+    if (Math.abs(gap) < 0.6) this.shownMoney = g.money;
+    else this.shownMoney += gap * 0.28;
+    if (this.set(this.money, String(Math.round(this.shownMoney))) && this.prevMoney !== -1 && g.money !== this.prevMoney) {
       this.replay(this.money.parentElement ?? this.money, 'bump');
     }
     this.prevMoney = g.money;
@@ -264,17 +347,19 @@ export class Hud {
         this.nextKey = key;
         clear(this.next);
         this.next.append(h('span', { class: 'next-label', text: g.manualStart && g.waveIdx === 0 ? 'Prepare your defense' : g.endless && g.waveActive ? 'Next after this call' : `Next in ${secs}s` }));
-        this.next.title = g.nextWavePreview().map(p => `${p.count} × ${ENEMIES[p.enemy].name} · route ${p.path + 1}\n${ENEMIES[p.enemy].counters}`).join('\n\n');
-        for (const id of ids) {
+        const preview = g.nextWavePreview();
+        this.next.title = preview.map(p => `${p.count} × ${ENEMIES[p.enemy].name} · route ${p.path + 1}\n${ENEMIES[p.enemy].counters}`).join('\n\n');
+        for (const p of preview) {
+          const def = ENEMIES[p.enemy];
           this.next.append(
             h('span', {
-              class: 'wave-pip',
-              title: ENEMIES[id].name,
-              attrs: { 'aria-label': ENEMIES[id].name },
-            }, enemyPortrait(id, 28)),
+              class: `wave-pip${def.flying ? ' air' : ''}${def.armor >= 0.4 ? ' arm' : ''}`,
+              title: `${p.count} × ${def.name}${def.flying ? ' · flying' : ''}${def.armor >= 0.4 ? ` · armor ${Math.round(def.armor * 100)}%` : ''} · route ${p.path + 1}`,
+              attrs: { 'aria-label': `${p.count} ${def.name}` },
+            }, enemyPortrait(p.enemy, 28), h('span', { class: 'pip-count', text: `${p.count}` })),
           );
         }
-        this.next.append(h('span', { class: 'next-names', text: ids.map((id) => ENEMIES[id].name).join(' · ') }));
+        this.next.append(h('span', { class: 'next-names', text: preview.map((p) => `${p.count} ${ENEMIES[p.enemy].name}`).join(' · ') }));
       }
       const bonus = Math.floor(Math.max(0, g.waveCountdown) * EARLY_CALL_BONUS_PER_SECOND);
       this.set(this.callBtn, g.waveIdx === 0 ? `Start job  (+$${bonus})` : `Call wave  (+$${bonus})`);
@@ -283,12 +368,30 @@ export class Hud {
 
     const hero = g.hero;
     this.hpFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
+    const need = missionXpToNext(g.heroLevel);
+    const xpPct = g.heroLevel >= HERO_LEVEL_CAP ? 100 : (g.heroXp / need) * 100;
+    this.xpFill.style.width = `${Math.max(2, Math.min(100, xpPct))}%`;
+    this.set(this.xpText, g.pendingRankUps > 0 ? `Lv ${g.heroLevel} · pick` : g.heroLevel >= HERO_LEVEL_CAP ? 'MAX' : `Lv ${g.heroLevel}`);
+    if (g.heroLevel !== this.prevLevel) {
+      this.replay(this.jeffCard, 'level-up');
+      this.prevLevel = g.heroLevel;
+    }
+    if (g.combo >= 3) {
+      this.comboChip.classList.remove('hidden');
+      this.set(this.comboChip, `COMBO ×${g.combo}`);
+      this.comboChip.classList.toggle('hot', g.combo >= 8);
+    } else {
+      this.comboChip.classList.add('hidden');
+    }
     if (this.prevHp !== -1 && hero.hp < this.prevHp - 0.5) this.replay(this.jeffCard, 'hurt');
     this.prevHp = hero.hp;
     this.jeffCard.classList.toggle('downed', hero.downed > 0);
+    this.jeffCard.classList.toggle('ready-deploy', g.heroEnabled && !hero.deployed && hero.downed <= 0);
+    this.jeffCard.classList.toggle('rank-pending', g.pendingRankUps > 0);
     this.set(this.hpText, `${Math.ceil(hero.hp)} / ${hero.maxHp}`);
     let status = '· guarding';
-    if (hero.downed > 0) status = `· van in ${Math.ceil(hero.downed)}s`;
+    if (hero.downed > 0) status = `· down ${Math.ceil(hero.downed)}s`;
+    else if (!hero.deployed) status = '· tap to deploy';
     else if (hero.dest) status = '· moving';
     else if (hero.orderTargetId !== null) {
       const prey = g.enemies.find((e) => e.id === hero.orderTargetId);
@@ -297,12 +400,19 @@ export class Hud {
     else if (hero.targetId !== null) status = '· holding the line';
     this.set(this.status, status);
 
-    const cdMult = g.mods.cooldown / g.jeffCdAura;
-    const downed = hero.downed > 0;
+    const downed = hero.downed > 0 || !hero.deployed;
     const buttons = [this.clampBtn, this.shutoffBtn, this.pulseBtn, this.sleeveBtn, this.coffeeBtn];
     const fills = [this.clampCd, this.shutoffCd, this.pulseCd, this.sleeveCd, this.coffeeCd];
-    g.heroDef.abilities.forEach((a, i) => this.cooldownButton(buttons[i]!, fills[i]!, hero[COOLDOWN_FIELDS[i]!], a.cooldown * cdMult, downed || !!hero.cast));
+    g.heroDef.abilities.forEach((_a, i) => {
+      const slot = i as AbilitySlot;
+      this.cooldownButton(buttons[i]!, fills[i]!, hero[COOLDOWN_FIELDS[i]!], scaledAbilityCooldown(g, slot), downed || !!hero.cast);
+      const rank = g.abilityRanks[slot] ?? 0;
+      this.rankPips[i]?.forEach((dot, n) => dot.classList.toggle('on', n < rank));
+      buttons[i]!.classList.toggle('rank-pending', g.pendingRankUps > 0 && rank < 3);
+    });
     this.cooldownButton(this.crewBtn, this.crewCd, g.crewCooldown, CREW_COOLDOWN, false);
+    this.cooldownButton(this.strikeBtn, this.strikeCd, g.strikeCooldown, STRIKE_COOLDOWN, false);
+    this.strikeBtn.classList.toggle('active', g.strikes.some((s) => !s.fired));
     this.sleeveBtn.classList.toggle('active', hero.sleeveTimer > 0 || (hero.overdrive ?? 0) > 0);
     this.coffeeBtn.classList.toggle('active', hero.coffeeTimer > 0);
     this.clampBtn.classList.toggle('active', g.clamp !== null);
@@ -327,6 +437,13 @@ export class Hud {
       this.mutator.title = info.blurb;
     } else {
       this.mutator.classList.add('hidden');
+    }
+
+    for (const [id, btn] of this.trayBtns) {
+      const price = g.towerCost(id);
+      const el = this.trayCosts.get(id);
+      if (el) this.set(el, `$${price}`);
+      btn.classList.toggle('poor', g.money < price);
     }
   }
 }

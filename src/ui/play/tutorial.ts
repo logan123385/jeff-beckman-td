@@ -6,13 +6,13 @@ export type TutorStep = 'build' | 'jeff' | 'wave' | 'done';
 const COPY: Record<TutorStep, { title: string; body: string; hint: string }> = {
   build: {
     title: 'Plant a tool',
-    body: 'Click a brass pipe node on the yard, then pick a tool from the build tray.',
-    hint: 'Click a pipe node → choose a tool. Towers do the heavy lifting.',
+    body: 'Arm a tool from the tray at the bottom, then tap a brass pipe node on the yard. Or tap a node first and pick from the wheel.',
+    hint: 'Pick a tool from the tray, then tap a pad. Towers do the heavy lifting.',
   },
   jeff: {
-    title: 'Meet Jeff',
-    body: 'Tap Jeff (or press J) so he’s ready. Tap a leak to send his wrench, or tap empty ground to move him.',
-    hint: 'Select Jeff (tap him or J). Tap a leak to wrench it, or tap ground to move. Right-click also moves.',
+    title: 'Deploy your hero',
+    body: 'Tap Jeff’s portrait (or press J), then tap the yard to drop him in. After that, tap a leak to wrench it.',
+    hint: 'Tap Jeff (portrait or J), then tap the yard to deploy. Tap a leak to wrench it, or ground to move.',
   },
   wave: {
     title: 'Start the job',
@@ -21,8 +21,8 @@ const COPY: Record<TutorStep, { title: string; body: string; hint: string }> = {
   },
   done: {
     title: 'You’re on the job',
-    body: 'Build, wrench, call waves. Q · E · R · T · C are Jeff’s skills when things get loud.',
-    hint: 'You’re on the job. Upgrade towers, keep Jeff busy, hold the line.',
+    body: 'Build, wrench, call waves. Q · E · R · T · C are Jeff’s skills. Level-ups pause the job so you can rank one.',
+    hint: 'You’re on the job. Upgrade towers, rank skills on level-up, hold the line.',
   },
 };
 

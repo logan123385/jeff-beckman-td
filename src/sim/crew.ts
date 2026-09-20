@@ -1,5 +1,5 @@
 import { friendlyDamageBuff } from './heroPowers';
-import { dist } from '../core/vec';
+import { dist, moveToward } from '../core/vec';
 import { applyDamage, isTargetable } from './combat';
 import type { Game } from './game';
 
@@ -13,6 +13,12 @@ export function updateCrew(game: Game, dt: number): void {
     crew.timeLeft -= dt;
     crew.swing = Math.max(0, crew.swing - dt);
     if (crew.hp <= 0 || crew.timeLeft <= 0) continue;
+    if (dist(crew.pos, crew.home) > 8) {
+      const step = moveToward(crew.pos, crew.home, 118 * dt);
+      crew.pos = step.pos;
+      crew.facing = crew.home.x >= crew.pos.x ? 1 : -1;
+      continue;
+    }
     if (crew.pendingTarget !== undefined && crew.swing <= .68 * .52) {
       const target = game.enemies.find(e => e.id === crew.pendingTarget && isTargetable(e));
       crew.pendingTarget = undefined;
