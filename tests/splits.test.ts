@@ -152,3 +152,34 @@ test('Core Sample does not spend parts without a leak in range', () => {
   expect(t.abilityCd).toBeGreaterThan(0);
   expect(leak.hp).toBeLessThan(leak.maxHp);
 });
+
+test('Emergency Pump does not spend parts on leaks still approaching the basin', () => {
+  const game = new Game(
+    { ...CRAWLSPACE, allowedTowers: [...CRAWLSPACE.allowedTowers, 'sump'], startMoney: 999 },
+    {
+      difficulty: DIFFICULTIES.journeyman,
+      mods: { ...neutralModifiers(), startMoney: 999 },
+      seed: 1,
+      heroEnabled: false,
+      manualStart: true,
+      loadout: ['sump'],
+    },
+  );
+  expect(game.placeTower(0, 'sump')).toBe(true);
+  const t = game.towers[0]!;
+  t.build = 0;
+  t.level = 1;
+  const basin = game.paths[0]!.nearestPoint(t.pos).progress;
+  const inbound = game.spawnEnemy('drip', 0, Math.max(0, basin - 40));
+  inbound.pos = { ...game.paths[0]!.pointAt(inbound.progress) };
+  const parts = game.parts;
+  expect(game.useTowerAbility(t.id)).toBe(false);
+  expect(game.parts).toBe(parts);
+  expect(t.abilityCd).toBe(0);
+
+  const past = game.spawnEnemy('drip', 0, basin + 50);
+  past.pos = { ...game.paths[0]!.pointAt(past.progress) };
+  expect(game.useTowerAbility(t.id)).toBe(true);
+  expect(game.parts).toBe(parts - 3);
+  expect(past.progress).toBeLessThan(basin + 50);
+});

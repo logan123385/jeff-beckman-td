@@ -65,8 +65,12 @@ function abilityHasWork(game: Game, t: Tower): boolean {
       );
     }
     case 'backflow':
-    case 'sump':
       return inRange(game, t, range, (e) => !e.def.flying).length > 0;
+    case 'sump':
+      return inRange(game, t, range, (e) => !e.def.flying).some((e) => {
+        const path = game.paths[e.pathIdx];
+        return path ? e.progress > path.nearestPoint(t.pos).progress : false;
+      });
     case 'camera':
       return inRange(game, t, range).length > 0;
     default:
