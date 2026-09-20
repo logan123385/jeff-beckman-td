@@ -6,6 +6,8 @@ export interface PauseHandlers {
   onCycleSound(): void;
   soundLabel(): string;
   onQuit(): void;
+  autoPause: () => boolean;
+  onToggleAutoPause(): void;
 }
 
 /** Wood/brass pause card — Resume, Soft/Full/Off, Quit. */
@@ -16,13 +18,22 @@ export function createPausePanel(handlers: PauseHandlers): {
   syncSound(): void;
 } {
   const soundBtn = h('button', { class: 'btn big pause-sound' });
+  const autoBtn = h('button', { class: 'btn big pause-auto' });
   const syncSound = () => {
     soundBtn.textContent = handlers.soundLabel();
   };
+  const syncAuto = () => {
+    autoBtn.textContent = handlers.autoPause() ? 'Auto-pause waves on' : 'Auto-pause waves off';
+  };
   syncSound();
+  syncAuto();
   soundBtn.addEventListener('click', () => {
     handlers.onCycleSound();
     syncSound();
+  });
+  autoBtn.addEventListener('click', () => {
+    handlers.onToggleAutoPause();
+    syncAuto();
   });
 
   const card = h(
@@ -39,9 +50,10 @@ export function createPausePanel(handlers: PauseHandlers): {
       { class: 'pause-actions' },
       h('button', { class: 'btn primary big', text: 'Resume', onClick: () => handlers.onResume() }),
       soundBtn,
+      autoBtn,
       h('button', { class: 'btn', text: 'Quit job', onClick: () => handlers.onQuit() }),
     ),
-    h('p', { class: 'small muted pause-keys', text: 'P or Esc to resume' }),
+    h('p', { class: 'small muted pause-keys', text: 'P or Esc to resume · double-tap a tower to upgrade · tap pads to keep placing' }),
   );
 
   const el = h(

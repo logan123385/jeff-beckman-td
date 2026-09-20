@@ -73,7 +73,7 @@ export function drawLogan(ctx: Ctx, s: HeroSummon, time: number): void {
 }
 
 export function drawHeroAura(ctx: Ctx, game: Game, selected: boolean): void {
-  if (!game.heroEnabled || game.hero.downed > 0) return;
+  if (!game.heroEnabled || !game.hero.deployed || game.hero.downed > 0) return;
   const h = game.hero, def = game.heroDef, r = def.aura.radius, time = game.time;
   ctx.save(); ctx.translate(h.pos.x, h.pos.y);
   const glow = ctx.createRadialGradient(0, 0, r * .1, 0, 0, r);

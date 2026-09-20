@@ -1,21 +1,21 @@
 import { dist, moveToward, type Vec } from '../core/vec';
 import { COOLDOWN_FIELDS, type AbilitySlot } from '../data/heroes';
-import { applyDamage, isTargetable } from './combat';
+import { applyDamage, abilityPower, abilityRangeFactor, abilityRank, heroOnYard, isTargetable, scaledAbilityCooldown, scaledCastRange } from './combat';
 import type { Game } from './game';
 import type { Enemy, HeroMissile, HeroVisual, HeroZone } from './state';
 
 export function friendlyDamageBuff(game: Game, pos: Vec): number {
-  return game.heroEnabled && game.hero.downed <= 0 && game.heroDef.id === 'becbec' && dist(game.hero.pos, pos) <= game.heroDef.aura.radius ? 1.2 : 1;
+  return heroOnYard(game) && game.heroDef.id === 'becbec' && dist(game.hero.pos, pos) <= game.heroDef.aura.radius ? 1.2 : 1;
 }
 
 export function friendlyMitigation(game: Game, pos: Vec): number {
-  return game.heroEnabled && game.hero.downed <= 0 && game.heroDef.id === 'jeff' && dist(game.hero.pos, pos) <= game.heroDef.aura.radius ? .85 : 1;
+  return heroOnYard(game) && game.heroDef.id === 'jeff' && dist(game.hero.pos, pos) <= game.heroDef.aura.radius ? .85 : 1;
 }
 
 /** Runs after tower aura reset and before any attacks, so buffs never linger after leaving range. */
 export function updateHeroAura(game: Game, dt: number): void {
   const h = game.hero, def = game.heroDef;
-  if (!game.heroEnabled || h.downed > 0) return;
+  if (!heroOnYard(game)) return;
   const nearby = (p: Vec) => dist(h.pos, p) <= def.aura.radius;
   switch (def.id) {
     case 'jeff':
@@ -50,16 +50,30 @@ function targets(game: Game, radius: number, center = game.hero.pos): Enemy[] {
     .sort((a, b) => a.id === ordered ? -1 : b.id === ordered ? 1 : dist(a.pos, center) - dist(b.pos, center));
 }
 
-export function useHeroAbility(game: Game, slot: AbilitySlot): boolean {
+export function useHeroAbility(game: Game, slot: AbilitySlot, aim?: { pos: Vec; enemyId?: number }): boolean {
   const h = game.hero, ability = game.heroDef.abilities[slot];
-  if (!game.heroEnabled || game.status !== 'playing' || h.downed > 0 || h.cast || h[COOLDOWN_FIELDS[slot]] > 0) return false;
-  const radius = game.heroDef.id === 'becbec' ? 75 : game.heroDef.id === 'bob' && slot === 0 ? 300 : 280;
-  const prey = targets(game, radius).find(e => game.heroDef.id !== 'becbec' || !e.def.flying);
-  if (ability.target && !prey) return false;
-  h[COOLDOWN_FIELDS[slot]] = ability.cooldown * game.mods.cooldown / game.jeffCdAura;
+  if (!heroOnYard(game) || game.status !== 'playing' || h.cast || h[COOLDOWN_FIELDS[slot]] > 0) return false;
+  const castRange = scaledCastRange(game, slot);
+  let prey: Enemy | undefined;
+  let point = { ...h.pos };
+  if (ability.target) {
+    if (!aim) return false;
+    point = { ...aim.pos };
+    if (ability.aim === 'enemy') {
+      prey = game.enemies.find(e => e.id === aim.enemyId && isTargetable(e));
+      if (!prey || (game.heroDef.id === 'becbec' && prey.def.flying)) return false;
+      point = { ...prey.pos };
+    }
+    if (dist(h.pos, point) > castRange + (prey?.def.radius ?? 8)) return false;
+  } else {
+    prey = targets(game, castRange).find(e => game.heroDef.id !== 'becbec' || !e.def.flying);
+    if (prey) point = { ...prey.pos };
+  }
+  h[COOLDOWN_FIELDS[slot]] = scaledAbilityCooldown(game, slot);
   h.pendingStrike = undefined; h.swing = 0; h.dest = null;
-  if (prey && ability.target) h.facing = prey.pos.x >= h.pos.x ? 1 : -1;
-  h.cast = { slot, left: ability.cast, duration: ability.cast, fired: false, target: { ...(prey?.pos ?? h.pos) }, targetId: prey?.id, hits: 0 };
+  if (prey) h.facing = prey.pos.x >= h.pos.x ? 1 : -1;
+  else if (aim) h.facing = aim.pos.x >= h.pos.x ? 1 : -1;
+  h.cast = { slot, left: ability.cast, duration: ability.cast, fired: false, target: { ...point }, targetId: prey?.id, hits: 0 };
   h.castTimer = ability.cast;
   game.heroNotice = { name: ability.name, detail: ability.short, color: game.heroDef.color, left: ability.cast + 1.6 };
   return true;
@@ -77,7 +91,7 @@ export function advanceHeroCast(game: Game, dt: number): boolean {
       cast.hits++; cast.fired = true;
       for (const e of targets(game, 82).filter(e => !e.def.flying)) {
         e.armorShred = Math.max(e.armorShred, .35); e.shredTimer = Math.max(e.shredTimer, 4);
-        applyDamage(game, e, 30 * game.mods.jeffDamage, 'physical', 'jeff');
+        applyDamage(game, e, 30 * abilityPower(game, 2) * game.mods.jeffDamage, 'physical', 'jeff');
       }
       visual(game, 'saw', h.pos, cast.target, 82, '#ffcd78', .3);
     }
@@ -86,8 +100,8 @@ export function advanceHeroCast(game: Game, dt: number): boolean {
     while (cast.hits < contacts.length && phase >= contacts[cast.hits]!) {
       cast.hits++; cast.fired = true;
       for (const e of targets(game, 68).filter(e => !e.def.flying)) {
-        applyDamage(game, e, 35 * game.mods.jeffDamage, 'physical', 'jeff');
-        if (cast.hits === 5) e.stun = Math.max(e.stun, 1 * game.mods.stunDuration);
+        applyDamage(game, e, 35 * abilityPower(game, 4) * game.mods.jeffDamage, 'physical', 'jeff');
+        if (cast.hits === 5) e.stun = Math.max(e.stun, 1 * abilityPower(game, 4) * game.mods.stunDuration);
       }
       visual(game, 'punch', h.pos, cast.target, 55, game.heroDef.color, .25);
     }
@@ -109,95 +123,107 @@ export function fireHeroMissile(game: Game, kind: HeroMissile['kind'], goal: Vec
   const origin = from ?? (kind === 'golf'
     ? { x: game.hero.pos.x + game.hero.facing * 26, y: game.hero.pos.y + 8 }
     : { x: game.hero.pos.x + game.hero.facing * (game.heroDef.id === 'mike' ? 32 : 18), y: game.hero.pos.y - (game.heroDef.id === 'mike' ? 53 : 20) });
-  game.heroMissiles.push({ id: game.nextEntityId(), kind, from: { ...origin }, pos: { ...origin }, goal: { ...goal },
+  game.heroMissiles.push({ id: game.nextEntityId(), kind, from: { ...origin }, pos: { ...origin }, prev: { ...origin }, goal: { ...goal },
     targetId, age: 0, duration: Math.max(.18, dist(origin, goal) / (kind === 'golf' ? 470 : 325)), damage: damage * game.mods.jeffDamage, splash, bounces, hitIds: [] });
 }
 
 function resolveAbility(game: Game, slot: AbilitySlot, point: Vec, targetId?: number): void {
   const h = game.hero, def = game.heroDef;
-  const prey = game.enemies.find(e => e.id === targetId && isTargetable(e)) ?? targets(game, 280)[0];
+  const pwr = abilityPower(game, slot);
+  const rng = abilityRangeFactor(game, slot);
+  const prey = game.enemies.find(e => e.id === targetId && isTargetable(e)) ?? targets(game, 280 * rng)[0];
   if (def.id === 'mike') switch (slot) {
     case 0: {
-      const pool = targets(game, 280);
+      const pool = targets(game, 280 * rng);
+      if (prey) {
+        const i = pool.findIndex(e => e.id === prey.id);
+        if (i > 0) pool.splice(i, 1);
+        if (i !== 0) pool.unshift(prey);
+      }
       for (let i = 0; i < 3; i++) {
         const e = pool[i % Math.max(1, pool.length)];
-        fireHeroMissile(game, 'plunger', e?.pos ?? point, 52, e?.id, 30, 0, { x: h.pos.x + h.facing * (30 + i * 4), y: h.pos.y - 54 - i * 7 });
+        fireHeroMissile(game, 'plunger', e?.pos ?? point, 52 * pwr, e?.id, 30 * rng, 0, { x: h.pos.x + h.facing * (30 + i * 4), y: h.pos.y - 54 - i * 7 });
       }
       break;
     }
     case 1:
-      for (const e of targets(game, 130).filter(e => !e.def.flying)) {
-        applyDamage(game, e, 48 * game.mods.jeffDamage, 'physical', 'jeff');
-        e.stun = Math.max(e.stun, .9 * game.mods.stunDuration);
-        e.progress = Math.max(0, e.progress - (e.def.traits.includes('boss') ? 12 : 60));
+      for (const e of targets(game, 130 * rng).filter(e => !e.def.flying)) {
+        applyDamage(game, e, 48 * pwr * game.mods.jeffDamage, 'physical', 'jeff');
+        e.stun = Math.max(e.stun, .9 * pwr * game.mods.stunDuration);
+        e.progress = Math.max(0, e.progress - (e.def.traits.includes('boss') ? 12 : 60) * (1 + abilityRank(game, 1) * 0.12));
         e.heldBy = null;
       }
-      visual(game, 'horn', h.pos, h.pos, 130, def.color, 1); break;
-    case 2: zone(game, 'supply', h.pos, 100, 8); visual(game, 'buff', h.pos, h.pos, 60, '#f5db9e', .8); break;
-    case 3: h.overdrive = 8; visual(game, 'buff', h.pos, h.pos, 50, def.color, .7); break;
-    case 4: zone(game, 'rain', point, 90, 4.5); break;
+      visual(game, 'horn', h.pos, h.pos, 130 * rng, def.color, 1); break;
+    case 2: zone(game, 'supply', h.pos, 100 * rng, 8 * pwr); visual(game, 'buff', h.pos, h.pos, 60, '#f5db9e', .8); break;
+    case 3: h.overdrive = 8 * pwr; visual(game, 'buff', h.pos, h.pos, 50, def.color, .7); break;
+    case 4: zone(game, 'rain', point, 90 * rng, 4.5 * pwr); break;
   }
   if (def.id === 'bob') switch (slot) {
     case 0: {
       const aim = prey?.pos ?? point, length = dist(h.pos, aim) || 1;
+      const beam = 420 * rng;
       const dir = { x: (aim.x - h.pos.x) / length, y: (aim.y - h.pos.y) / length };
-      const end = { x: h.pos.x + dir.x * 420, y: h.pos.y + dir.y * 420 };
+      const end = { x: h.pos.x + dir.x * beam, y: h.pos.y + dir.y * beam };
       for (const e of game.enemies) {
         if (!isTargetable(e)) continue;
         const dx = e.pos.x - h.pos.x, dy = e.pos.y - h.pos.y, along = dx * dir.x + dy * dir.y;
-        if (along >= -e.def.radius && along <= 420 + e.def.radius && Math.abs(dx * dir.y - dy * dir.x) <= 18 + e.def.radius) {
-          applyDamage(game, e, 140 * game.mods.jeffDamage, 'heat', 'jeff');
-          e.armorShred = Math.max(e.armorShred, .35); e.shredTimer = Math.max(e.shredTimer, 5);
+        if (along >= -e.def.radius && along <= beam + e.def.radius && Math.abs(dx * dir.y - dy * dir.x) <= 18 + e.def.radius) {
+          applyDamage(game, e, 140 * pwr * game.mods.jeffDamage, 'heat', 'jeff');
+          e.armorShred = Math.max(e.armorShred, .35); e.shredTimer = Math.max(e.shredTimer, 5 * pwr);
         }
       }
       visual(game, 'laser', { x: h.pos.x + h.facing * 20, y: h.pos.y - 25 }, end, 22, '#ff826c', .65); break;
     }
-    case 1: h.hp = Math.min(h.maxHp, h.hp + 130); h.shield = 8; visual(game, 'buff', h.pos, h.pos, 50, def.color, .9); break;
+    case 1: h.hp = Math.min(h.maxHp, h.hp + 130 * pwr); h.shield = 8 * pwr; visual(game, 'buff', h.pos, h.pos, 50, def.color, .9); break;
     case 2:
-      for (const e of game.enemies) if (!e.dead && !e.escaped && dist(e.pos, h.pos) <= 145 + e.def.radius) {
-        e.phased = false; e.revealTimer = 3; e.stun = Math.max(e.stun, 2.5 * game.mods.stunDuration);
-        applyDamage(game, e, 40 * game.mods.jeffDamage, 'heat', 'jeff');
+      for (const e of game.enemies) if (!e.dead && !e.escaped && dist(e.pos, h.pos) <= 145 * rng + e.def.radius) {
+        e.phased = false; e.revealTimer = 3 * pwr; e.stun = Math.max(e.stun, 2.5 * pwr * game.mods.stunDuration);
+        applyDamage(game, e, 40 * pwr * game.mods.jeffDamage, 'heat', 'jeff');
       }
-      visual(game, 'emp', h.pos, h.pos, 145, def.color, 1); break;
-    case 3: h.overdrive = 8; visual(game, 'buff', h.pos, h.pos, 50, def.color, .7); break;
+      visual(game, 'emp', h.pos, h.pos, 145 * rng, def.color, 1); break;
+    case 3: h.overdrive = 8 * pwr; visual(game, 'buff', h.pos, h.pos, 50, def.color, .7); break;
     case 4: {
-      const ids = targets(game, 280).sort((a, b) => b.maxHp - a.maxHp).slice(0, 3).map(e => e.id);
-      zone(game, 'review', h.pos, 280, 9, ids); visual(game, 'emp', h.pos, h.pos, 120, '#ffab92', .7); break;
+      const marks = 3 + (abilityRank(game, 4) >= 3 ? 1 : 0);
+      const ids = targets(game, 280 * rng).sort((a, b) => b.maxHp - a.maxHp).slice(0, marks).map(e => e.id);
+      zone(game, 'review', h.pos, 280 * rng, 9 * pwr, ids); visual(game, 'emp', h.pos, h.pos, 120, '#ffab92', .7); break;
     }
   }
   if (def.id === 'becbec') switch (slot) {
     case 0: {
-      const victim = targets(game, 75).find(e => !e.def.flying);
+      const reach = 75 * rng;
+      const victim = game.enemies.find(e => e.id === targetId && isTargetable(e) && !e.def.flying) ?? targets(game, reach).find(e => !e.def.flying);
       if (victim) {
-        victim.armorShred = Math.max(victim.armorShred, .45); victim.shredTimer = Math.max(victim.shredTimer, 5);
-        applyDamage(game, victim, 110 * game.mods.jeffDamage, 'physical', 'jeff');
-        victim.stun = Math.max(victim.stun, 1.8 * game.mods.stunDuration);
+        victim.armorShred = Math.max(victim.armorShred, .45); victim.shredTimer = Math.max(victim.shredTimer, 5 * pwr);
+        applyDamage(game, victim, 110 * pwr * game.mods.jeffDamage, 'physical', 'jeff');
+        victim.stun = Math.max(victim.stun, 1.8 * pwr * game.mods.stunDuration);
         visual(game, 'punch', h.pos, victim.pos, 58, def.color, .5);
       }
       break;
     }
     case 1:
-      for (const e of targets(game, 105).filter(e => !e.def.flying)) {
-        applyDamage(game, e, 65 * game.mods.jeffDamage, 'physical', 'jeff'); e.stun = Math.max(e.stun, 1.2 * game.mods.stunDuration);
+      for (const e of targets(game, 105 * rng).filter(e => !e.def.flying)) {
+        applyDamage(game, e, 65 * pwr * game.mods.jeffDamage, 'physical', 'jeff'); e.stun = Math.max(e.stun, 1.2 * pwr * game.mods.stunDuration);
       }
-      visual(game, 'slam', h.pos, h.pos, 105, def.color, 1); break;
-    case 2: h.taunt = 7; h.shield = Math.max(h.shield ?? 0, 7); visual(game, 'buff', h.pos, h.pos, 70, def.color, .8); break;
-    case 3: h.hp = Math.min(h.maxHp, h.hp + 160); h.shield = Math.max(h.shield ?? 0, 6); visual(game, 'buff', h.pos, h.pos, 55, def.color, .8); break;
+      visual(game, 'slam', h.pos, h.pos, 105 * rng, def.color, 1); break;
+    case 2: h.taunt = 7 * pwr; h.shield = Math.max(h.shield ?? 0, 7 * pwr); visual(game, 'buff', h.pos, h.pos, 70, def.color, .8); break;
+    case 3: h.hp = Math.min(h.maxHp, h.hp + 160 * pwr); h.shield = Math.max(h.shield ?? 0, 6 * pwr); visual(game, 'buff', h.pos, h.pos, 55, def.color, .8); break;
     case 4: break;
   }
   if (def.id === 'chris') switch (slot) {
     case 0: {
       // A second summon replaces the previous one cleanly, including its enemy hold.
       for (const old of game.heroSummons) releaseSummon(game, old.id);
-      game.heroSummons = [{ id: game.nextEntityId(), pos: { x: h.pos.x + h.facing * 22, y: h.pos.y + 8 }, hp: 230, maxHp: 230,
-        left: 18, duration: 18, facing: h.facing, walkPhase: 0, moving: false, moveBlend: 0, swing: 0, attackTimer: 0 }];
+      const hp = Math.round(230 * pwr);
+      const life = 18 * pwr;
+      game.heroSummons = [{ id: game.nextEntityId(), pos: { x: h.pos.x + h.facing * 22, y: h.pos.y + 8 }, prev: { x: h.pos.x + h.facing * 22, y: h.pos.y + 8 }, hp, maxHp: hp,
+        left: life, duration: life, facing: h.facing, walkPhase: 0, moving: false, moveBlend: 0, swing: 0, attackTimer: 0 }];
       visual(game, 'summon', h.pos, h.pos, 45, '#d4e599', .8); break;
     }
-    case 1: fireHeroMissile(game, 'golf', prey?.pos ?? point, 70, prey?.id, 0, 2);
+    case 1: fireHeroMissile(game, 'golf', prey?.pos ?? point, 70 * pwr, prey?.id, 0, 2);
       visual(game, 'golf', h.pos, point, 45, '#fff4c7', .45); break;
     case 2: break; // Timed three-hit combo is resolved by advanceHeroCast.
-    case 3: zone(game, 'gas', h.pos, 110, 7); break;
-    case 4: h.hp = Math.min(h.maxHp, h.hp + 100); h.overdrive = 8; h.lifesteal = 8;
+    case 3: zone(game, 'gas', h.pos, 110 * rng, 7 * pwr); break;
+    case 4: h.hp = Math.min(h.maxHp, h.hp + 100 * pwr); h.overdrive = 8 * pwr; h.lifesteal = 8 * pwr;
       visual(game, 'buff', h.pos, h.pos, 50, def.color, .8); break;
   }
 }
@@ -231,23 +257,26 @@ export function updateHeroZones(game: Game, dt: number): void {
     const elapsed = Math.min(dt, z.left); z.left -= dt;
     if (z.kind === 'supply') {
       const h = game.hero;
-      if (h.downed <= 0 && dist(h.pos, z.pos) <= z.radius) h.hp = Math.min(h.maxHp, h.hp + 18 * elapsed);
-      for (const f of [...game.friendlies, ...game.crew, ...game.heroSummons]) if (f.hp > 0 && dist(f.pos, z.pos) <= z.radius) f.hp = Math.min(f.maxHp, f.hp + 18 * elapsed);
-      for (const t of game.towers) if (t.def.kind === 'barricade' && t.rebuild <= 0 && dist(t.pos, z.pos) <= z.radius) t.hp = Math.min(t.maxHp, t.hp + 30 * elapsed);
+      const heal = 18 * abilityPower(game, 2);
+      if (heroOnYard(game) && dist(h.pos, z.pos) <= z.radius) h.hp = Math.min(h.maxHp, h.hp + heal * elapsed);
+      for (const f of [...game.friendlies, ...game.crew, ...game.heroSummons]) if (f.hp > 0 && dist(f.pos, z.pos) <= z.radius) f.hp = Math.min(f.maxHp, f.hp + heal * elapsed);
+      for (const t of game.towers) if (t.def.kind === 'barricade' && t.rebuild <= 0 && dist(t.pos, z.pos) <= z.radius) t.hp = Math.min(t.maxHp, t.hp + 30 * abilityPower(game, 2) * elapsed);
     } else if (z.kind === 'gas') {
       for (const e of targets(game, z.radius, z.pos).filter(e => !e.def.flying)) {
-        e.slow = Math.max(e.slow, .4); applyDamage(game, e, 12 * game.mods.jeffDamage * elapsed, 'heat', 'jeff');
+        e.slow = Math.max(e.slow, .4); applyDamage(game, e, 12 * abilityPower(game, 3) * game.mods.jeffDamage * elapsed, 'heat', 'jeff');
       }
     } else if (z.kind === 'rain') {
       z.tick -= elapsed;
+      const rainPwr = abilityPower(game, 4);
       while (z.tick <= 0 && z.ticks < 9) {
         const angle = z.ticks * 2.4, radius = z.ticks % 3 === 0 ? 0 : 45;
         const point = { x: z.pos.x + Math.cos(angle) * radius, y: z.pos.y + Math.sin(angle) * radius };
-        fireHeroMissile(game, 'plunger', point, 32, undefined, 48, 0, { x: point.x - 40, y: point.y - 220 });
+        fireHeroMissile(game, 'plunger', point, 32 * rainPwr, undefined, 48, 0, { x: point.x - 40, y: point.y - 220 });
         z.tick += .5; z.ticks++;
       }
     } else {
-      for (const e of game.enemies) if (z.targetIds?.includes(e.id) && isTargetable(e)) { e.marked = true; e.markBonus = Math.max(e.markBonus ?? 0, .3); }
+      const mark = 0.3 * abilityPower(game, 4);
+      for (const e of game.enemies) if (z.targetIds?.includes(e.id) && isTargetable(e)) { e.marked = true; e.markBonus = Math.max(e.markBonus ?? 0, mark); }
     }
   }
   game.heroZones = game.heroZones.filter(z => z.left > 0);
@@ -259,9 +288,10 @@ export function updateHeroMissiles(game: Game, dt: number): void {
     p.age += dt;
     const target = game.enemies.find(e => e.id === p.targetId && isTargetable(e));
     if (target) p.goal = { x: target.pos.x, y: target.pos.y - (target.def.flying ? 12 : 0) };
-    const phase = Math.min(1, p.age / p.duration);
-    p.pos = { x: p.from.x + (p.goal.x - p.from.x) * phase, y: p.from.y + (p.goal.y - p.from.y) * phase };
-    if (phase < 1) { keep.push(p); continue; }
+    const speed = Math.max(220, dist(p.from, p.goal) / Math.max(0.08, p.duration));
+    const step = moveToward(p.pos, p.goal, speed * dt);
+    p.pos = step.pos;
+    if (!step.arrived) { keep.push(p); continue; }
     if (p.splash > 0) for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, 'physical', 'jeff');
     else if (target) applyDamage(game, target, p.damage, 'physical', 'jeff');
     game.addEffect({ kind: 'hit', pos: { ...p.goal }, color: p.kind === 'golf' ? '#fffde7' : '#e1a886', ttl: .24, max: .24 });

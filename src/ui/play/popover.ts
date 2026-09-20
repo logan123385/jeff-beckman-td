@@ -19,14 +19,15 @@ export interface PopoverHandlers {
   onRally(towerId: number): void;
 }
 
-/** Build / upgrade card anchored to a slot on the canvas. */
+/** Kingdom Rush–style radial command wheel anchored to a pad or tower. */
 export class Popover {
-  readonly el = h('div', { class: 'popover hidden' });
+  readonly el = h('div', { class: 'kr-wheel hidden' });
   private mode: { kind: 'build'; slot: number } | { kind: 'tower'; towerId: number } | null = null;
-  private lastMoney = -1;
+  private lastKey = '';
 
   constructor(private readonly game: Game, private readonly handlers: PopoverHandlers) {
     this.el.addEventListener('mousedown', (e) => e.stopPropagation());
+    this.el.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
@@ -36,50 +37,61 @@ export class Popover {
 
   showBuild(slot: number): void {
     this.mode = { kind: 'build', slot };
+    this.lastKey = '';
     this.rebuild();
+    const first = TOWER_ORDER.find((id) => this.game.allowedTowers.includes(id));
+    if (first) this.handlers.onPreview(first);
   }
 
   showTower(towerId: number): void {
     this.mode = { kind: 'tower', towerId };
+    this.lastKey = '';
     this.rebuild();
   }
 
   hide(): void {
     this.mode = null;
+    this.lastKey = '';
     this.el.classList.add('hidden');
     this.handlers.onPreview(null);
   }
 
-  /** Re-render when affordability may have changed; position against the current canvas size. */
   update(stage: HTMLElement, canvas: HTMLCanvasElement): void {
     if (!this.mode) return;
     if (this.mode.kind === 'tower' && !this.game.towerById(this.mode.towerId)) {
       this.hide();
       return;
     }
-    if (this.game.money !== this.lastMoney) this.rebuild();
+    const key = this.modeKey();
+    if (key !== this.lastKey) this.rebuild();
     const anchor = this.mode.kind === 'build' ? this.game.map.slots[this.mode.slot]! : this.game.towerById(this.mode.towerId)!.pos;
     const rect = canvas.getBoundingClientRect();
     const stageRect = stage.getBoundingClientRect();
     const sx = rect.width / 960;
     const sy = rect.height / 600;
     const x = rect.left - stageRect.left + anchor.x * sx;
-    const y = rect.top - stageRect.top + anchor.y * sy;
-    const w = this.el.offsetWidth;
-    const hgt = this.el.offsetHeight;
-    let left = x - w / 2;
-    let top = y + 28;
-    if (top + hgt > stageRect.height - 8) top = y - hgt - 34;
-    left = Math.max(8, Math.min(stageRect.width - w - 8, left));
+    const y = rect.top - stageRect.top + (anchor.y - 18) * sy;
+    const w = this.el.offsetWidth || 240;
+    const hgt = this.el.offsetHeight || 240;
+    const left = Math.max(4, Math.min(stageRect.width - w - 4, x - w / 2));
+    const top = Math.max(4, Math.min(stageRect.height - hgt - 4, y - hgt / 2));
     this.el.style.left = `${left}px`;
-    this.el.style.top = `${Math.max(8, top)}px`;
+    this.el.style.top = `${top}px`;
+  }
+
+  private modeKey(): string {
+    if (!this.mode) return '';
+    if (this.mode.kind === 'build') return `b${this.mode.slot}|${this.game.money}`;
+    const t = this.game.towerById(this.mode.towerId);
+    return `t${this.mode.towerId}|${this.game.money}|${t?.level}|${t?.aim}|${t?.specialization ?? ''}|${t?.mastery ?? 0}`;
   }
 
   private rebuild(): void {
     if (!this.mode) return;
-    this.lastMoney = this.game.money;
+    this.lastKey = this.modeKey();
     clear(this.el);
     this.el.classList.remove('hidden');
+    this.el.classList.toggle('kr-build', this.mode.kind === 'build');
     if (this.mode.kind === 'build') this.renderBuild(this.mode.slot);
     else {
       const t = this.game.towerById(this.mode.towerId);
@@ -88,89 +100,144 @@ export class Popover {
     }
   }
 
+  private spoke(angle: number, cls: string, children: (HTMLElement | string | null)[], opts: {
+    disabled?: boolean;
+    title?: string;
+    onClick: () => void;
+    onEnter?: () => void;
+    onLeave?: () => void;
+  }): HTMLElement {
+    return h(
+      'button',
+      {
+        class: `kr-spoke ${cls}${opts.disabled ? ' poor' : ''}`,
+        attrs: { style: `--a:${angle}deg` },
+        title: opts.title,
+        onClick: opts.onClick,
+        onMouseEnter: opts.onEnter,
+        onMouseLeave: opts.onLeave,
+      },
+      ...children,
+    );
+  }
+
   private renderBuild(slot: number): void {
     const g = this.game;
+    const kit = TOWER_ORDER.filter((id) => g.allowedTowers.includes(id));
+    const n = kit.length || 1;
     this.el.append(
-      h('div', { class: 'pop-title' }, h('span', { text: 'Build your defense' }), h('button', { class: 'x', text: '×', attrs: { 'aria-label': 'Close tower menu' }, onClick: () => this.handlers.onClose() })),
       h(
         'div',
-        { class: 'build-list' },
-        ...TOWER_ORDER.filter((id) => g.allowedTowers.includes(id)).map((id, i) => {
-          const def = TOWERS[id];
-          const cost = g.towerCost(id);
-          const ok = g.money >= cost;
-          const lvl = def.levels[0];
-          const key = i < 9 ? String(i + 1) : '';
-          return h(
-            'button',
-            {
-              class: `build-btn ${ok ? '' : 'poor'}`,
-              disabled: !ok,
-              title: def.blurb,
-              onMouseEnter: () => this.handlers.onPreview(id),
-              onMouseLeave: () => this.handlers.onPreview(null),
-              onClick: () => this.handlers.onBuild(slot, id),
-            },
-            towerPortrait(id, 58),
-            h(
-              'span',
-              { class: 'build-name' },
-              key ? h('span', { class: 'key-pip', text: key }) : null,
-              h('b', { text: def.name }),
-              h('span', { class: 'small muted', text: ` · ${def.role}` }),
-            ),
-            h('span', { class: 'small muted stats', text: statLine(def.id, lvl.damage * g.mods.towerDamage, lvl.range * g.mods.towerRange, lvl.fireRate, lvl) }),
-            h('span', { class: `cost ${ok ? '' : 'poor'}`, text: `$${cost}` }),
-          );
-        }),
+        { class: 'kr-hub' },
+        h('span', { class: 'kr-hub-name', text: 'Plant' }),
+        h('button', { class: 'kr-x', text: '×', attrs: { 'aria-label': 'Close tower menu' }, onClick: () => this.handlers.onClose() }),
       ),
+      ...kit.map((id, i) => {
+        const def = TOWERS[id];
+        const cost = g.towerCost(id);
+        const ok = g.money >= cost;
+        const angle = -90 + (i * 360) / n;
+        const key = i < 9 ? String(i + 1) : '';
+        return this.spoke(angle, `kr-build-tool${ok ? '' : ' poor'}`, [
+          towerPortrait(id, 48),
+          key ? h('span', { class: 'kr-key', text: key }) : null,
+          h('b', { text: def.name }),
+          h('span', { class: `kr-cost${ok ? '' : ' poor'}`, text: `$${cost}` }),
+        ], {
+          disabled: !ok,
+          title: `${def.blurb} · ${def.role}`,
+          onClick: () => this.handlers.onBuild(slot, id),
+          onEnter: () => this.handlers.onPreview(id),
+          onLeave: () => this.handlers.onPreview(null),
+        });
+      }),
     );
   }
 
   private renderTower(t: Tower): void {
     const g = this.game;
-    const lvl = t.def.levels[t.level]!;
     const up = g.upgradeCost(t);
     const next = t.level < t.def.levels.length - 1 ? t.def.levels[t.level + 1] : undefined;
-    const parts: (HTMLElement | null)[] = [
+    const canSpec = t.level >= 2 && !t.specialization;
+    this.el.append(
       h(
         'div',
-        { class: 'pop-title' },
-        h('span', {}, h('span', { class: 'swatch', style: { background: t.def.color } }), ` ${t.def.name} `, h('span', { class: 'pill', text: `${TIER_NAMES[t.level]} · ${t.level + 1}/6` })),
-        h('button', { class: 'x', text: '×', onClick: () => this.handlers.onClose() }),
+        { class: 'kr-hub' },
+        h('span', { class: 'swatch', style: { background: t.def.color } }),
+        h('span', { class: 'kr-hub-name', text: t.def.name }),
+        h('span', { class: 'kr-hub-tier', text: `${TIER_NAMES[t.level]} · ${t.level + 1}/6` }),
+        h('button', { class: 'kr-x', text: '×', attrs: { 'aria-label': 'Close' }, onClick: () => this.handlers.onClose() }),
       ),
-      h('div', { class: 'small muted', text: t.def.blurb }),
-      h('div', { class: 'small stats', text: statLine(t.def.id, g.effectiveDamage(t), g.effectiveRange(t), lvl.fireRate, lvl) }),
-      t.def.kind === 'barricade' && !t.def.recruits ? h('div', { class: 'small', text: `Durability ${Math.round(t.hp)} / ${t.maxHp}${t.rebuild > 0 ? ' — rebuilding' : ''}` }) : null,
-      t.def.kind === 'barricade' ? h('button', { class: 'btn rally-btn', text: '⚑ Set rally point  (G)', title: 'Place the crew on a route within 150 pixels of this tower.', onClick: () => this.handlers.onRally(t.id) }) : null,
-      t.frozen > 0 ? h('div', { class: 'small cold', text: `Frozen ${t.frozen.toFixed(1)}s` }) : null,
-      t.def.kind === 'shooter'
-        ? h('button', {
-            class: 'btn aim-btn',
-            text: `Aim: ${AIM_LABEL[t.aim]}`,
-            title: `Shoots ${AIM_HINT[t.aim]}. Click or press A to cycle.`,
-            onClick: () => this.handlers.onCycleAim(t.id),
-          })
-        : null,
-      next && up !== null
-        ? h('div', { class: 'small muted', text: `Next: ${statLine(t.def.id, next.damage * g.mods.towerDamage, next.range * g.mods.towerRange, next.fireRate, next)}` })
-        : null,
-      h(
-        'div',
-        { class: 'btn-row' },
-        up !== null
-          ? h('button', { class: 'btn primary', text: `Upgrade $${up}  (U)`, disabled: g.money < up, onClick: () => this.handlers.onUpgrade(t.id) })
-          : h('button', { class: 'btn primary', text: `Mastery ${1 + (t.mastery ?? 0)} · $${g.masteryCost(t)}`, title: 'Repeatable investment: +14% damage and health; faster attacks. Costs rise each time.', disabled: g.money < g.masteryCost(t), onClick: () => this.handlers.onMastery(t.id) }),
-        h('button', { class: 'btn danger', text: `Sell $${g.sellValue(t)}  (S)`, onClick: () => this.handlers.onSell(t.id) }),
-      ),
-    ];
-    for (const p of parts) if (p) this.el.append(p);
-    if (t.level >= 2 && !t.specialization) this.el.append(h('div', { class: 'specializations' }, ...(['power', 'control'] as const).map(choice => {
-      const info = specializationInfo(t.def, choice);
-      const cost = Math.round(info.cost * g.mods.towerCost);
-      return h('button', { class: `specialization ${choice}`, disabled: g.money < cost, onClick: () => this.handlers.onSpecialize(t.id, choice) },
-        h('b', { text: info.name }), h('span', { class: 'small', text: info.description }), h('strong', { text: `$${cost}` }));
-    })));
+    );
+
+    if (up !== null) {
+      const ok = g.money >= up;
+      this.el.append(this.spoke(-90, `kr-up${ok ? '' : ' poor'}`, [
+        h('span', { class: 'kr-spoke-label', text: 'Upgrade' }),
+        h('span', { class: 'kr-cost', text: `$${up}` }),
+        next ? h('span', { class: 'kr-spoke-sub', text: TIER_NAMES[t.level + 1] ?? '' }) : null,
+      ], {
+        disabled: !ok,
+        title: next ? `Next: ${statLine(t.def.id, next.damage * g.mods.towerDamage, next.range * g.mods.towerRange, next.fireRate, next)}` : 'Upgrade',
+        onClick: () => this.handlers.onUpgrade(t.id),
+      }));
+    } else {
+      const cost = g.masteryCost(t);
+      const ok = g.money >= cost;
+      this.el.append(this.spoke(-90, `kr-up${ok ? '' : ' poor'}`, [
+        h('span', { class: 'kr-spoke-label', text: `Mastery ${1 + (t.mastery ?? 0)}` }),
+        h('span', { class: 'kr-cost', text: `$${cost}` }),
+      ], {
+        disabled: !ok,
+        title: 'Repeatable: +14% damage and health; faster attacks.',
+        onClick: () => this.handlers.onMastery(t.id),
+      }));
+    }
+
+    this.el.append(this.spoke(90, 'kr-sell', [
+      h('span', { class: 'kr-spoke-label', text: 'Sell' }),
+      h('span', { class: 'kr-cost', text: `$${g.sellValue(t)}` }),
+    ], {
+      title: `Refund ${Math.round(g.mods.sellRate * 100)}% of what you invested.`,
+      onClick: () => this.handlers.onSell(t.id),
+    }));
+
+    if (t.def.kind === 'shooter') {
+      this.el.append(this.spoke(-200, 'kr-aim', [
+        h('span', { class: 'kr-spoke-label', text: 'Aim' }),
+        h('span', { class: 'kr-spoke-sub', text: AIM_LABEL[t.aim] }),
+      ], {
+        title: `Shoots ${AIM_HINT[t.aim]}. Click or press A to cycle.`,
+        onClick: () => this.handlers.onCycleAim(t.id),
+      }));
+    }
+    if (t.def.kind === 'barricade' && t.def.recruits) {
+      this.el.append(this.spoke(20, 'kr-rally', [
+        h('span', { class: 'kr-spoke-label', text: 'Rally' }),
+        h('span', { class: 'kr-spoke-sub', text: 'G' }),
+      ], {
+        title: 'Place the crew on a route within 150 pixels of this tower.',
+        onClick: () => this.handlers.onRally(t.id),
+      }));
+    }
+    if (t.def.kind === 'barricade' && !t.def.recruits) {
+      this.el.append(h('div', { class: 'kr-hp', text: t.rebuild > 0 ? 'Rebuilding' : `${Math.round(t.hp)} / ${t.maxHp}` }));
+    }
+    if (canSpec) {
+      (['power', 'control'] as const).forEach((choice, i) => {
+        const info = specializationInfo(t.def, choice);
+        const cost = Math.round(info.cost * g.mods.towerCost);
+        this.el.append(this.spoke(i === 0 ? -40 : 40, `kr-spec ${choice}`, [
+          h('span', { class: 'kr-spoke-label', text: info.name }),
+          h('span', { class: 'kr-spoke-sub', text: info.description }),
+          h('span', { class: 'kr-cost', text: `$${cost}` }),
+        ], {
+          disabled: g.money < cost,
+          title: info.description,
+          onClick: () => this.handlers.onSpecialize(t.id, choice),
+        }));
+      });
+    }
   }
 }
 

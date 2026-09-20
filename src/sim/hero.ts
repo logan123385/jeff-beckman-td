@@ -1,7 +1,7 @@
 import { dist, moveToward } from '../core/vec';
 import { JEFF } from '../data/jeff';
 import { advanceHeroCast, heroAttackSpeed, strikeNewHero } from './heroPowers';
-import { applyDamage, isTargetable } from './combat';
+import { applyDamage, abilityRank, isTargetable } from './combat';
 import type { Game } from './game';
 import type { Enemy } from './state';
 
@@ -9,7 +9,7 @@ export function updateHero(game: Game, dt: number): void {
   if (!game.heroEnabled) return;
   const h = game.hero;
   const def = game.heroDef;
-  h.moveBlend = Math.max(0,Math.min(1,(h.moveBlend??0)+(h.moving?1:-1)*dt*8));
+  h.moveBlend = Math.max(0,Math.min(1,(h.moveBlend??0)+(h.moving?1:-1)*dt*10));
   h.moving = false;
   h.castTimer = Math.max(0, (h.castTimer ?? 0) - dt);
   if (h.clampCooldown > 0) h.clampCooldown -= dt;
@@ -32,22 +32,30 @@ export function updateHero(game: Game, dt: number): void {
     h.targetId = null;
     if (h.downed <= 0) {
       h.hp = h.maxHp;
-      h.pos = { ...game.map.jeffStart };
-      h.anchor = { ...game.map.jeffStart };
       h.dest = null;
       h.orderTargetId = null;
       h.engaged = false;
       h.targetId = null;
       game.addEffect({ kind: 'ring', pos: { ...h.pos }, radius: 28, color: '#a5d6a7', ttl: 0.55, max: 0.55 });
-      game.addEffect({ kind: 'text', pos: { x: h.pos.x, y: h.pos.y - 40 }, text: 'Back on the job', color: '#a5d6a7', ttl: 1.2, max: 1.2 });
+      game.addEffect({
+        kind: 'text',
+        pos: { x: h.pos.x, y: h.pos.y - 40 },
+        text: 'READY TO DEPLOY',
+        color: '#a5d6a7',
+        ttl: 1.4,
+        max: 1.4,
+      });
     }
     return;
   }
+  if (!h.deployed) return;
 
   if (advanceHeroCast(game, dt)) { holdNearby(game); return; }
 
-  const coffee = h.coffeeTimer > 0 ? JEFF.coffee.speed : 1;
-  const speed = def.speed * game.mods.jeffSpeed * game.jeffSpeedAura * coffee * (def.id === 'mike' && (h.overdrive ?? 0) > 0 ? 1.65 : 1);
+  const coffee = h.coffeeTimer > 0 ? JEFF.coffee.speed * (1 + abilityRank(game, 4) * 0.08) : 1;
+  const ramp = h.moveBlend ?? 0;
+  const ease = ramp * ramp * (3 - 2 * ramp);
+  const speed = def.speed * game.mods.jeffSpeed * game.jeffSpeedAura * coffee * (def.id === 'mike' && (h.overdrive ?? 0) > 0 ? 1.65 : 1) * (0.48 + 0.52 * ease);
 
   if (h.pendingStrike !== undefined && h.swing <= (h.swingDuration ?? def.swingTime) * 0.52) {
     const target = game.enemies.find(e => e.id === h.pendingStrike && isTargetable(e));
@@ -112,17 +120,26 @@ function resolveOrderTarget(game: Game): Enemy | null {
   }
   const next = nearestPrey(game, false) ?? nearestPrey(game, true);
   h.orderTargetId = next?.id ?? null;
-  if (!next || !isTargetable(next)) return null;
+  if (!next) {
+    h.engaged = false;
+    return null;
+  }
+  if (!isTargetable(next)) return null;
   return next;
 }
+
+const HUNT_RADIUS = 190;
 
 function nearestPrey(game: Game, includePhased: boolean): Enemy | null {
   let best: Enemy | null = null;
   let bestD = Infinity;
+  const origin = game.hero.anchor;
+  const reach = game.heroDef.reach * game.mods.jeffReach;
   for (const e of game.enemies) {
     if (e.dead || e.escaped) continue;
     if (!includePhased && !isTargetable(e)) continue;
-    const d = dist(game.hero.pos, e.pos);
+    const d = dist(origin, e.pos);
+    if (d > HUNT_RADIUS + reach + e.def.radius) continue;
     if (d < bestD) {
       bestD = d;
       best = e;
@@ -145,7 +162,7 @@ function strike(game: Game, target: Enemy): void {
     game.addEffect({ kind: 'text', pos: { x: target.pos.x, y: target.pos.y - 28 }, text: 'WRENCH TAP', color: '#fff59d', ttl: 1.0, max: 1.0 });
     game.addEffect({ kind: 'ring', pos: { ...target.pos }, radius: 48, color: '#fff59d', ttl: 0.48, max: 0.48 });
   }
-  target.armorShred = JEFF.armorShred;
+  target.armorShred = Math.max(target.armorShred, JEFF.armorShred);
   target.shredTimer = JEFF.shredDuration;
   applyDamage(game, target, dmg, 'physical', 'jeff');
   const from = { x: h.pos.x + h.facing * 22, y: h.pos.y - 18 };
@@ -179,7 +196,7 @@ function strike(game: Game, target: Enemy): void {
 
 function holdNearby(game: Game): void {
   const h = game.hero;
-  const cap = ((h.taunt ?? 0) > 0 ? 5 : game.heroDef.holds) + game.mods.jeffHolds + (h.sleeveTimer > 0 ? JEFF.sleeve.extraHolds : 0);
+  const cap = ((h.taunt ?? 0) > 0 ? 5 : game.heroDef.holds) + game.mods.jeffHolds + (h.sleeveTimer > 0 ? JEFF.sleeve.extraHolds + abilityRank(game, 3) : 0);
   let held = 0;
   for (const e of game.enemies) if (e.heldBy?.kind === 'hero' && !e.dead) {
     if (held < cap) held++;

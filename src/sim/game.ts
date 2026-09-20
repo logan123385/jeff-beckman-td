@@ -1,5 +1,5 @@
 import { Rng } from '../core/rng';
-import { dist, type Vec } from '../core/vec';
+import { clamp, dist, type Vec } from '../core/vec';
 import { ENEMIES } from '../data/enemies';
 import { JEFF } from '../data/jeff';
 import { HEROES, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
@@ -9,11 +9,11 @@ import { TOWERS, TOWER_ORDER } from '../data/towers';
 import { specializeDef, specializationInfo, type Specialization } from '../data/specializations';
 import { generateEndlessWave, nightMutatorAt, proceduralIndex, type NightMutatorId } from '../data/night';
 import type { Difficulty, EnemyId, MapDef, Modifiers, RemasterId, TowerId, WaveDef } from '../data/types';
-import { AIM_ORDER, applyDamage, isTargetable } from './combat';
+import { AIM_ORDER, applyDamage, heroOnYard, isTargetable, missionXpToNext, predictedPos, abilityPower, abilityRangeFactor, abilityRank, scaledAbilityCooldown } from './combat';
 import { updateEnemies } from './enemies';
 import { updateHero } from './hero';
 import { Path } from './path';
-import type { ActiveSpawn, AimPriority, Clamp, Crew, Friendly, Effect, Enemy, GameStatus, Hero, Projectile, RunStats, Tower } from './state';
+import type { ActiveSpawn, AimPriority, Clamp, Crew, Friendly, Effect, Enemy, GameStatus, Hero, Projectile, RunStats, StrikeDrop, Tower } from './state';
 import { releaseFriendly, syncRecruits, updateFriendlies } from './friendlies';
 import { CREW_COOLDOWN, CREW_DURATION, updateCrew } from './crew';
 import { applyDescaler, updateAuras, updateTowers } from './towers';
@@ -34,6 +34,13 @@ export interface GameOptions {
 export const FIRST_WAVE_COUNTDOWN = 16;
 export const BETWEEN_WAVE_GRACE = 12;
 export const EARLY_CALL_BONUS_PER_SECOND = 1.5;
+export const STRIKE_COOLDOWN = 62;
+export const STRIKE_RADIUS = 80;
+export const STRIKE_DAMAGE = 54;
+export const BUILD_TIME = 0.82;
+export const HERO_LEVEL_CAP = 10;
+export const SPAWN_LEAD = 36;
+export const LANE_SPREAD = [-16, 16, -8, 8, 0, -12, 12] as const;
 
 export class Game {
   readonly map: MapDef;
@@ -71,6 +78,9 @@ export class Game {
   completedWaves = 0;
   private clearedWave = 0;
   crewCooldown = 0;
+  strikeCooldown = 0;
+  strikes: StrikeDrop[] = [];
+  waveLeaks = 0;
 
   money: number;
   lives: number;
@@ -88,6 +98,18 @@ export class Game {
   seen = new Set<EnemyId>();
   /** Per-frame support buffs keyed by tower id. */
   buffs = new Map<number, { dmg: number; range: number; rate: number }>();
+  /** In-mission hero rank (1–10). Buffs hero damage and grows max HP. */
+  heroLevel = 1;
+  heroXp = 0;
+  /** Per-ability stars (0–3). One pick per level-up from 2–10. */
+  abilityRanks: [number, number, number, number, number] = [0, 0, 0, 0, 0];
+  pendingRankUps = 0;
+  /** Brief presentation freeze; ticks down in update and skips sim. */
+  hitstop = 0;
+  combo = 0;
+  comboTimer = 0;
+  /** Set when a wave just cleared so the HUD can auto-pause. */
+  waveJustCleared = false;
 
   private idCounter = 1;
 
@@ -115,6 +137,7 @@ export class Game {
     this.hero = {
       id: this.heroDef.id,
       pos: { ...map.jeffStart },
+      prev: { ...map.jeffStart },
       anchor: { ...map.jeffStart },
       dest: null,
       hp: maxHp,
@@ -129,6 +152,7 @@ export class Game {
       sleeveTimer: 0,
       coffeeTimer: 0,
       downed: 0,
+      deployed: false,
       facing: 1,
       swing: 0,
       orderTargetId: null,
@@ -154,6 +178,59 @@ export class Game {
 
   addEffect(e: Effect): void {
     if (this.effects.length < 400) this.effects.push(e);
+  }
+
+  requestHitstop(seconds: number): void {
+    if (seconds <= 0) return;
+    this.hitstop = Math.min(0.14, Math.max(this.hitstop, seconds));
+  }
+
+  grantHeroXp(amount: number): void {
+    if (amount <= 0 || this.heroLevel >= HERO_LEVEL_CAP) return;
+    this.heroXp += amount;
+    while (this.heroLevel < HERO_LEVEL_CAP) {
+      const need = missionXpToNext(this.heroLevel);
+      if (this.heroXp < need) break;
+      this.heroXp -= need;
+      this.heroLevel += 1;
+      const bonus = Math.round(this.hero.maxHp * 0.08);
+      this.hero.maxHp += bonus;
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + bonus + 18);
+      this.pendingRankUps += 1;
+      this.addEffect({ kind: 'ring', pos: { ...this.hero.pos }, radius: 52, color: '#ffe082', ttl: 0.7, max: 0.7 });
+      this.addEffect({
+        kind: 'text',
+        pos: { x: this.hero.pos.x, y: this.hero.pos.y - 56 },
+        text: `${this.heroDef.name.toUpperCase()} LV ${this.heroLevel}`,
+        color: '#fff3c4',
+        ttl: 1.6,
+        max: 1.6,
+      });
+      this.requestHitstop(0.07);
+    }
+  }
+
+  /** Spend one pending level-up pick to rank a hero skill (cap 3). */
+  rankAbility(slot: AbilitySlot): boolean {
+    if (this.status !== 'playing' || this.pendingRankUps <= 0) return false;
+    if (![0, 1, 2, 3, 4].includes(slot)) return false;
+    const cur = this.abilityRanks[slot] ?? 0;
+    if (cur >= 3) return false;
+    this.abilityRanks[slot] = cur + 1;
+    this.pendingRankUps -= 1;
+    const ability = this.heroDef.abilities[slot];
+    const pos = this.hero.deployed ? this.hero.pos : { x: 480, y: 280 };
+    this.addEffect({ kind: 'ring', pos: { ...pos }, radius: 44, color: '#ffe082', ttl: 0.55, max: 0.55 });
+    this.addEffect({
+      kind: 'text',
+      pos: { x: pos.x, y: pos.y - 52 },
+      text: `${ability.name.toUpperCase()} ★${this.abilityRanks[slot]}`,
+      color: '#fff3c4',
+      ttl: 1.3,
+      max: 1.3,
+    });
+    this.requestHitstop(0.05);
+    return true;
   }
 
   // ---------------------------------------------------------------- queries
@@ -237,11 +314,15 @@ export class Game {
   }
 
   clampRadius(): number {
-    return JEFF.clamp.radius;
+    return JEFF.clamp.radius * abilityRangeFactor(this, 0);
   }
 
   clampSlow(): number {
-    return JEFF.clamp.slow;
+    return Math.min(0.85, JEFF.clamp.slow * (1 + abilityRank(this, 0) * 0.08));
+  }
+
+  clampHolds(): number {
+    return JEFF.clamp.holds + abilityRank(this, 0);
   }
 
   // ---------------------------------------------------------------- commands
@@ -253,10 +334,16 @@ export class Game {
     const rally = this.nearestPathPoint(pos);
     if (dist(pos, rally) > 55 || rally.x < 16 || rally.x > 944 || rally.y < 24 || rally.y > 576) return false;
     this.crewCooldown = CREW_COOLDOWN;
-    for (let i = 0; i < 2; i++) this.crew.push({
-      id: this.nextEntityId(), pos: { x: rally.x + (i === 0 ? -12 : 12), y: rally.y + (i === 0 ? -7 : 7) },
-      hp: 110, maxHp: 110, timeLeft: CREW_DURATION, attackTimer: 0, swing: 0, facing: 1,
-    });
+    const path = this.paths[this.nearestPath(rally).pathIdx]!;
+    const dir = path.directionAt(Math.max(0, path.nearestPoint(rally).progress));
+    for (let i = 0; i < 2; i++) {
+      const home = { x: rally.x + (i === 0 ? -12 : 12), y: rally.y + (i === 0 ? -7 : 7) };
+      const start = { x: home.x - dir.x * 78, y: home.y - dir.y * 78 };
+      this.crew.push({
+        id: this.nextEntityId(), pos: start, prev: { ...start }, home,
+        hp: 110, maxHp: 110, timeLeft: CREW_DURATION, attackTimer: 0, swing: 0, facing: dir.x >= 0 ? 1 : -1,
+      });
+    }
     this.addEffect({ kind: 'ring', pos: rally, radius: 44, color: '#a8df89', ttl: 0.65, max: 0.65 });
     this.addEffect({ kind: 'text', pos: { x: rally.x, y: rally.y - 48 }, text: 'CREW ON SITE!', color: '#e5ffbb', ttl: 1.1, max: 1.1 });
     return true;
@@ -265,7 +352,7 @@ export class Game {
   setRally(towerId: number, pos: Vec): boolean {
     if (this.status !== 'playing' || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
     const t = this.towerById(towerId);
-    if (!t || t.def.kind !== 'barricade') return false;
+    if (!t || t.def.kind !== 'barricade' || !t.def.recruits) return false;
     const rally = this.nearestPathPoint(pos);
     if (dist(pos, rally) > 55 || dist(t.pos, rally) > 150 || rally.x < 16 || rally.x > 944 || rally.y < 24 || rally.y > 576) return false;
     for (const e of this.enemies) if (e.heldBy?.kind === 'tower' && e.heldBy.id === t.id) e.heldBy = null;
@@ -321,8 +408,13 @@ export class Game {
       invested: cost,
       charge: 0,
       aim: 'first',
+      build: BUILD_TIME,
+      lastTargetId: 0,
     });
     syncRecruits(this, this.towers[this.towers.length - 1]!);
+    this.addEffect({ kind: 'ring', pos: { ...pos }, radius: 34, color: '#ffe082', ttl: 0.42, max: 0.42 });
+    this.addEffect({ kind: 'splash', pos: { ...pos }, radius: 20, color: def.color, ttl: 0.28, max: 0.28 });
+    this.addEffect({ kind: 'text', pos: { x: pos.x, y: pos.y - 36 }, text: 'INSTALLING', color: '#ffe082', ttl: 0.7, max: 0.7 });
     return true;
   }
 
@@ -388,7 +480,7 @@ export class Game {
 
   /** Move-only order. Clears any attack lock — Diablo right-click / ground click. */
   commandHero(pos: Vec): boolean {
-    if (!this.heroEnabled || this.status !== 'playing' || this.hero.downed > 0) return false;
+    if (!heroOnYard(this) || this.status !== 'playing') return false;
     if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || this.hero.cast) return false;
     const x = Math.max(10, Math.min(950, pos.x));
     const y = Math.max(10, Math.min(590, pos.y));
@@ -398,14 +490,13 @@ export class Game {
     this.hero.orderTargetId = null;
     this.hero.engaged = false;
     this.hero.targetId = null;
-    for (const e of this.enemies) if (e.heldBy?.kind === 'hero') e.heldBy = null;
     this.addEffect({ kind: 'ring', pos: { x, y }, radius: 16, color: '#a5d6a7', ttl: 0.35, max: 0.35 });
     return true;
   }
 
   /** First wrench click starts a hunt. Jeff stays on leaks until a move order. */
   commandHeroAttack(enemyId: number): boolean {
-    if (!this.heroEnabled || this.status !== 'playing' || this.hero.downed > 0) return false;
+    if (!heroOnYard(this) || this.status !== 'playing') return false;
     if (this.hero.cast) return false;
     const enemy = this.enemies.find((e) => e.id === enemyId);
     if (!enemy || enemy.dead || enemy.escaped) return false;
@@ -427,18 +518,52 @@ export class Game {
     return true;
   }
 
-  useAbility(slot: AbilitySlot): boolean {
+  /** Kingdom Rush click-to-place. Hero must be off the yard and not still down. */
+  deployHero(pos: Vec): boolean {
+    if (!this.heroEnabled || this.status !== 'playing') return false;
+    const h = this.hero;
+    if (h.downed > 0 || h.deployed) return false;
+    if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
+    const x = clamp(pos.x, 24, 936);
+    const y = clamp(pos.y, 28, 572);
+    h.pos = { x, y };
+    h.prev = { x, y };
+    h.anchor = { x, y };
+    h.dest = null;
+    h.hp = h.maxHp;
+    h.deployed = true;
+    h.orderTargetId = null;
+    h.engaged = false;
+    h.targetId = null;
+    h.cast = undefined;
+    h.swing = 0;
+    this.addEffect({ kind: 'ring', pos: { x, y }, radius: 36, color: this.heroDef.color, ttl: 0.7, max: 0.7 });
+    this.addEffect({ kind: 'splash', pos: { x, y }, radius: 28, color: '#ffe082', ttl: 0.4, max: 0.4 });
+    this.addEffect({
+      kind: 'text',
+      pos: { x, y: y - 48 },
+      text: `${this.heroDef.name.toUpperCase()} IN`,
+      color: '#fff3c4',
+      ttl: 1.1,
+      max: 1.1,
+    });
+    return true;
+  }
+
+  useAbility(slot: AbilitySlot, aim?: { pos: { x: number; y: number }; enemyId?: number }): boolean {
     if (![0, 1, 2, 3, 4].includes(slot)) return false;
+    if (this.heroDef.id !== 'jeff') return useHeroAbility(this, slot, aim);
     return [() => this.useClamp(), () => this.useShutoff(), () => this.usePulse(), () => this.useSleeve(), () => this.useCoffee()][slot]!();
   }
 
   useClamp(): boolean {
     if (this.heroDef.id !== 'jeff') return useHeroAbility(this, 0);
-    if (!this.heroEnabled || this.status !== 'playing') return false;
+    if (!this.heroEnabled || this.status !== 'playing' || !heroOnYard(this)) return false;
     const h = this.hero;
-    if (h.downed > 0 || h.clampCooldown > 0) return false;
-    h.clampCooldown = JEFF.clamp.cooldown * this.mods.cooldown / this.jeffCdAura;
-    this.clamp = { pos: { ...h.pos }, timeLeft: JEFF.clamp.duration };
+    if (h.clampCooldown > 0) return false;
+    const pwr = abilityPower(this, 0);
+    h.clampCooldown = scaledAbilityCooldown(this, 0);
+    this.clamp = { pos: { ...h.pos }, timeLeft: JEFF.clamp.duration * pwr };
     h.castTimer = 0.72;
     this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'clamp', ttl: 1.15, max: 1.15 });
     return true;
@@ -446,13 +571,14 @@ export class Game {
 
   useShutoff(): boolean {
     if (this.heroDef.id !== 'jeff') return useHeroAbility(this, 1);
-    if (!this.heroEnabled || this.status !== 'playing') return false;
+    if (!this.heroEnabled || this.status !== 'playing' || !heroOnYard(this)) return false;
     const h = this.hero;
-    if (h.downed > 0 || h.shutoffCooldown > 0) return false;
-    h.shutoffCooldown = JEFF.shutoff.cooldown * this.mods.cooldown / this.jeffCdAura;
-    this.globalSlow = JEFF.shutoff.slow;
-    this.globalSlowTimer = JEFF.shutoff.duration;
-    this.spawnPause = JEFF.shutoff.duration;
+    if (h.shutoffCooldown > 0) return false;
+    const pwr = abilityPower(this, 1);
+    h.shutoffCooldown = scaledAbilityCooldown(this, 1);
+    this.globalSlow = Math.min(0.9, JEFF.shutoff.slow * (1 + abilityRank(this, 1) * 0.06));
+    this.globalSlowTimer = JEFF.shutoff.duration * pwr;
+    this.spawnPause = JEFF.shutoff.duration * pwr;
     h.castTimer = 0.72;
     this.addEffect({ kind: 'skill', pos: { x: 480, y: 300 }, skill: 'shutoff', ttl: 1.8, max: 1.8 });
     return true;
@@ -460,18 +586,20 @@ export class Game {
 
   usePulse(): boolean {
     if (this.heroDef.id !== 'jeff') return useHeroAbility(this, 2);
-    if (!this.heroEnabled || this.status !== 'playing') return false;
+    if (!this.heroEnabled || this.status !== 'playing' || !heroOnYard(this)) return false;
     const h = this.hero;
-    if (h.downed > 0 || h.pulseCooldown > 0) return false;
-    h.pulseCooldown = JEFF.pulse.cooldown * this.mods.cooldown / this.jeffCdAura;
+    if (h.pulseCooldown > 0) return false;
+    const pwr = abilityPower(this, 2);
+    const radius = JEFF.pulse.radius * abilityRangeFactor(this, 2);
+    h.pulseCooldown = scaledAbilityCooldown(this, 2);
     h.castTimer = 0.72;
     this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'pulse', ttl: 1.05, max: 1.05 });
     for (const e of this.enemies) {
-      if (!isTargetable(e) || dist(e.pos, h.pos) > JEFF.pulse.radius + e.def.radius) continue;
-      e.armorShred = Math.max(e.armorShred, JEFF.pulse.shred);
-      e.shredTimer = Math.max(e.shredTimer, 3);
-      e.stun = Math.max(e.stun, JEFF.pulse.stun * this.mods.stunDuration);
-      applyDamage(this, e, JEFF.pulse.damage * this.mods.jeffDamage, 'physical', 'jeff');
+      if (!isTargetable(e) || dist(e.pos, h.pos) > radius + e.def.radius) continue;
+      e.armorShred = Math.max(e.armorShred, Math.min(0.7, JEFF.pulse.shred * (1 + abilityRank(this, 2) * 0.1)));
+      e.shredTimer = Math.max(e.shredTimer, 3 * pwr);
+      e.stun = Math.max(e.stun, JEFF.pulse.stun * pwr * this.mods.stunDuration);
+      applyDamage(this, e, JEFF.pulse.damage * pwr * this.mods.jeffDamage, 'physical', 'jeff');
       this.addEffect({ kind: 'hit', pos: { ...e.pos }, color: '#ffb74d', ttl: 0.38, max: 0.38 });
     }
     return true;
@@ -479,11 +607,11 @@ export class Game {
 
   useSleeve(): boolean {
     if (this.heroDef.id !== 'jeff') return useHeroAbility(this, 3);
-    if (!this.heroEnabled || this.status !== 'playing') return false;
+    if (!this.heroEnabled || this.status !== 'playing' || !heroOnYard(this)) return false;
     const h = this.hero;
-    if (h.downed > 0 || h.sleeveCooldown > 0) return false;
-    h.sleeveCooldown = JEFF.sleeve.cooldown * this.mods.cooldown / this.jeffCdAura;
-    h.sleeveTimer = JEFF.sleeve.duration;
+    if (h.sleeveCooldown > 0) return false;
+    h.sleeveCooldown = scaledAbilityCooldown(this, 3);
+    h.sleeveTimer = JEFF.sleeve.duration * abilityPower(this, 3);
     h.castTimer = 0.72;
     this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'sleeve', ttl: 1.1, max: 1.1 });
     return true;
@@ -491,12 +619,13 @@ export class Game {
 
   useCoffee(): boolean {
     if (this.heroDef.id !== 'jeff') return useHeroAbility(this, 4);
-    if (!this.heroEnabled || this.status !== 'playing') return false;
+    if (!this.heroEnabled || this.status !== 'playing' || !heroOnYard(this)) return false;
     const h = this.hero;
-    if (h.downed > 0 || h.coffeeCooldown > 0) return false;
-    h.coffeeCooldown = JEFF.coffee.cooldown * this.mods.cooldown / this.jeffCdAura;
-    h.coffeeTimer = JEFF.coffee.duration;
-    h.hp = Math.min(h.maxHp, h.hp + JEFF.coffee.heal);
+    if (h.coffeeCooldown > 0) return false;
+    const pwr = abilityPower(this, 4);
+    h.coffeeCooldown = scaledAbilityCooldown(this, 4);
+    h.coffeeTimer = JEFF.coffee.duration * pwr;
+    h.hp = Math.min(h.maxHp, h.hp + JEFF.coffee.heal * pwr);
     h.castTimer = 0.72;
     this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'coffee', ttl: 1.15, max: 1.15 });
     return true;
@@ -509,7 +638,25 @@ export class Game {
     return true;
   }
 
-  /** Start the pending wave immediately. Returns the early-call bonus paid. */
+  /** Kingdom Rush–style targeted bombardment. Three fire dumps on a point you pick. */
+  torchStrike(pos: Vec): boolean {
+    if (this.status !== 'playing' || this.strikeCooldown > 0) return false;
+    if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
+    if (pos.x < 12 || pos.x > 948 || pos.y < 18 || pos.y > 582) return false;
+    this.strikeCooldown = STRIKE_COOLDOWN;
+    for (let i = 0; i < 3; i++) {
+      this.strikes.push({
+        pos: { x: pos.x + this.rng.range(-16, 16), y: pos.y + this.rng.range(-12, 12) },
+        delay: 0.12 + i * 0.38,
+        radius: STRIKE_RADIUS - i * 5,
+        damage: STRIKE_DAMAGE * (1 + i * 0.18),
+        fired: false,
+      });
+    }
+    this.addEffect({ kind: 'ring', pos: { ...pos }, radius: STRIKE_RADIUS, color: '#ff8a50', ttl: 0.7, max: 0.7 });
+    this.addEffect({ kind: 'text', pos: { x: pos.x, y: pos.y - 46 }, text: 'TORCH RAIN', color: '#ffcc80', ttl: 1.1, max: 1.1 });
+    return true;
+  }
   callNextWave(): number {
     if (this.status !== 'playing' || this.allWavesStarted || this.waveCountdown < 0 || (this.endless && this.waveActive)) return 0;
     this.recordClearedWave();
@@ -525,18 +672,19 @@ export class Game {
 
   damageHero(amount: number): void {
     const h = this.hero;
-    if (h.downed > 0) return;
+    if (!h.deployed || h.downed > 0) return;
     h.hp -= amount * (1 - this.heroDef.armor) * ((h.shield ?? 0) > 0 ? .65 : 1);
     if (h.hp <= 0) {
       h.hp = 0;
       h.downed = JEFF.respawn * this.mods.jeffRespawn;
+      h.deployed = false;
       h.dest = null;
       h.orderTargetId = null;
       h.targetId = null;
       h.cast = undefined; h.castTimer = 0; h.pendingStrike = undefined; h.swing = 0;
       h.overdrive = 0; h.shield = 0; h.lifesteal = 0; h.taunt = 0;
       for (const e of this.enemies) if (e.heldBy?.kind === 'hero') e.heldBy = null;
-      this.addEffect({ kind: 'text', pos: { x: h.pos.x, y: h.pos.y - 40 }, text: `${this.heroDef.name} needs a minute`, color: '#ff8a80', ttl: 1.4, max: 1.4 });
+      this.addEffect({ kind: 'text', pos: { x: h.pos.x, y: h.pos.y - 40 }, text: `${this.heroDef.name} is down`, color: '#ff8a80', ttl: 1.4, max: 1.4 });
     }
   }
 
@@ -553,10 +701,11 @@ export class Game {
     return false;
   }
 
-  spawnEnemy(id: EnemyId, pathIdx: number, progress = 0): Enemy {
+  spawnEnemy(id: EnemyId, pathIdx: number, progress = -SPAWN_LEAD): Enemy {
     const def = ENEMIES[id];
     const hp = Math.round(def.hp * this.difficulty.hpMult * this.waveHpScale);
     const path = this.paths[pathIdx] ?? this.paths[0]!;
+    const at = path.pointAt(progress);
     const e: Enemy = {
       id: this.nextEntityId(),
       def,
@@ -564,8 +713,9 @@ export class Game {
       maxHp: hp,
       pathIdx: this.paths[pathIdx] ? pathIdx : 0,
       progress,
-      pos: path.pointAt(progress),
-      lane: this.rng.range(-10, 10),
+      pos: { ...at },
+      prev: { ...at },
+      lane: this.rng.range(-16, 16),
       speedMult: this.difficulty.speedMult,
       slow: 0,
       stun: 0,
@@ -579,6 +729,7 @@ export class Game {
       ventTimer: 5,
       dead: false,
       escaped: false,
+      deathAge: 0,
       attackTimer: 0.5,
       wobble: this.rng.range(0, 6),
       dotDps: 0,
@@ -588,7 +739,9 @@ export class Game {
       haste: 0,
       laneTimer: 7,
       hitFlash: 0,
+      incoming: 0,
     };
+    e.lane = LANE_SPREAD[(e.id + pathIdx * 3) % LANE_SPREAD.length]! + this.rng.range(-2.2, 2.2);
     this.enemies.push(e);
     this.seen.add(id);
     return e;
@@ -598,6 +751,16 @@ export class Game {
 
   update(dt: number): void {
     if (this.status !== 'playing') return;
+    if (this.hitstop > 0) {
+      this.hitstop = Math.max(0, this.hitstop - dt);
+      this.tickPresentation(dt);
+      return;
+    }
+    if (this.comboTimer > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) this.combo = 0;
+    }
+    this.snapshotMotion();
     this.time += dt;
 
     if (this.globalSlowTimer > 0) this.globalSlowTimer -= dt;
@@ -621,12 +784,13 @@ export class Game {
     updateHeroSummons(this, dt);
     updateEnemies(this, dt);
     this.updateProjectiles(dt);
+    this.updateStrikes(dt);
     updateHeroMissiles(this, dt);
     for (const fx of this.heroVisuals) fx.left -= dt;
     this.heroVisuals = this.heroVisuals.filter(fx => fx.left > 0);
     if (this.heroNotice) { this.heroNotice.left -= dt; if (this.heroNotice.left <= 0) this.heroNotice = null; }
 
-    this.enemies = this.enemies.filter((e) => !e.dead && !e.escaped);
+    this.enemies = this.enemies.filter((e) => !e.escaped && !(e.dead && e.deathAge <= 0));
     this.recordClearedWave();
     for (const fx of this.effects) fx.ttl -= dt;
     this.effects = this.effects.filter((fx) => fx.ttl > 0);
@@ -639,15 +803,41 @@ export class Game {
     }
   }
 
+  /** Visual-only clocks that keep running through hitstop so impacts still read. */
+  private tickPresentation(dt: number): void {
+    for (const fx of this.effects) fx.ttl -= dt;
+    this.effects = this.effects.filter((fx) => fx.ttl > 0);
+    for (const e of this.enemies) {
+      if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt);
+      if (e.dead && e.deathAge > 0) e.deathAge = Math.max(0, e.deathAge - dt);
+    }
+    for (const t of this.towers) if (t.recoil > 0) t.recoil -= dt;
+  }
+
+  private snapshotMotion(): void {
+    const cap = (pos: { x: number; y: number }, prev: { x: number; y: number } | undefined) => {
+      if (!prev) return;
+      prev.x = pos.x;
+      prev.y = pos.y;
+    };
+    cap(this.hero.pos, this.hero.prev);
+    for (const e of this.enemies) cap(e.pos, e.prev);
+    for (const p of this.projectiles) cap(p.pos, p.prev);
+    for (const f of this.friendlies) cap(f.pos, f.prev);
+    for (const c of this.crew) cap(c.pos, c.prev);
+    for (const s of this.heroSummons) cap(s.pos, s.prev);
+    for (const m of this.heroMissiles) cap(m.pos, m.prev);
+  }
+
   private holdWithClamp(): void {
     const c = this.clamp;
     if (!c) return;
     let held = 0;
     for (const e of this.enemies) if (e.heldBy?.kind === 'clamp') held++;
     for (const e of this.enemies) {
-      if (held >= JEFF.clamp.holds) break;
+      if (held >= this.clampHolds()) break;
       if (!isTargetable(e) || e.def.flying || e.heldBy !== null) continue;
-      if (dist(e.pos, c.pos) > JEFF.clamp.radius + e.def.radius) continue;
+      if (dist(e.pos, c.pos) > this.clampRadius() + e.def.radius) continue;
       e.heldBy = { kind: 'clamp' };
       held++;
     }
@@ -656,6 +846,13 @@ export class Game {
   private recordClearedWave(): void {
     if (this.lives > 0 && this.waveIdx > this.clearedWave && !this.waveActive) {
       this.completedWaves = this.waveIdx; this.clearedWave = this.waveIdx;
+      this.waveJustCleared = this.waveIdx > 0;
+      if (this.waveLeaks === 0 && this.waveIdx > 0) {
+        const bonus = 16 + this.waveIdx * 2;
+        this.money += bonus;
+        this.stats.moneyEarned += bonus;
+        this.addEffect({ kind: 'text', pos: { x: 480, y: 248 }, text: `CLEAN CALL · +$${bonus}`, color: '#b8ef9a', ttl: 1.8, max: 1.8 });
+      }
       if (this.endless) {
         const payout = 70 + this.waveIdx * 9;
         this.money += payout; this.stats.moneyEarned += payout; this.waveCountdown = 10;
@@ -677,7 +874,7 @@ export class Game {
       while (s.timer <= 0 && s.remaining > 0) {
         this.spawnEnemy(s.enemy, s.path);
         s.remaining--;
-        s.timer += s.interval;
+        s.timer += Math.max(s.interval, 1 / 60);
       }
     }
     this.spawns = this.spawns.filter((s) => s.remaining > 0);
@@ -703,6 +900,7 @@ export class Game {
       duration = Math.max(duration, g.delay + (g.count - 1) * g.interval);
     }
     this.waveIdx++;
+    this.waveLeaks = 0;
     if (this.endless) {
       const scripted = index < this.map.waves.length;
       this.nightMutator = scripted ? null : nightMutatorAt(proceduralIndex(index, this.map.waves.length));
@@ -710,20 +908,43 @@ export class Game {
     this.waveCountdown = this.allWavesStarted ? -1 : duration + BETWEEN_WAVE_GRACE;
   }
 
+  private updateStrikes(dt: number): void {
+    this.strikeCooldown = Math.max(0, this.strikeCooldown - dt);
+    for (const s of this.strikes) {
+      s.delay -= dt;
+      if (s.delay > 0 || s.fired) continue;
+      s.fired = true;
+      this.addEffect({ kind: 'splash', pos: { ...s.pos }, radius: s.radius, color: '#ff7043', ttl: 0.48, max: 0.48 });
+      this.addEffect({ kind: 'ring', pos: { ...s.pos }, radius: s.radius, color: '#ffcc80', ttl: 0.4, max: 0.4 });
+      this.addEffect({ kind: 'hit', pos: { ...s.pos }, color: '#fff3e0', ttl: 0.22, max: 0.22 });
+      for (const e of this.enemies) {
+        if (!isTargetable(e) || dist(e.pos, s.pos) > s.radius + e.def.radius) continue;
+        e.stun = Math.max(e.stun, e.def.traits.includes('boss') ? 0.12 : 0.28);
+        applyDamage(this, e, s.damage, 'fire', 'torch');
+      }
+    }
+    this.strikes = this.strikes.filter((s) => !s.fired || s.delay > -0.35);
+  }
+
   private updateProjectiles(dt: number): void {
     const remaining: Projectile[] = [];
     for (const p of this.projectiles) {
+      p.life += dt;
       const target = this.enemies.find((e) => e.id === p.targetId && !e.dead && !e.escaped);
-      const goal = target ? target.pos : p.lastTargetPos;
-      if (target) p.lastTargetPos = { ...target.pos };
+      if (p.home && target) p.lastTargetPos = predictedPos(this, target, 0.08);
+      const goal = p.lastTargetPos;
       const step = p.speed * this.projSpeedMult * dt;
       const d = dist(p.pos, goal);
-      if (d > step + 4) {
+      const timedOut = p.life > p.ttl;
+      if (d > step + 4 && !timedOut) {
         p.pos = { x: p.pos.x + ((goal.x - p.pos.x) / d) * step, y: p.pos.y + ((goal.y - p.pos.y) / d) * step };
         remaining.push(p);
         continue;
       }
       p.pos = { ...goal };
+      const release = (e: Enemy | undefined) => {
+        if (e) e.incoming = Math.max(0, e.incoming - p.damage);
+      };
       if (p.splash > 0) {
         this.addEffect({ kind: 'splash', pos: { ...goal }, radius: p.splash, color: p.color, ttl: 0.3, max: 0.3 });
         for (const e of this.enemies) {
@@ -733,10 +954,21 @@ export class Game {
             if (p.shred || p.dot) applyDescaler(e, p.shred ?? 0, p.dot ?? 0, p.dotTime ?? 3);
           }
         }
+        release(target);
       } else if (target) {
         applyDamage(this, target, p.damage, p.damageType, p.source, { groundMult: p.groundMult });
         this.addEffect({ kind: 'hit', pos: { ...goal }, color: p.color, ttl: 0.15, max: 0.15 });
         if (p.shred || p.dot) applyDescaler(target, p.shred ?? 0, p.dot ?? 0, p.dotTime ?? 3);
+        release(target);
+      } else {
+        const next = this.enemies.find((e) => isTargetable(e) && dist(e.pos, p.pos) < 36);
+        if (next) {
+          applyDamage(this, next, p.damage, p.damageType, p.source, { groundMult: p.groundMult });
+          this.addEffect({ kind: 'hit', pos: { ...next.pos }, color: p.color, ttl: 0.12, max: 0.12 });
+        } else {
+          this.addEffect({ kind: 'hit', pos: { ...p.pos }, color: p.color, ttl: 0.12, max: 0.12 });
+        }
+        release(target);
       }
     }
     this.projectiles = remaining;

@@ -12,18 +12,21 @@ import {
   PHASE_HIDDEN_SECONDS,
   PHASE_VISIBLE_SECONDS,
 } from '../data/enemies';
-import { JEFF } from '../data/jeff';
 import { friendlyMitigation } from './heroPowers';
 import { damageFriendly } from './friendlies';
 import { CREW_REACH } from './crew';
 import type { Game } from './game';
 import type { Enemy } from './state';
-import { applyDamage } from './combat';
+import { applyDamage, heroOnYard } from './combat';
 import { damageBarricade, releaseHeldBy, towerHasFreezeProtection } from './towers';
 
 export function updateEnemies(game: Game, dt: number): void {
   for (const e of game.enemies) {
-    if (e.dead || e.escaped) continue;
+    if (e.escaped) continue;
+    if (e.dead) {
+      e.deathAge = Math.max(0, e.deathAge - dt);
+      continue;
+    }
     tickTimers(game, e, dt);
     validateHold(game, e);
     if (!e.heldBy) e.attackSwing = 0;
@@ -38,6 +41,8 @@ export function updateEnemies(game: Game, dt: number): void {
       e.heldBy = null;
       game.lives -= e.def.livesCost;
       game.stats.escaped++;
+      game.waveLeaks++;
+      game.requestHitstop(0.06);
       game.addEffect({ kind: 'text', pos: { x: e.pos.x - 30, y: e.pos.y - 20 }, text: `-${e.def.livesCost} life`, color: '#ff5252', ttl: 1.2, max: 1.2 });
       continue;
     }
@@ -45,6 +50,32 @@ export function updateEnemies(game: Game, dt: number): void {
     const dir = path.directionAt(e.progress);
     e.pos = { x: base.x - dir.y * e.lane, y: base.y + dir.x * e.lane };
     if (e.heldBy !== null && e.stun <= 0) attackHolder(game, e, dt);
+  }
+  packLanes(game, dt);
+}
+
+/** Nudge stacked ground leaks apart so a wave reads as a column, not a blob. */
+function packLanes(game: Game, dt: number): void {
+  const groups = new Map<number, typeof game.enemies>();
+  for (const e of game.enemies) {
+    if (e.dead || e.escaped || e.heldBy || e.stun > 0 || e.def.flying) continue;
+    const list = groups.get(e.pathIdx);
+    if (list) list.push(e);
+    else groups.set(e.pathIdx, [e]);
+  }
+  const k = Math.min(1, dt * 6);
+  for (const list of groups.values()) {
+    list.sort((a, b) => a.progress - b.progress);
+    for (let i = 1; i < list.length; i++) {
+      const a = list[i - 1]!;
+      const b = list[i]!;
+      if (b.progress - a.progress > 26) continue;
+      if (Math.abs(b.lane - a.lane) > 9) continue;
+      const dir = b.lane >= a.lane ? 1 : -1;
+      b.lane += dir * 22 * k;
+      if (b.lane > 18) b.lane = 18;
+      else if (b.lane < -18) b.lane = -18;
+    }
   }
 }
 
@@ -95,10 +126,12 @@ function tickTimers(game: Game, e: Enemy, dt: number): void {
     e.laneTimer -= dt;
     if (e.laneTimer <= 0) {
       e.laneTimer = LANE_SWAP_SECONDS;
+      const oldPath = game.paths[e.pathIdx]!;
       const next = (e.pathIdx + 1) % game.paths.length;
       const path = game.paths[next]!;
+      const frac = oldPath.length > 0 ? e.progress / oldPath.length : 0;
       e.pathIdx = next;
-      e.progress = Math.min(e.progress, Math.max(0, path.length - 8));
+      e.progress = Math.max(0, Math.min(path.length - 8, frac * path.length));
       e.heldBy = null;
     }
   }
@@ -143,11 +176,11 @@ function validateHold(game: Game, e: Enemy): void {
     }
     case 'hero': {
       const hero = game.hero;
-      if (!game.heroEnabled || hero.downed > 0 || hero.dest !== null || dist(hero.pos, e.pos) > Math.min(44, game.heroDef.reach * game.mods.jeffReach) + e.def.radius + 6) e.heldBy = null;
+      if (!heroOnYard(game) || dist(hero.pos, e.pos) > Math.min(44, game.heroDef.reach * game.mods.jeffReach) + e.def.radius + 6) e.heldBy = null;
       return;
     }
     case 'clamp': {
-      if (!game.clamp || dist(game.clamp.pos, e.pos) > JEFF.clamp.radius + e.def.radius) e.heldBy = null;
+      if (!game.clamp || dist(game.clamp.pos, e.pos) > game.clampRadius() + e.def.radius) e.heldBy = null;
       return;
     }
     default: {

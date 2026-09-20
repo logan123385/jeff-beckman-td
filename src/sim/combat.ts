@@ -1,4 +1,5 @@
 import { clamp, dist } from '../core/vec';
+import { ABILITY_RANK_CAP, type AbilitySlot } from '../data/heroes';
 import { BOSS_PHASE_SPEED_BONUS, BOSS_PHASE_THRESHOLDS, BOSS_SUMMON_COUNT } from '../data/enemies';
 import { MINERAL_ENEMIES, TOWERS } from '../data/towers';
 import type { DamageType, EnemyId, TargetMode, TowerId } from '../data/types';
@@ -6,10 +7,58 @@ import type { Game } from './game';
 import type { AimPriority, DamageSource, Enemy, Tower } from './state';
 
 export const MARKED_DAMAGE = 1.2;
+export const CORPSE_TIME = 0.46;
+export { ABILITY_RANK_CAP };
 
 export interface DamageOpts {
   /** Multiplier applied only when the victim is a ground enemy (anti-air specialists). */
   groundMult?: number;
+}
+
+/** True when the hero is actually on the yard and can fight. */
+export function heroOnYard(game: Game): boolean {
+  return game.heroEnabled && game.hero.deployed && game.hero.downed <= 0;
+}
+
+/** In-mission hero rank bonus (Kingdom Rush Frontiers-style leveling). */
+export function heroRank(game: Game): number {
+  return 1 + (game.heroLevel - 1) * 0.07;
+}
+
+export function missionXpToNext(level: number): number {
+  return Math.round(55 + level * 48);
+}
+
+export function abilityRank(game: Game, slot: AbilitySlot): number {
+  return game.abilityRanks[slot] ?? 0;
+}
+
+/** Damage / heal / duration multiplier from an ability's in-mission rank. */
+export function abilityPower(game: Game, slot: AbilitySlot): number {
+  return 1 + abilityRank(game, slot) * 0.18;
+}
+
+export function abilityCdFactor(game: Game, slot: AbilitySlot): number {
+  return Math.max(0.72, 1 - abilityRank(game, slot) * 0.07);
+}
+
+export function abilityRangeFactor(game: Game, slot: AbilitySlot): number {
+  return 1 + abilityRank(game, slot) * 0.06;
+}
+
+export function scaledAbilityCooldown(game: Game, slot: AbilitySlot): number {
+  return game.heroDef.abilities[slot].cooldown * abilityCdFactor(game, slot) * game.mods.cooldown / game.jeffCdAura;
+}
+
+export function scaledCastRange(game: Game, slot: AbilitySlot): number {
+  const base = game.heroDef.abilities[slot].castRange ?? 280;
+  return Math.round(base * abilityRangeFactor(game, slot));
+}
+
+export function nextRankBlurb(game: Game, slot: AbilitySlot): string | null {
+  const rank = abilityRank(game, slot);
+  if (rank >= ABILITY_RANK_CAP) return null;
+  return game.heroDef.abilities[slot].ranks[rank] ?? null;
 }
 
 /** Apply damage with armor / resistances; handles kills, bounty, and boss phase changes. Returns damage dealt. */
@@ -37,6 +86,7 @@ export function applyDamage(
     mult *= source === 'descaler' ? 1.5 : 1.4;
   }
   if (enemy.marked) mult *= 1 + (enemy.markBonus || MARKED_DAMAGE - 1);
+  if (source === 'jeff') mult *= heroRank(game);
   const dealt = Math.min(enemy.hp, amount * mult);
   if (dealt <= 0) return 0;
   enemy.hp -= dealt;
@@ -60,10 +110,17 @@ export function applyDamage(
   if (enemy.hp <= 0) {
     enemy.dead = true;
     enemy.heldBy = null;
+    enemy.incoming = 0;
+    enemy.deathAge = CORPSE_TIME;
     const bounty = Math.round(enemy.def.bounty * game.mods.bounty * game.difficulty.bountyMult);
     game.money += bounty;
     game.stats.moneyEarned += bounty;
     game.stats.kills++;
+    game.combo += 1;
+    game.comboTimer = 1.85;
+    game.grantHeroXp(Math.round(6 + enemy.def.bounty * 0.4 + enemy.maxHp * 0.012));
+    if (game.combo >= 8) game.requestHitstop(0.05);
+    else if (game.combo >= 3) game.requestHitstop(0.028);
     game.addEffect({ kind: 'death', pos: { ...enemy.pos }, enemy: enemy.def.id, radius: enemy.def.radius, ttl: 0.48, max: 0.48 });
     if (source === 'jeff') game.stats.jeffKills++;
     game.addEffect({ kind: 'text', pos: { x: enemy.pos.x, y: enemy.pos.y - 14 }, text: `+$${bounty}`, color: '#ffe082', ttl: 0.9, max: 0.9 });
@@ -105,13 +162,14 @@ export function isTargetable(enemy: Enemy): boolean {
   return !enemy.dead && !enemy.escaped && !enemy.phased;
 }
 
-export const AIM_ORDER: AimPriority[] = ['first', 'strong', 'close', 'last'];
+export const AIM_ORDER: AimPriority[] = ['first', 'strong', 'close', 'last', 'weak'];
 
 export const AIM_LABEL: Record<AimPriority, string> = {
   first: 'First',
   strong: 'Strong',
   close: 'Close',
   last: 'Last',
+  weak: 'Weak',
 };
 
 export const AIM_HINT: Record<AimPriority, string> = {
@@ -119,7 +177,19 @@ export const AIM_HINT: Record<AimPriority, string> = {
   strong: 'the toughest leak in range',
   close: 'the nearest leak',
   last: 'the leak that just entered range',
+  weak: 'the frailest leak in range',
 };
+
+/** Lead a shot along the pipe so splash and homing still meet a moving leak. */
+export function predictedPos(game: Game, e: Enemy, lead: number): { x: number; y: number } {
+  const path = game.paths[e.pathIdx];
+  if (!path || lead <= 0 || e.heldBy || e.stun > 0) return { ...e.pos };
+  const speed = e.def.speed * e.speedMult * (1 - e.slow) * (1 + e.haste);
+  const ahead = e.progress + speed * lead;
+  const base = path.pointAt(ahead);
+  const dir = path.directionAt(ahead);
+  return { x: base.x - dir.y * e.lane, y: base.y + dir.x * e.lane };
+}
 
 /** Targetable enemy within range, ordered by the tower's aim priority. Default is First. */
 export function pickTarget(game: Game, tower: Tower, range: number): Enemy | null {
@@ -128,6 +198,7 @@ export function pickTarget(game: Game, tower: Tower, range: number): Enemy | nul
   const aim = tower.aim ?? 'first';
   for (const e of game.enemies) {
     if (!isTargetable(e) || !matchesTargetMode(tower.def.targets, e)) continue;
+    if (e.hp - e.incoming <= 0) continue;
     const d = dist(e.pos, tower.pos);
     if (d > range + e.def.radius) continue;
     if (!best || preferTarget(game, aim, e, best, d, bestDist)) {
@@ -152,6 +223,8 @@ function preferTarget(game: Game, aim: AimPriority, e: Enemy, best: Enemy, d: nu
       return rem > bestRem + 0.5 || (Math.abs(rem - bestRem) <= 0.5 && d < bestDist);
     case 'strong':
       return e.maxHp > best.maxHp + 0.5 || (Math.abs(e.maxHp - best.maxHp) <= 0.5 && rem < bestRem);
+    case 'weak':
+      return e.hp < best.hp - 0.5 || (Math.abs(e.hp - best.hp) <= 0.5 && rem < bestRem);
     case 'close':
       return d < bestDist - 0.5 || (Math.abs(d - bestDist) <= 0.5 && rem < bestRem);
     default: {

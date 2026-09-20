@@ -42,6 +42,7 @@ export function jeffPortrait(size = 72, fullBody = false): HTMLCanvasElement {
   }
   const hero: Hero = {
     pos: { x: size / 2, y: size / 2 + 12 },
+    prev: { x: size / 2, y: size / 2 + 12 },
     anchor: { x: 0, y: 0 },
     dest: null,
     hp: JEFF.hp,
@@ -56,6 +57,7 @@ export function jeffPortrait(size = 72, fullBody = false): HTMLCanvasElement {
     sleeveTimer: 0,
     coffeeTimer: 0,
     downed: 0,
+    deployed: true,
     facing: 1,
     swing: 0,
     orderTargetId: null,
@@ -88,6 +90,7 @@ export function enemyPortrait(id: EnemyId, size = 64, silhouette = false): HTMLC
     pathIdx: 0,
     progress: 0,
     pos: { x: size / 2, y: size / 2 + (def.flying ? 8 : 0) },
+    prev: { x: size / 2, y: size / 2 + (def.flying ? 8 : 0) },
     lane: 0,
     speedMult: 1,
     slow: 0,
@@ -102,6 +105,7 @@ export function enemyPortrait(id: EnemyId, size = 64, silhouette = false): HTMLC
     ventTimer: 0,
     dead: false,
     escaped: false,
+    deathAge: 0,
     attackTimer: 0,
     wobble: 0,
     dotDps: 0,
@@ -111,6 +115,7 @@ export function enemyPortrait(id: EnemyId, size = 64, silhouette = false): HTMLC
     haste: 0,
     laneTimer: 0,
     hitFlash: 0,
+    incoming: 0,
   };
   const s = Math.min(2.2, (size * 0.36) / def.radius);
   ctx.save();

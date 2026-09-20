@@ -1,5 +1,36 @@
 import { dist, lerp, type Vec } from '../core/vec';
 
+function catmullRom(p0: Vec, p1: Vec, p2: Vec, p3: Vec, t: number): Vec {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return {
+    x: 0.5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    y: 0.5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+  };
+}
+
+/** Dense Catmull-Rom resampling so creeps glide through corners instead of snapping. */
+function resample(points: readonly Vec[], perSeg = 10): Vec[] {
+  if (points.length < 2) return points.map((p) => ({ ...p }));
+  if (points.length === 2) return [{ ...points[0]! }, { ...points[1]! }];
+  const raw: Vec[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)]!;
+    const p1 = points[i]!;
+    const p2 = points[i + 1]!;
+    const p3 = points[Math.min(points.length - 1, i + 2)]!;
+    for (let s = 0; s < perSeg; s++) raw.push(catmullRom(p0, p1, p2, p3, s / perSeg));
+  }
+  raw.push({ ...points[points.length - 1]! });
+  const out: Vec[] = [raw[0]!];
+  for (let i = 1; i < raw.length; i++) {
+    const a = out[out.length - 1]!;
+    const b = raw[i]!;
+    if ((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y) > 1.15) out.push(b);
+  }
+  return out;
+}
+
 /** A waypoint polyline with cumulative lengths so enemies can be positioned by scalar progress. */
 export class Path {
   readonly points: readonly Vec[];
@@ -8,21 +39,35 @@ export class Path {
 
   constructor(points: readonly Vec[]) {
     if (points.length < 2) throw new Error('Path needs at least two points');
-    this.points = points;
+    this.points = resample(points);
     this.cumulative = [0];
     let total = 0;
-    for (let i = 1; i < points.length; i++) {
-      total += dist(points[i - 1]!, points[i]!);
+    for (let i = 1; i < this.points.length; i++) {
+      total += dist(this.points[i - 1]!, this.points[i]!);
       this.cumulative.push(total);
     }
     this.length = total;
   }
 
+  /** Position at `progress`. Negative progress walks in from off-map along the first segment. */
   pointAt(progress: number): Vec {
-    if (progress <= 0) return { ...this.points[0]! };
+    if (progress < 0) {
+      const a = this.points[0]!;
+      const b = this.points[1] ?? a;
+      const d = dist(a, b) || 1;
+      const ux = (a.x - b.x) / d;
+      const uy = (a.y - b.y) / d;
+      return { x: a.x + ux * -progress, y: a.y + uy * -progress };
+    }
     if (progress >= this.length) return { ...this.points[this.points.length - 1]! };
-    let i = 1;
-    while (i < this.cumulative.length && this.cumulative[i]! < progress) i++;
+    let lo = 1;
+    let hi = this.cumulative.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (this.cumulative[mid]! < progress) lo = mid + 1;
+      else hi = mid;
+    }
+    const i = lo;
     const segStart = this.cumulative[i - 1]!;
     const segLen = this.cumulative[i]! - segStart;
     const t = segLen === 0 ? 0 : (progress - segStart) / segLen;
@@ -46,12 +91,11 @@ export class Path {
     return best;
   }
 
-  /** Unit direction of travel at a given progress. */
+  /** Unit direction of travel at a given progress — blended across nearby samples so lane offset does not pop. */
   directionAt(progress: number): Vec {
-    let i = 1;
-    while (i < this.cumulative.length - 1 && this.cumulative[i]! < progress) i++;
-    const a = this.points[i - 1]!;
-    const b = this.points[i]!;
+    const span = 22;
+    const a = this.pointAt(progress - span);
+    const b = this.pointAt(progress + span);
     const d = dist(a, b) || 1;
     return { x: (b.x - a.x) / d, y: (b.y - a.y) / d };
   }
