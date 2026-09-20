@@ -292,7 +292,10 @@ export class SaveStore {
   }
 
   reset(): boolean {
-    this.backup();
+    if (!this.backup()) {
+      this.lastWriteOk = false;
+      return false;
+    }
     this.data = blank();
     this.recoveredFromBackup = false;
     return this.save();

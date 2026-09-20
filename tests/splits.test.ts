@@ -121,3 +121,34 @@ test('neverending rush hour actually packs drips', () => {
   expect(drips).toBeTruthy();
   expect(drips!.interval).toBeLessThanOrEqual(0.22);
 });
+
+test('Core Sample does not spend parts without a leak in range', () => {
+  const game = new Game(
+    { ...CRAWLSPACE, allowedTowers: [...CRAWLSPACE.allowedTowers, 'hammerDrill'], startMoney: 999 },
+    {
+      difficulty: DIFFICULTIES.journeyman,
+      mods: { ...neutralModifiers(), startMoney: 999 },
+      seed: 1,
+      heroEnabled: false,
+      manualStart: true,
+      loadout: ['hammerDrill'],
+    },
+  );
+  expect(game.placeTower(0, 'hammerDrill')).toBe(true);
+  const t = game.towers[0]!;
+  t.build = 0;
+  t.level = 1;
+  const parts = game.parts;
+  expect(game.useTowerAbility(t.id)).toBe(false);
+  expect(game.parts).toBe(parts);
+  expect(game.stats.partsSpent).toBe(0);
+  expect(t.abilityCd).toBe(0);
+
+  const at = game.paths[0]!.nearestPoint(t.pos).progress;
+  const leak = game.spawnEnemy('scaleCrab', 0, at);
+  leak.pos = { ...game.paths[0]!.pointAt(at) };
+  expect(game.useTowerAbility(t.id)).toBe(true);
+  expect(game.stats.partsSpent).toBe(3);
+  expect(t.abilityCd).toBeGreaterThan(0);
+  expect(leak.hp).toBeLessThan(leak.maxHp);
+});

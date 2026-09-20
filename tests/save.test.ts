@@ -83,6 +83,16 @@ test('corrupt primary recovers from bak and restores the key', () => {
   expect(persistWarning(save)).toMatch(/backup/);
 });
 
+class FailKeyStorage extends MemoryStorage {
+  constructor(private readonly blocked: string) {
+    super();
+  }
+  override setItem(key: string, value: string): void {
+    if (key === this.blocked) throw new Error('quota');
+    super.setItem(key, value);
+  }
+}
+
 test('reset writes bak first and save() reports quota failure', () => {
   const storage = new MemoryStorage();
   const save = new SaveStore(storage);
@@ -99,6 +109,19 @@ test('reset writes bak first and save() reports quota failure', () => {
   expect(doomed.save()).toBe(false);
   expect(doomed.lastWriteOk).toBe(false);
   expect(persistWarning(doomed)).toMatch(/Couldn't save/);
+});
+
+test('reset keeps progress when the backup write fails', () => {
+  const storage = new FailKeyStorage(SAVE_BAK_KEY);
+  storage.setItem(SAVE_KEY, JSON.stringify({ version: 1, jeffXp: 640, selectedHero: 'jeff' }));
+  const save = new SaveStore(storage);
+  expect(save.data.jeffXp).toBe(640);
+  expect(save.reset()).toBe(false);
+  expect(save.data.jeffXp).toBe(640);
+  expect(save.lastWriteOk).toBe(false);
+  expect(JSON.parse(storage.getItem(SAVE_KEY)!).jeffXp).toBe(640);
+  expect(storage.getItem(SAVE_BAK_KEY)).toBeNull();
+  expect(persistWarning(save)).toMatch(/Couldn't save/);
 });
 
 test('normalizeSave never throws on garbage fields', () => {

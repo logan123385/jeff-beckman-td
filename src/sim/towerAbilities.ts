@@ -16,6 +16,7 @@ export function towerAbilityReady(game: Game, t: Tower): { ok: true } | { ok: fa
   if (t.level < def.minLevel) return { ok: false, reason: `Unlocks at ${def.minLevel === 1 ? 'Reinforced' : 'a higher tier'}.` };
   if (t.abilityCd > 0) return { ok: false, reason: `Cooling ${Math.ceil(t.abilityCd)}s.` };
   if (game.parts < def.parts) return { ok: false, reason: `Need ${def.parts} spare parts.` };
+  if (!abilityHasWork(game, t)) return { ok: false, reason: 'No leak in range.' };
   return { ok: true };
 }
 
@@ -35,6 +36,42 @@ export function useTowerAbility(game: Game, towerId: number): boolean {
   game.addEffect({ kind: 'text', pos: { x: t.pos.x, y: t.pos.y - 42 }, text: def.name.toUpperCase(), color: t.def.color, ttl: 0.9, max: 0.9 });
   game.addEffect({ kind: 'ring', pos: { ...t.pos }, radius: game.effectiveRange(t), color: t.def.color, ttl: 0.45, max: 0.45 });
   return true;
+}
+
+/** Target-dependent actives (Core Sample, Draft, Snapshot, …) must have work on the yard. */
+function abilityHasWork(game: Game, t: Tower): boolean {
+  const range = game.effectiveRange(t);
+  switch (t.def.id) {
+    case 'hammerDrill': {
+      const saved = t.aim;
+      t.aim = 'strong';
+      const target = pickTarget(game, t, range);
+      t.aim = saved;
+      return Boolean(target);
+    }
+    case 'vent':
+      return inRange(game, t, range, (e) => e.def.flying).length > 0;
+    case 'barricade':
+      return game.enemies.some((e) => e.heldBy?.kind === 'tower' && e.heldBy.id === t.id);
+    case 'pipeSnake': {
+      const { pathIdx, progress } = game.nearestPath(t.pos);
+      const pierce = (t.def.levels[t.level]!.pierce ?? 160) * 1.35;
+      return game.enemies.some(
+        (e) =>
+          isTargetable(e) &&
+          e.pathIdx === pathIdx &&
+          e.progress >= progress - 12 &&
+          e.progress <= progress + pierce,
+      );
+    }
+    case 'backflow':
+    case 'sump':
+      return inRange(game, t, range, (e) => !e.def.flying).length > 0;
+    case 'camera':
+      return inRange(game, t, range).length > 0;
+    default:
+      return true;
+  }
 }
 
 function fireAbility(game: Game, t: Tower): void {
