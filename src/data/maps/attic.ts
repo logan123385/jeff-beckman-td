@@ -1,6 +1,6 @@
 import { vec } from '../../core/vec';
 import type { MapDef } from '../types';
-import { grp, wave } from './helpers';
+import { grp, pack, rush, wave } from './helpers';
 
 export const ATTIC: MapDef = {
   id: 'attic',
@@ -45,13 +45,13 @@ export const ATTIC: MapDef = {
     wave(grp('drip', 10, 0.85), grp('sludge', 2, 3.2, 5)),
     wave(grp('drip', 10, 0.85), grp('hardWaterGnat', 3, 1.2, 5)),
     wave(grp('sludge', 3, 2.8), grp('steamWisp', 3, 2, 4)),
-    wave(grp('drip', 12, 0.75), grp('scaleCrab', 3, 2.2, 4)),
+    wave(grp('drip', 12, 0.75), grp('scaleCrab', 3, 1.6, 4)),
     wave(grp('drip', 10, 0.8), grp('condensateMoth', 1, 1, 2), grp('sludge', 2, 3, 6)),
     wave(grp('drip', 10, 0.8), grp('airlock', 3, 2.1, 3), grp('steamWisp', 3, 1.8, 6)),
     wave(grp('sludge', 4, 2.4), grp('hardWaterGnat', 4, 1.0, 4), grp('drip', 10, 0.75, 8)),
-    wave(grp('drip', 12, 0.7), grp('condensateMoth', 2, 3.2, 2), grp('scaleCrab', 4, 2, 6)),
+    rush(pack('scaleCrab', 4, 6), pack('condensateMoth', 2, 2), grp('drip', 12, 0.7)),
     wave(grp('sludge', 4, 2.4), grp('steamWisp', 5, 1.5, 3), grp('drip', 10, 0.75, 8)),
-    wave(grp('drip', 16, 0.6), grp('sludge', 5, 2.2, 4), grp('steamWisp', 7, 1.35, 8), grp('condensateMoth', 3, 2.4, 12)),
+    rush(pack('condensateMoth', 3, 8), grp('drip', 16, 0.6), grp('sludge', 5, 2.2, 4), grp('steamWisp', 7, 1.35, 8)),
   ],
   palette: { bg: '#241f1c', wall: '#3a322c', pipe: '#8a7a68', pipeDark: '#5a4e42', accent: '#ab47bc' },
 };

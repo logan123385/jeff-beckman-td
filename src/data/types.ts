@@ -31,7 +31,7 @@ export type TowerId =
   | 'jayjay'
   | 'cbjDoni';
 
-export type RemasterId = 'classic' | 'codeInspection' | 'frozenMain';
+export type RemasterId = 'classic' | 'codeInspection' | 'frozenMain' | 'cashJob' | 'cleanHands';
 
 export type EnemyId =
   | 'drip'
@@ -122,6 +122,9 @@ export interface TowerDef {
 
 export type EnemyTrait = 'damagesBarricades' | 'phases' | 'freezes' | 'boss' | 'laneSwap' | 'hasteAura' | 'splits';
 
+/** Stackable leak flags, Bloons-style. No camo — Inspection Camera already marks and pops phases. */
+export type LeakProperty = 'mineral' | 'cast' | 'regen' | 'pressurized';
+
 export type GearSlot = 'wrench' | 'boots' | 'belt' | 'shirt' | 'gauges';
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'relic';
 export type TalentBranch = 'combat' | 'field' | 'foreman';
@@ -185,10 +188,14 @@ export interface SpawnGroup {
   delay: number;
   /** Index into MapDef.paths. */
   path: number;
+  /** Optional stacked leak properties on top of the wave stamp. */
+  properties?: LeakProperty[];
 }
 
 export interface WaveDef {
   groups: SpawnGroup[];
+  /** Tight parent pack — splash or the children flood. Bloons ceramic-rush analog. */
+  rush?: boolean;
 }
 
 export interface MapPalette {

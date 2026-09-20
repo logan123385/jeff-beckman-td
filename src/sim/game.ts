@@ -3,13 +3,16 @@ import { clamp, dist, type Vec } from '../core/vec';
 import { ENEMIES } from '../data/enemies';
 import { JEFF } from '../data/jeff';
 import { HEROES, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
-import { updateHeroMissiles, updateHeroSummons, useHeroAbility } from './heroPowers';
+import { updateHeroMissiles, updateHeroSummons, useHeroAbility, fireJeffAbility } from './heroPowers';
 import type { HeroMissile, HeroSummon, HeroVisual, HeroZone } from './state';
 import { TOWERS, TOWER_ORDER } from '../data/towers';
 import { specializeDef, specializationInfo, type Specialization } from '../data/specializations';
 import { generateEndlessWave, nightMutatorAt, proceduralIndex, type NightMutatorId } from '../data/night';
-import type { Difficulty, EnemyId, MapDef, Modifiers, RemasterId, TowerId, WaveDef } from '../data/types';
-import { AIM_ORDER, applyDamage, heroOnYard, isTargetable, missionXpToNext, predictedPos, abilityPower, abilityRangeFactor, abilityRank, scaledAbilityCooldown } from './combat';
+import { propertiesFor } from '../data/leakProperties';
+import { isNoPowers, isNoSell, isOneLife, isTruckMoney } from '../data/remasters';
+import { fieldRbe } from '../data/splits';
+import type { Difficulty, EnemyId, LeakProperty, MapDef, Modifiers, RemasterId, TowerId, WaveDef } from '../data/types';
+import { AIM_ORDER, applyDamage, heroOnYard, isTargetable, missionXpToNext, predictedPos, abilityRangeFactor, abilityRank } from './combat';
 import { updateEnemies } from './enemies';
 import { updateHero } from './hero';
 import { Path } from './path';
@@ -17,6 +20,7 @@ import type { ActiveSpawn, AimPriority, Clamp, Crew, Friendly, Effect, Enemy, Ga
 import { releaseFriendly, syncRecruits, updateFriendlies } from './friendlies';
 import { CREW_COOLDOWN, CREW_DURATION, updateCrew } from './crew';
 import { applyDescaler, updateAuras, updateTowers } from './towers';
+import { useTowerAbility as fireTowerAbility } from './towerAbilities';
 
 export interface GameOptions {
   difficulty: Difficulty;
@@ -84,9 +88,15 @@ export class Game {
 
   money: number;
   lives: number;
+  /** Spare parts spent on activated tools. */
+  parts: number;
+  /** Recruits swing faster while this is > 0. */
+  overtime = 0;
   time = 0;
   /** Number of waves that have started. */
   waveIdx = 0;
+  /** Current wave is a packed rush (set on startWave). */
+  waveRush = false;
   /** Seconds until the next wave auto-starts; negative when no wave is pending. */
   waveCountdown = FIRST_WAVE_COUNTDOWN;
   spawns: ActiveSpawn[] = [];
@@ -126,13 +136,13 @@ export class Game {
     this.endless = map.endless === true;
     const banned = this.remaster === 'codeInspection' ? (map.inspectionBan ?? []) : [];
     const pool = map.allowedTowers.filter((id) => !banned.includes(id));
-    const kit = (opts.loadout ?? []).filter((id) => pool.includes(id));
+    const kit = [...new Set((opts.loadout ?? []).filter((id) => pool.includes(id)))];
     this.allowedTowers = kit.length > 0 ? kit : pool;
     this.freezeDurationMult = this.remaster === 'frozenMain' ? 1.75 : 1;
     this.nightMutator = null;
-    this.money = map.startMoney + opts.mods.startMoney;
-    this.lives =
-      this.remaster === 'frozenMain' ? 1 : Math.max(1, Math.round(map.lives * opts.difficulty.livesMult));
+    this.money = isTruckMoney(this.remaster) ? map.startMoney : map.startMoney + opts.mods.startMoney;
+    this.lives = isOneLife(this.remaster) ? 1 : Math.max(1, Math.round(map.lives * opts.difficulty.livesMult));
+    this.parts = this.remaster === 'cleanHands' ? 0 : this.remaster === 'cashJob' ? 2 : 3;
     const maxHp = Math.round(this.heroDef.hp * opts.mods.jeffHp);
     this.hero = {
       id: this.heroDef.id,
@@ -169,6 +179,8 @@ export class Game {
       moneyEarned: 0,
       moneySpent: 0,
       wavesCalledEarly: 0,
+      partsEarned: 0,
+      partsSpent: 0,
     };
   }
 
@@ -253,15 +265,33 @@ export class Game {
     return [...new Set(w.groups.map((g) => g.enemy))];
   }
 
-  nextWavePreview(): { enemy: EnemyId; count: number; path: number }[] {
+  nextWavePreview(): { enemy: EnemyId; count: number; path: number; properties: LeakProperty[] }[] {
     const groups = this.waveDefAt(this.waveIdx)?.groups ?? [];
-    const preview: { enemy: EnemyId; count: number; path: number }[] = [];
+    const mut = this.mutatorFor(this.waveIdx);
+    const preview: { enemy: EnemyId; count: number; path: number; properties: LeakProperty[] }[] = [];
     for (const group of groups) {
-      const old = preview.find(p => p.enemy === group.enemy && p.path === group.path);
+      const properties = propertiesFor(group.enemy, this.waveIdx, mut, group.properties);
+      const old = preview.find(
+        (p) => p.enemy === group.enemy && p.path === group.path && p.properties.join() === properties.join(),
+      );
       if (old) old.count += group.count;
-      else preview.push({ enemy: group.enemy, count: group.count, path: group.path });
+      else preview.push({ enemy: group.enemy, count: group.count, path: group.path, properties });
     }
     return preview;
+  }
+
+  nextWaveIsRush(): boolean {
+    return this.waveDefAt(this.waveIdx)?.rush === true;
+  }
+
+  /** Lives on the line if everyone still queued or walking leaks, including unspawned children. */
+  pipeRbe(): number {
+    return fieldRbe(
+      this.enemies
+        .filter((e) => !e.dead && !e.escaped)
+        .map((e) => ({ id: e.def.id, pressurized: e.properties.includes('pressurized') })),
+      this.spawns,
+    );
   }
 
   nearestPath(p: Vec): { pathIdx: number; progress: number } {
@@ -329,6 +359,7 @@ export class Game {
 
   /** Call two temporary helpers onto a visible section of the route. */
   reinforce(pos: Vec): boolean {
+    if (isNoPowers(this.remaster)) return false;
     if (this.status !== 'playing' || this.crewCooldown > 0 || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
     if (pos.x < 16 || pos.x > 944 || pos.y < 24 || pos.y > 576) return false;
     const rally = this.nearestPathPoint(pos);
@@ -352,7 +383,7 @@ export class Game {
   setRally(towerId: number, pos: Vec): boolean {
     if (this.status !== 'playing' || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
     const t = this.towerById(towerId);
-    if (!t || t.def.kind !== 'barricade' || !t.def.recruits) return false;
+    if (!t || t.def.kind !== 'barricade') return false;
     const rally = this.nearestPathPoint(pos);
     if (dist(pos, rally) > 55 || dist(t.pos, rally) > 150 || rally.x < 16 || rally.x > 944 || rally.y < 24 || rally.y > 576) return false;
     for (const e of this.enemies) if (e.heldBy?.kind === 'tower' && e.heldBy.id === t.id) e.heldBy = null;
@@ -410,6 +441,7 @@ export class Game {
       aim: 'first',
       build: BUILD_TIME,
       lastTargetId: 0,
+      abilityCd: 0,
     });
     syncRecruits(this, this.towers[this.towers.length - 1]!);
     this.addEffect({ kind: 'ring', pos: { ...pos }, radius: 34, color: '#ffe082', ttl: 0.42, max: 0.42 });
@@ -464,8 +496,13 @@ export class Game {
     return t.aim;
   }
 
+  useTowerAbility(towerId: number): boolean {
+    return fireTowerAbility(this, towerId);
+  }
+
   sellTower(towerId: number): boolean {
     if (this.status !== 'playing') return false;
+    if (isNoSell(this.remaster)) return false;
     const t = this.towerById(towerId);
     if (!t) return false;
     const value = this.sellValue(t);
@@ -552,83 +589,28 @@ export class Game {
 
   useAbility(slot: AbilitySlot, aim?: { pos: { x: number; y: number }; enemyId?: number }): boolean {
     if (![0, 1, 2, 3, 4].includes(slot)) return false;
-    if (this.heroDef.id !== 'jeff') return useHeroAbility(this, slot, aim);
-    return [() => this.useClamp(), () => this.useShutoff(), () => this.usePulse(), () => this.useSleeve(), () => this.useCoffee()][slot]!();
+    if (this.heroDef.id === 'jeff') return fireJeffAbility(this, slot);
+    return useHeroAbility(this, slot, aim);
   }
 
   useClamp(): boolean {
-    if (this.heroDef.id !== 'jeff') return useHeroAbility(this, 0);
-    if (!this.heroEnabled || this.status !== 'playing' || !heroOnYard(this)) return false;
-    const h = this.hero;
-    if (h.clampCooldown > 0) return false;
-    const pwr = abilityPower(this, 0);
-    h.clampCooldown = scaledAbilityCooldown(this, 0);
-    this.clamp = { pos: { ...h.pos }, timeLeft: JEFF.clamp.duration * pwr };
-    h.castTimer = 0.72;
-    this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'clamp', ttl: 1.15, max: 1.15 });
-    return true;
+    return this.useAbility(0);
   }
 
   useShutoff(): boolean {
-    if (this.heroDef.id !== 'jeff') return useHeroAbility(this, 1);
-    if (!this.heroEnabled || this.status !== 'playing' || !heroOnYard(this)) return false;
-    const h = this.hero;
-    if (h.shutoffCooldown > 0) return false;
-    const pwr = abilityPower(this, 1);
-    h.shutoffCooldown = scaledAbilityCooldown(this, 1);
-    this.globalSlow = Math.min(0.9, JEFF.shutoff.slow * (1 + abilityRank(this, 1) * 0.06));
-    this.globalSlowTimer = JEFF.shutoff.duration * pwr;
-    this.spawnPause = JEFF.shutoff.duration * pwr;
-    h.castTimer = 0.72;
-    this.addEffect({ kind: 'skill', pos: { x: 480, y: 300 }, skill: 'shutoff', ttl: 1.8, max: 1.8 });
-    return true;
+    return this.useAbility(1);
   }
 
   usePulse(): boolean {
-    if (this.heroDef.id !== 'jeff') return useHeroAbility(this, 2);
-    if (!this.heroEnabled || this.status !== 'playing' || !heroOnYard(this)) return false;
-    const h = this.hero;
-    if (h.pulseCooldown > 0) return false;
-    const pwr = abilityPower(this, 2);
-    const radius = JEFF.pulse.radius * abilityRangeFactor(this, 2);
-    h.pulseCooldown = scaledAbilityCooldown(this, 2);
-    h.castTimer = 0.72;
-    this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'pulse', ttl: 1.05, max: 1.05 });
-    for (const e of this.enemies) {
-      if (!isTargetable(e) || dist(e.pos, h.pos) > radius + e.def.radius) continue;
-      e.armorShred = Math.max(e.armorShred, Math.min(0.7, JEFF.pulse.shred * (1 + abilityRank(this, 2) * 0.1)));
-      e.shredTimer = Math.max(e.shredTimer, 3 * pwr);
-      e.stun = Math.max(e.stun, JEFF.pulse.stun * pwr * this.mods.stunDuration);
-      applyDamage(this, e, JEFF.pulse.damage * pwr * this.mods.jeffDamage, 'physical', 'jeff');
-      this.addEffect({ kind: 'hit', pos: { ...e.pos }, color: '#ffb74d', ttl: 0.38, max: 0.38 });
-    }
-    return true;
+    return this.useAbility(2);
   }
 
   useSleeve(): boolean {
-    if (this.heroDef.id !== 'jeff') return useHeroAbility(this, 3);
-    if (!this.heroEnabled || this.status !== 'playing' || !heroOnYard(this)) return false;
-    const h = this.hero;
-    if (h.sleeveCooldown > 0) return false;
-    h.sleeveCooldown = scaledAbilityCooldown(this, 3);
-    h.sleeveTimer = JEFF.sleeve.duration * abilityPower(this, 3);
-    h.castTimer = 0.72;
-    this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'sleeve', ttl: 1.1, max: 1.1 });
-    return true;
+    return this.useAbility(3);
   }
 
   useCoffee(): boolean {
-    if (this.heroDef.id !== 'jeff') return useHeroAbility(this, 4);
-    if (!this.heroEnabled || this.status !== 'playing' || !heroOnYard(this)) return false;
-    const h = this.hero;
-    if (h.coffeeCooldown > 0) return false;
-    const pwr = abilityPower(this, 4);
-    h.coffeeCooldown = scaledAbilityCooldown(this, 4);
-    h.coffeeTimer = JEFF.coffee.duration * pwr;
-    h.hp = Math.min(h.maxHp, h.hp + JEFF.coffee.heal * pwr);
-    h.castTimer = 0.72;
-    this.addEffect({ kind: 'skill', pos: { ...h.pos }, skill: 'coffee', ttl: 1.15, max: 1.15 });
-    return true;
+    return this.useAbility(4);
   }
 
   /** Soft-exit The Neverending Service Call — keep the record, lose nothing from the shop. */
@@ -640,6 +622,7 @@ export class Game {
 
   /** Kingdom Rush–style targeted bombardment. Three fire dumps on a point you pick. */
   torchStrike(pos: Vec): boolean {
+    if (isNoPowers(this.remaster)) return false;
     if (this.status !== 'playing' || this.strikeCooldown > 0) return false;
     if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
     if (pos.x < 12 || pos.x > 948 || pos.y < 18 || pos.y > 582) return false;
@@ -676,7 +659,7 @@ export class Game {
     h.hp -= amount * (1 - this.heroDef.armor) * ((h.shield ?? 0) > 0 ? .65 : 1);
     if (h.hp <= 0) {
       h.hp = 0;
-      h.downed = JEFF.respawn * this.mods.jeffRespawn;
+      h.downed = this.heroDef.respawn * this.mods.jeffRespawn;
       h.deployed = false;
       h.dest = null;
       h.orderTargetId = null;
@@ -701,9 +684,11 @@ export class Game {
     return false;
   }
 
-  spawnEnemy(id: EnemyId, pathIdx: number, progress = -SPAWN_LEAD): Enemy {
+  spawnEnemy(id: EnemyId, pathIdx: number, progress = -SPAWN_LEAD, properties: readonly LeakProperty[] = []): Enemy {
     const def = ENEMIES[id];
-    const hp = Math.round(def.hp * this.difficulty.hpMult * this.waveHpScale);
+    let hp = Math.round(def.hp * this.difficulty.hpMult * this.waveHpScale);
+    if (properties.includes('pressurized')) hp = Math.round(hp * 1.45);
+    const shell = properties.includes('cast') ? Math.round(hp * 0.85) : 0;
     const path = this.paths[pathIdx] ?? this.paths[0]!;
     const at = path.pointAt(progress);
     const e: Enemy = {
@@ -740,6 +725,11 @@ export class Game {
       laneTimer: 7,
       hitFlash: 0,
       incoming: 0,
+      properties: [...properties],
+      shellHp: shell,
+      maxShell: shell,
+      burnTimer: 0,
+      markHold: 0,
     };
     e.lane = LANE_SPREAD[(e.id + pathIdx * 3) % LANE_SPREAD.length]! + this.rng.range(-2.2, 2.2);
     this.enemies.push(e);
@@ -762,6 +752,7 @@ export class Game {
     }
     this.snapshotMotion();
     this.time += dt;
+    if (this.overtime > 0) this.overtime = Math.max(0, this.overtime - dt);
 
     if (this.globalSlowTimer > 0) this.globalSlowTimer -= dt;
     if (this.spawnPause > 0) this.spawnPause -= dt;
@@ -873,12 +864,18 @@ export class Game {
     for (const s of this.spawns) {
       s.timer -= dt;
       while (s.timer <= 0 && s.remaining > 0) {
-        this.spawnEnemy(s.enemy, s.path);
+        this.spawnEnemy(s.enemy, s.path, -SPAWN_LEAD, s.properties);
         s.remaining--;
         s.timer += Math.max(s.interval, 1 / 60);
       }
     }
     this.spawns = this.spawns.filter((s) => s.remaining > 0);
+  }
+
+  private mutatorFor(index: number): NightMutatorId | null {
+    if (!this.endless) return null;
+    if (index < this.map.waves.length) return null;
+    return nightMutatorAt(proceduralIndex(index, this.map.waves.length));
   }
 
   private waveDefAt(index: number): WaveDef | undefined {
@@ -897,10 +894,12 @@ export class Game {
       : 1 + Math.max(0, index - 4) * 0.012;
     let duration = 0;
     for (const g of w.groups) {
-      this.spawns.push({ enemy: g.enemy, remaining: g.count, interval: g.interval, timer: g.delay, path: g.path });
+      const properties = propertiesFor(g.enemy, index, this.mutatorFor(index), g.properties);
+      this.spawns.push({ enemy: g.enemy, remaining: g.count, interval: g.interval, timer: g.delay, path: g.path, properties });
       duration = Math.max(duration, g.delay + (g.count - 1) * g.interval);
     }
     this.waveIdx++;
+    this.waveRush = !!w.rush;
     const leftover = this.enemies.some((e) => !e.dead && !e.escaped);
     if (!leftover) this.waveLeaks = 0;
     if (this.endless) {

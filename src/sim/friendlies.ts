@@ -63,7 +63,7 @@ export function updateFriendlies(game: Game, dt: number): void {
       }
       continue;
     }
-    f.attackTimer = Math.max(0, f.attackTimer - dt);
+    f.attackTimer = Math.max(0, f.attackTimer - dt * (game.overtime > 0 ? 1.85 : 1));
     if (f.swing > 0) {
       f.swing = Math.max(0, f.swing - dt);
       if (!f.hitLanded && f.swing <= FRIENDLY_SWING * 0.52) {

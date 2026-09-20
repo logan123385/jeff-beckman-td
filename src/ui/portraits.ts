@@ -116,6 +116,11 @@ export function enemyPortrait(id: EnemyId, size = 64, silhouette = false): HTMLC
     laneTimer: 0,
     hitFlash: 0,
     incoming: 0,
+    properties: [],
+    shellHp: 0,
+    maxShell: 0,
+    burnTimer: 0,
+    markHold: 0,
   };
   const s = Math.min(2.2, (size * 0.36) / def.radius);
   ctx.save();
@@ -157,6 +162,7 @@ export function towerPortrait(id: TowerId, size = 72): HTMLCanvasElement {
     invested: 0,
     charge: 0,
     aim: 'first',
+    abilityCd: 0,
   };
   ctx.save();
   ctx.translate(size / 2, size / 2 + 8);

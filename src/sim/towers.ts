@@ -21,8 +21,8 @@ export function updateAuras(game: Game, dt: number): void {
   game.jeffCdAura = 1;
   for (const e of game.enemies) {
     e.slow = game.globalSlowTimer > 0 ? game.globalSlow : 0;
-    e.marked = false;
-    e.markBonus = 0;
+    e.marked = e.markHold > 0;
+    e.markBonus = e.markHold > 0 ? Math.max(e.markBonus ?? 0, 0.45) : 0;
     e.haste = 0;
   }
 
@@ -332,12 +332,22 @@ export function updateTowers(game: Game, dt: number): void {
   for (const t of game.towers) {
     if ((t.build ?? 0) > 0) {
       t.build = Math.max(0, (t.build ?? 0) - dt);
-      if (t.build > 0) continue;
+      if (t.build > 0) {
+        if (t.def.kind === 'barricade') updateBarricade(game, t, dt);
+        continue;
+      }
       game.addEffect({ kind: 'ring', pos: { ...t.pos }, radius: 28, color: '#c8e6c9', ttl: 0.32, max: 0.32 });
     }
     if (t.frozen > 0) t.frozen -= dt;
     if (t.shieldCooldown > 0) t.shieldCooldown -= dt;
     if (t.recoil > 0) t.recoil -= dt;
+    if (t.abilityCd > 0) t.abilityCd = Math.max(0, t.abilityCd - dt);
+    if ((t.surge ?? 0) > 0) t.surge = Math.max(0, (t.surge ?? 0) - dt);
+    if ((t.surge ?? 0) > 0) {
+      const cur = game.buffs.get(t.id) ?? { dmg: 0, range: 0, rate: 0 };
+      cur.rate += 0.55;
+      game.buffs.set(t.id, cur);
+    }
     updateElite(game, t, dt);
     switch (t.def.kind) {
       case 'shooter':
@@ -524,7 +534,6 @@ export function applyDescaler(e: Enemy, shred: number, dot: number, dotTime: num
 }
 
 function updateBarricade(game: Game, t: Tower, dt: number): void {
-  if ((t.build ?? 0) > 0) return;
   if (t.rebuild > 0) {
     t.rebuild -= dt;
     t.hp = t.maxHp * (1 - Math.max(0, t.rebuild) / BARRICADE_REBUILD_SECONDS);

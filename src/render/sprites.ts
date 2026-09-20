@@ -1,5 +1,8 @@
 import { JEFF } from '../data/jeff';
+import { ENEMIES } from '../data/enemies';
+import { leakRbe, splitCount, splitOf } from '../data/splits';
 import type { Enemy, Hero, Tower } from '../sim/state';
+import { leakMax, leakRemaining } from '../sim/combat';
 import { paintedEnemy, paintedJeff, paintedTower } from './paintedActors';
 import { blotch, brassFill, castShadow, celFill, celShine, CEL_INK, disc, glow, metalFill, mix, noGlow, pulseRing, radial, rgba, ring, rivet, stampText } from './ink';
 
@@ -1265,6 +1268,27 @@ export function drawValveGate(ctx: Ctx, t: Tower): void {
 
 // ------------------------------------------------------------------ enemies
 
+/** Child pips under a parent leak so the split reads on the yard, not just the HUD. */
+export function drawSplitTell(ctx: Ctx, e: Enemy, hovered: boolean): void {
+  if (e.dead || e.escaped) return;
+  const def = splitOf(e.def.id);
+  if (!def) return;
+  const n = splitCount(e.def.id, e.properties.includes('pressurized'));
+  if (n <= 0) return;
+  const child = ENEMIES[def.child];
+  const x = e.pos.x;
+  const y = e.pos.y + e.def.radius + 9;
+  ctx.save();
+  for (let i = 0; i < n; i++) {
+    disc(ctx, x - ((n - 1) * 5) + i * 10, y, hovered ? 3.6 : 2.8, child.color);
+  }
+  if (hovered) {
+    stampText(ctx, `→${n} ${child.name}`, x, y + 14, { size: 11, color: '#ffe082' });
+    stampText(ctx, `${leakRbe(e.def.id, e.properties.includes('pressurized'))} lives if they walk`, x, y + 26, { size: 10, color: '#ffcc80' });
+  }
+  ctx.restore();
+}
+
 export function drawEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number; y: number }): void {
   if (paintedEnemy(ctx, e, time, dir)) return;
   const { x, y } = e.pos;
@@ -1779,8 +1803,8 @@ export function drawEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number; y
       stampText(ctx, '✶', sx, sy, { size: 11 + Math.sin(a) * 2, color: '#fff59d' });
     }
   }
-  if (e.hp < e.maxHp || e.def.armor > 0.05 || e.def.flying) {
-    hpBar(ctx, x, y - lift - r - 8, Math.max(18, r * 2.3), e.hp / e.maxHp, e.def.traits.includes('boss') ? '#ff7043' : '#ef5350');
+  if (leakRemaining(e) < leakMax(e) || e.def.armor > 0.05 || e.def.flying || e.properties.length > 0) {
+    hpBar(ctx, x, y - lift - r - 8, Math.max(18, r * 2.3), leakRemaining(e) / leakMax(e), e.def.traits.includes('boss') ? '#ff7043' : '#ef5350');
     if (e.def.armor > 0.15) {
       ctx.fillStyle = '#cfd8dc';
       ctx.font = '700 8px Source Sans 3, Trebuchet MS, sans-serif';

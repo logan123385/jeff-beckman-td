@@ -4,6 +4,8 @@ import type { Enemy, Hero, Tower, Friendly } from '../sim/state';
 import { humanoid, monster } from './animation';
 import { FRIENDLY_SWING } from '../sim/friendlies';
 import { artReady, ENEMY_ART, paintedSprite, TOWER_ART } from './art';
+import { PROPERTY_COLOR } from '../data/leakProperties';
+import { leakMax, leakRemaining } from '../sim/combat';
 import { BUILD_TIME } from '../sim/game';
 import { castShadow, disc, pulseRing, radial, rgba, stampText } from './ink';
 
@@ -72,6 +74,8 @@ export function paintedEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number
   const lift = e.def.flying ? 12 + Math.sin(time * 5 + e.id) * 3 : moving ? Math.abs(stride) * 2.2 : 0;
   castShadow(ctx, x, y + 7, height * 0.31, height * 0.1, 0.28);
   if (e.slow > 0.05) pulseRing(ctx, x, y + 5, height * 0.4, '#b5f3ff', 0.65, 1.5);
+  if (!e.dead && e.properties.includes('regen') && e.burnTimer <= 0) pulseRing(ctx, x, y + 5, height * 0.48, '#81c784', 0.5, 1.6);
+  if (!e.dead && e.properties.includes('mineral')) pulseRing(ctx, x, y + 5, height * 0.36, '#d7ccc8', 0.45, 1.2);
   ctx.save(); ctx.translate(x, y + 11 - lift);
   if (e.dead) {
     const k = Math.max(0, Math.min(1, e.deathAge / 0.46));
@@ -85,7 +89,19 @@ export function paintedEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number
   const phase = 1 - (e.attackSwing ?? 0) / .64;
   monster(ctx, index, height, e.wobble * 1.7, moving, time + e.id, phase, (e.attackSwing ?? 0) > 0, e.def.flying, ['drip','sludge','steamWisp','airlock','biofilm','vacuumBreak'].includes(e.def.id));
   ctx.restore();
-  if (!e.dead && (e.hp < e.maxHp || e.heldBy || boss)) health(ctx, x, y - height - lift + 5, boss ? 65 : 23, e.hp / e.maxHp, boss ? '#f27e55' : '#83ce5b');
+  if (!e.dead && (leakRemaining(e) < leakMax(e) || e.heldBy || boss || e.properties.length > 0)) {
+    health(ctx, x, y - height - lift + 5, boss ? 65 : 23, leakRemaining(e) / leakMax(e), boss ? '#f27e55' : '#83ce5b');
+    if (e.maxShell > 0) {
+      const shellRatio = e.shellHp / Math.max(1, leakMax(e));
+      ctx.fillStyle = '#8d6e63';
+      ctx.fillRect(x - (boss ? 32.5 : 11.5), y - height - lift + 5, (boss ? 65 : 23) * shellRatio, 3);
+    }
+  }
+  if (!e.dead && e.properties.length > 0) {
+    e.properties.forEach((prop, i) => {
+      disc(ctx, x - 8 + i * 7, y - height - lift - 4, 2.4, PROPERTY_COLOR[prop]);
+    });
+  }
   if (e.stun > 0) for (let i = 0; i < 3; i++) {
     const a = time * 6 + i * Math.PI * 2 / 3;
     stampText(ctx, '✦', x + Math.cos(a) * 13, y - height - lift + Math.sin(a) * 4, { size: 11, color: '#ffe79e' });

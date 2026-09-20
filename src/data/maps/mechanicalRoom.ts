@@ -1,6 +1,6 @@
 import { vec } from '../../core/vec';
 import type { MapDef } from '../types';
-import { grp, wave } from './helpers';
+import { grp, pack, rush, wave } from './helpers';
 
 export const MECHANICAL_ROOM: MapDef = {
   id: 'mechanicalRoom',
@@ -61,14 +61,14 @@ export const MECHANICAL_ROOM: MapDef = {
   waves: [
     wave(grp('drip', 8, 1.0, 0, 0), grp('drip', 8, 1.0, 0, 1)),
     wave(grp('biofilm', 1, 1, 0, 1), grp('drip', 10, 0.85, 3, 0)),
-    wave(grp('limeScale', 2, 3, 0, 0), grp('drip', 8, 0.9, 4, 1)),
+    wave(grp('limeScale', 2, 2.4, 0, 0), grp('drip', 8, 0.9, 4, 1)),
     wave(grp('flangeGremlin', 1, 1, 0, 1), grp('drip', 8, 0.85, 3, 0)),
     wave(grp('pexKink', 1, 1, 0, 0), grp('drip', 10, 0.8, 3, 1)),
-    wave(grp('biofilm', 2, 3.2, 0, 1), grp('limeScale', 2, 3, 4, 0)),
+    rush(pack('limeScale', 2, 4, 0), pack('biofilm', 2, 0, 1)),
     wave(grp('waterHammer', 1, 1, 0, 0), grp('drip', 8, 0.8, 4, 1)),
-    wave(grp('pexKink', 1, 1, 0, 1), grp('flangeGremlin', 2, 2.6, 3, 0), grp('drip', 8, 0.75, 8, 1)),
-    wave(grp('biofilm', 2, 3.0, 0, 0), grp('limeScale', 2, 2.8, 5, 1), grp('drip', 10, 0.7, 6, 0)),
-    wave(grp('waterHammer', 2, 1.8, 0, 1), grp('pexKink', 3, 2.8, 4, 0), grp('flangeGremlin', 3, 2.1, 8, 1), grp('drip', 14, 0.58, 10, 0), grp('limeScale', 2, 2.6, 6, 1)),
+    rush(pack('flangeGremlin', 2, 3, 0), grp('pexKink', 1, 1, 0, 1), grp('drip', 8, 0.75, 8, 1)),
+    rush(pack('limeScale', 2, 5, 1), pack('biofilm', 2, 0, 0), grp('drip', 10, 0.7, 6, 0)),
+    rush(pack('flangeGremlin', 3, 8, 1), pack('limeScale', 2, 6, 1), grp('waterHammer', 2, 1.8, 0, 1), grp('pexKink', 3, 2.8, 4, 0), grp('drip', 14, 0.58, 10, 0)),
   ],
   palette: { bg: '#2a241c', wall: '#3e3428', pipe: '#8d6e4a', pipeDark: '#5d4037', accent: '#ff8a65' },
 };

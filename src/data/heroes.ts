@@ -17,6 +17,8 @@ export interface HeroDef {
   id: HeroId; name: string; title: string; style: string; description: string; color: string;
   hp: number; speed: number; reach: number; damage: number; attackRate: number;
   swingTime: number; holds: number; armor: number; ranged: boolean;
+  /** Seconds the hero stays in the truck after going down. */
+  respawn: number;
   aura: { name: string; description: string; radius: number };
   abilities: readonly [HeroAbility, HeroAbility, HeroAbility, HeroAbility, HeroAbility];
 }
@@ -41,7 +43,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
   mike: {
     id: 'mike', name: 'Big Mike', title: 'Plungers. Horsepower. Royalty.', style: 'Mobile ranged support',
     description: 'Lob plunger javelins from the roof of a blue and cream service truck. Reposition to rally your towers, then bury a lane in plungers.',
-    color: '#84bff0', hp: 520, speed: 98, reach: 195, damage: 39, attackRate: .85, swingTime: .92, holds: 1, armor: .12, ranged: true,
+    color: '#84bff0', hp: 520, speed: 98, reach: 195, damage: 39, attackRate: .85, swingTime: .92, holds: 1, armor: .12, ranged: true, respawn: 13,
     aura: { name: 'The Truck King', description: 'Within 145: towers attack 12% faster and reach 8% farther. Park near a cluster of defenses to lead the convoy.', radius: 145 },
     abilities: [
       { name: 'Plunger Volley', short: '3 heavy javelins', description: 'Click a leak within 280. Throw three 52-damage plungers; each splashes a small area.', cooldown: 18, glyph: 'volley', target: true, aim: 'enemy', castRange: 280, cast: .92,
@@ -59,7 +61,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
   bob: {
     id: 'bob', name: 'Robo Bob', title: 'Human judgment. Laser consequences.', style: 'Precision ranged destroyer',
     description: 'A cyborg with a hand cannon. Burn armored threats, expose phased enemies, and line up a devastating beam through a packed lane.',
-    color: '#72e3e9', hp: 360, speed: 110, reach: 175, damage: 27, attackRate: 1.18, swingTime: .72, holds: 1, armor: .2, ranged: true,
+    color: '#72e3e9', hp: 360, speed: 110, reach: 175, damage: 27, attackRate: 1.18, swingTime: .72, holds: 1, armor: .2, ranged: true, respawn: 9,
     aura: { name: "Orbs Aren't Real", description: 'Within 135: phased enemies stay visible and flying enemies lose 20% speed. Bob refuses to acknowledge evasive nonsense.', radius: 135 },
     abilities: [
       { name: "You're Fired", short: 'Piercing thermal beam', description: 'Click a leak within 300. Charge a 420-range beam through it, dealing 140 heat to every enemy in the path.', cooldown: 36, glyph: 'laser', target: true, aim: 'enemy', castRange: 300, cast: 1.2,
@@ -77,7 +79,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
   becbec: {
     id: 'becbec', name: 'Becbec', title: 'No tools required.', style: 'Heavy melee brawler',
     description: 'Bare hands and overwhelming strength. Break armor with a haymaker, smash a crowd into the ground, and stand firm while your crew cleans up.',
-    color: '#efa0cf', hp: 590, speed: 122, reach: 43, damage: 32, attackRate: 1.18, swingTime: .73, holds: 3, armor: .16, ranged: false,
+    color: '#efa0cf', hp: 590, speed: 122, reach: 43, damage: 32, attackRate: 1.18, swingTime: .73, holds: 3, armor: .16, ranged: false, respawn: 10,
     aura: { name: 'Stronger Together', description: 'Within 120: friendly NPCs and support crew deal 20% more damage. Her presence turns a crew into a wrecking team.', radius: 120 },
     abilities: [
       { name: 'Haymaker', short: 'Armor-breaking punch', description: 'Click a ground leak within 75. 110 damage, 45% armor shred, and a 1.8-second stun.', cooldown: 16, glyph: 'fist', target: true, aim: 'enemy', castRange: 75, cast: .85,
@@ -95,7 +97,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
   chris: {
     id: 'chris', name: 'Mr. Chris', title: 'Saw teeth. Tee times. Tiny accomplice.', style: 'Melee skirmisher & summoner',
     description: 'Carve into crowds with a reciprocating saw, bank a golf shot through enemies, and unleash Logan to scramble after stragglers.',
-    color: '#c3d78a', hp: 430, speed: 136, reach: 44, damage: 19, attackRate: 1.65, swingTime: .57, holds: 2, armor: .08, ranged: false,
+    color: '#c3d78a', hp: 430, speed: 136, reach: 44, damage: 19, attackRate: 1.65, swingTime: .57, holds: 2, armor: .08, ranged: false, respawn: 11,
     aura: { name: 'Strongest Boy in the 8th Grade', description: 'Within 85: ground enemies move 15% slower and suffer 4 heat damage per second. Hallway gravity. Nobody walks past him at full speed.', radius: 85 },
     abilities: [
       { name: 'Unleash Logan', short: 'Tiny gremlin ally · 18s', description: 'Summon Logan for 18 seconds. He scurries after nearby ground enemies, holds one, and bites and batters with rapid attacks.', cooldown: 28, glyph: 'logan', cast: .85,

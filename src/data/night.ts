@@ -1,5 +1,5 @@
 import type { EnemyId, WaveDef } from './types';
-import { grp, wave } from './maps/helpers';
+import { grp, pack, rush, wave } from './maps/helpers';
 
 export type NightMutatorId =
   | 'rushHour'
@@ -64,18 +64,19 @@ export function generateEndlessWave(index: number, pathCount: number): WaveDef {
 
   switch (mut) {
     case 'rushHour':
-      return wave(
-        grp('drip', c(16), 0.48, 0, p0),
-        grp('drip', c(12), 0.55, 2, p1),
-        grp('hardWaterGnat', c(6), 0.7, 6, p0),
-        grp('zincWhisker', c(5), 0.65, 8, p1),
+      return rush(
+        pack('drip', c(16), 0, p0),
+        pack('drip', c(12), 2, p1),
+        pack('hardWaterGnat', c(6), 6, p0),
+        pack('zincWhisker', c(5), 8, p1),
         n % 5 === 0 ? grp('pressureSpike', c(3), 1.8, 10, p1) : grp('sludge', c(2), 2.4, 8, p1),
       );
     case 'mineralBloom':
-      return wave(
-        grp('scaleCrab', c(7), 1.5, 0, p0),
+      return rush(
+        pack('scaleCrab', c(7), 0, p0),
+        pack('limeScale', c(3), 5, p0),
+        pack('flangeGremlin', c(3), 6, p1),
         grp('sedimentBoulder', c(2), 4.2, 3, p1),
-        grp('limeScale', c(3), 2.4, 5, p0),
         grp('biofilm', c(2), 3.2, 7, p1),
         grp('sludge', c(4), 2.2, 6, p0),
         grp('drip', c(10), 0.65, 8, p1),
@@ -97,12 +98,12 @@ export function generateEndlessWave(index: number, pathCount: number): WaveDef {
       );
     case 'freezeSnap': {
       const packs = [
-        grp('frozenMain', Math.max(1, c(2)), 4.8, 0, p1),
+        pack('frozenMain', Math.max(1, c(2)), 0, p1),
         grp('drip', c(14), 0.55, 3, p0),
-        grp('scaleCrab', c(5), 1.6, 10, p1),
+        pack('scaleCrab', c(5), 6, p1),
       ];
       if (n % 8 === 0) packs.push(grp('glycolGolem', 1, 1, 6, p0));
-      return wave(...packs);
+      return rush(...packs);
     }
     case 'pressureSurge':
       return wave(
@@ -116,6 +117,7 @@ export function generateEndlessWave(index: number, pathCount: number): WaveDef {
       return wave(
         grp(boss(index), 1, 1, 1, p1),
         grp('drip', c(16), 0.45, 5, p0),
+        grp('flangeGremlin', c(4), 1.7, 6, p0),
         grp('steamWisp', c(7), 1.2, 8, p1),
         grp('codeViolation', Math.max(1, c(1)), 3, 12, p0),
         grp('condensateMoth', c(3), 1.8, 14, p1),

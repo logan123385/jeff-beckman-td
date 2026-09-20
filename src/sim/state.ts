@@ -1,5 +1,5 @@
 import type { Vec } from '../core/vec';
-import type { DamageType, EnemyDef, EnemyId, TowerDef, TowerId } from '../data/types';
+import type { DamageType, EnemyDef, EnemyId, LeakProperty, TowerDef, TowerId } from '../data/types';
 import type { Specialization } from '../data/specializations';
 import type { AbilitySlot, HeroId } from '../data/heroes';
 
@@ -43,6 +43,8 @@ export interface Enemy {
   dotSource: DamageSource | null;
   marked: boolean;
   markBonus?: number;
+  /** Snapshot / camera paint that survives the per-frame aura reset. */
+  markHold: number;
   haste: number;
   laneTimer: number;
   /** White flash + squash after a real hit. */
@@ -51,6 +53,13 @@ export interface Enemy {
   attackLanded?: boolean;
   /** Unresolved projectile damage so other towers do not pile onto a doomed leak. */
   incoming: number;
+  /** Stacked Bloons-style flags (mineral / cast / regen / pressurized). Never camo. */
+  properties: LeakProperty[];
+  /** Cast-iron jacket HP sitting on top of `hp`. */
+  shellHp: number;
+  maxShell: number;
+  /** Regen pauses while this is > 0 (set by fire / heat). */
+  burnTimer: number;
 }
 
 export type HoldRef = { kind: 'tower'; id: number } | { kind: 'crew'; id: number } | { kind: 'friendly'; id: number } | { kind: 'summon'; id: number } | { kind: 'hero' } | { kind: 'clamp' };
@@ -113,6 +122,10 @@ export interface Tower {
   build?: number;
   /** Last aimed enemy, for the selected-tower aim line. */
   lastTargetId?: number;
+  /** Seconds until the activated tool can fire again. */
+  abilityCd: number;
+  /** Temporary fire-rate surge from Circulator / Thermostat actives. */
+  surge?: number;
 }
 
 /** Kingdom Rush–style target priority for shooters. */
@@ -234,6 +247,7 @@ export interface ActiveSpawn {
   interval: number;
   timer: number;
   path: number;
+  properties: LeakProperty[];
 }
 
 export interface RunStats {
@@ -246,6 +260,8 @@ export interface RunStats {
   moneyEarned: number;
   moneySpent: number;
   wavesCalledEarly: number;
+  partsEarned: number;
+  partsSpent: number;
 }
 
 export type GameStatus = 'playing' | 'won' | 'lost' | 'retired';

@@ -1,7 +1,10 @@
 import { TOWERS, TOWER_ORDER, TIER_NAMES } from '../../data/towers';
 import type { TowerId } from '../../data/types';
 import { specializationInfo, type Specialization } from '../../data/specializations';
+import { towerAbility } from '../../data/towerAbilities';
+import { isNoSell, remasterTitle } from '../../data/remasters';
 import { AIM_HINT, AIM_LABEL } from '../../sim/combat';
+import { towerAbilityReady } from '../../sim/towerAbilities';
 import type { Game } from '../../sim/game';
 import type { Tower } from '../../sim/state';
 import { clear, h } from '../dom';
@@ -17,6 +20,7 @@ export interface PopoverHandlers {
   onCycleAim(towerId: number): void;
   onSpecialize(towerId: number, choice: Specialization): void;
   onRally(towerId: number): void;
+  onAbility(towerId: number): void;
 }
 
 /** Kingdom Rush–style radial command wheel anchored to a pad or tower. */
@@ -83,7 +87,7 @@ export class Popover {
     if (!this.mode) return '';
     if (this.mode.kind === 'build') return `b${this.mode.slot}|${this.game.money}`;
     const t = this.game.towerById(this.mode.towerId);
-    return `t${this.mode.towerId}|${this.game.money}|${t?.level}|${t?.aim}|${t?.specialization ?? ''}|${t?.mastery ?? 0}`;
+    return `t${this.mode.towerId}|${this.game.money}|${this.game.parts}|${t?.level}|${t?.aim}|${t?.specialization ?? ''}|${t?.mastery ?? 0}|${Math.ceil(t?.abilityCd ?? 0)}`;
   }
 
   private rebuild(): void {
@@ -113,6 +117,7 @@ export class Popover {
         class: `kr-spoke ${cls}${opts.disabled ? ' poor' : ''}`,
         attrs: { style: `--a:${angle}deg` },
         title: opts.title,
+        disabled: opts.disabled,
         onClick: opts.onClick,
         onMouseEnter: opts.onEnter,
         onMouseLeave: opts.onLeave,
@@ -194,13 +199,39 @@ export class Popover {
       }));
     }
 
-    this.el.append(this.spoke(90, 'kr-sell', [
-      h('span', { class: 'kr-spoke-label', text: 'Sell' }),
-      h('span', { class: 'kr-cost', text: `$${g.sellValue(t)}` }),
-    ], {
-      title: `Refund ${Math.round(g.mods.sellRate * 100)}% of what you invested.`,
-      onClick: () => this.handlers.onSell(t.id),
-    }));
+    if (isNoSell(g.remaster)) {
+      this.el.append(this.spoke(90, 'kr-sell poor', [
+        h('span', { class: 'kr-spoke-label', text: 'No sell' }),
+        h('span', { class: 'kr-spoke-sub', text: remasterTitle(g.remaster) }),
+      ], {
+        disabled: true,
+        title: `${remasterTitle(g.remaster)} — fittings stay. No refunds.`,
+        onClick: () => undefined,
+      }));
+    } else {
+      this.el.append(this.spoke(90, 'kr-sell', [
+        h('span', { class: 'kr-spoke-label', text: 'Sell' }),
+        h('span', { class: 'kr-cost', text: `$${g.sellValue(t)}` }),
+      ], {
+        title: `Refund ${Math.round(g.mods.sellRate * 100)}% of what you invested.`,
+        onClick: () => this.handlers.onSell(t.id),
+      }));
+    }
+
+    const ability = towerAbility(t.def.id);
+    if (ability) {
+      const gate = towerAbilityReady(g, t);
+      const cd = Math.ceil(t.abilityCd);
+      this.el.append(this.spoke(-145, `kr-ability${gate.ok ? '' : ' poor'}`, [
+        h('span', { class: 'kr-spoke-label', text: ability.name }),
+        h('span', { class: 'kr-cost', text: gate.ok ? `${ability.parts} pts` : cd > 0 ? `${cd}s` : t.level < ability.minLevel ? 'Upgrade' : `${ability.parts} pts` }),
+        h('span', { class: 'kr-spoke-sub', text: 'V' }),
+      ], {
+        disabled: !gate.ok,
+        title: gate.ok ? `${ability.blurb} · ${ability.parts} spare parts · ${ability.cooldown}s` : `${ability.blurb} · ${gate.reason}`,
+        onClick: () => this.handlers.onAbility(t.id),
+      }));
+    }
 
     if (t.def.kind === 'shooter') {
       this.el.append(this.spoke(-200, 'kr-aim', [
@@ -211,12 +242,14 @@ export class Popover {
         onClick: () => this.handlers.onCycleAim(t.id),
       }));
     }
-    if (t.def.kind === 'barricade' && t.def.recruits) {
+    if (t.def.kind === 'barricade') {
       this.el.append(this.spoke(20, 'kr-rally', [
         h('span', { class: 'kr-spoke-label', text: 'Rally' }),
         h('span', { class: 'kr-spoke-sub', text: 'G' }),
       ], {
-        title: 'Place the crew on a route within 150 pixels of this tower.',
+        title: t.def.recruits
+          ? 'Place the crew on a route within 150 pixels of this tower.'
+          : 'Move this valve’s hold point onto a nearby route.',
         onClick: () => this.handlers.onRally(t.id),
       }));
     }
