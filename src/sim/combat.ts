@@ -61,16 +61,14 @@ export function nextRankBlurb(game: Game, slot: AbilitySlot): string | null {
   return game.heroDef.abilities[slot].ranks[rank] ?? null;
 }
 
-/** Apply damage with armor / resistances; handles kills, bounty, and boss phase changes. Returns damage dealt. */
-export function applyDamage(
+/** Shared armor / resist / aura math so reservations match the hit that actually lands. */
+export function damageMultiplier(
   game: Game,
   enemy: Enemy,
-  amount: number,
   type: DamageType,
   source: DamageSource,
   opts: DamageOpts = {},
 ): number {
-  if (enemy.dead || enemy.escaped || enemy.phased) return 0;
   let mult = 1;
   // Armor stops wrenches and water; fire and radiant heat go straight through the shell.
   const armorBonus = source === 'jeff' ? undefined : TOWERS[source as TowerId]?.armorBonus;
@@ -87,7 +85,33 @@ export function applyDamage(
   }
   if (enemy.marked) mult *= 1 + (enemy.markBonus || MARKED_DAMAGE - 1);
   if (source === 'jeff') mult *= heroRank(game);
-  const dealt = Math.min(enemy.hp, amount * mult);
+  return mult;
+}
+
+/** Uncapped expected damage for overkill reservation. 0 if the leak cannot be hit. */
+export function estimateDamage(
+  game: Game,
+  enemy: Enemy,
+  amount: number,
+  type: DamageType,
+  source: DamageSource,
+  opts: DamageOpts = {},
+): number {
+  if (enemy.dead || enemy.escaped || enemy.phased) return 0;
+  return amount * damageMultiplier(game, enemy, type, source, opts);
+}
+
+/** Apply damage with armor / resistances; handles kills, bounty, and boss phase changes. Returns damage dealt. */
+export function applyDamage(
+  game: Game,
+  enemy: Enemy,
+  amount: number,
+  type: DamageType,
+  source: DamageSource,
+  opts: DamageOpts = {},
+): number {
+  if (enemy.dead || enemy.escaped || enemy.phased) return 0;
+  const dealt = Math.min(enemy.hp, estimateDamage(game, enemy, amount, type, source, opts));
   if (dealt <= 0) return 0;
   enemy.hp -= dealt;
   if (dealt >= 4) enemy.hitFlash = Math.max(enemy.hitFlash, Math.min(0.22, 0.08 + dealt / 180));

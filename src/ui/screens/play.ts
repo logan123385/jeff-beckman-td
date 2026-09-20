@@ -481,8 +481,10 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
 
   function setPaused(on: boolean): void {
     if (on && game.pendingRankUps > 0) {
+      userPaused = true;
       hud.setHint('Pick a skill to rank first.');
       rankPanel.show();
+      syncPause();
       return;
     }
     userPaused = on;
@@ -506,7 +508,11 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     } else {
       rankPanel.hide();
       syncPause();
-      hud.setHint(`${ability.name} ranked to ${stars}. Back on the clock.`);
+      hud.setHint(
+        userPaused
+          ? `${ability.name} ranked to ${stars}. Wave clear — resume when you are ready.`
+          : `${ability.name} ranked to ${stars}. Back on the clock.`,
+      );
     }
   }
 
@@ -579,6 +585,16 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     }
     hud.setHint(`Need $${game.towerCost(stickyTower)} for another ${TOWERS[stickyTower].name}.`);
     return false;
+  }
+
+  function tapEmptyPad(slot: number): void {
+    if (tryStickyPlace(slot)) return;
+    if (stickyTower && game.money >= game.towerCost(stickyTower)) return;
+    view.selectedSlot = slot;
+    view.selectedTowerId = null;
+    view.heroSelected = false;
+    hud.setHeroSelected(false);
+    popover.showBuild(slot);
   }
 
   function selectJeff(): void {
@@ -876,13 +892,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       return;
     }
     if (coarse && slotNear !== null && !game.towerAt(slotNear)) {
-      if (tryStickyPlace(slotNear)) return;
-      if (stickyTower) return;
-      view.selectedSlot = slotNear;
-      view.selectedTowerId = null;
-      view.heroSelected = false;
-      hud.setHeroSelected(false);
-      popover.showBuild(slotNear);
+      tapEmptyPad(slotNear);
       return;
     }
 
@@ -911,13 +921,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     }
     const slot = slotAt(p, pad);
     if (slot !== null && !game.towerAt(slot)) {
-      if (tryStickyPlace(slot)) return;
-      if (stickyTower) return;
-      view.selectedSlot = slot;
-      view.selectedTowerId = null;
-      view.heroSelected = false;
-      hud.setHeroSelected(false);
-      popover.showBuild(slot);
+      tapEmptyPad(slot);
       return;
     }
     if (view.heroSelected) {

@@ -853,6 +853,7 @@ export class Game {
         this.stats.moneyEarned += bonus;
         this.addEffect({ kind: 'text', pos: { x: 480, y: 248 }, text: `CLEAN CALL · +$${bonus}`, color: '#b8ef9a', ttl: 1.8, max: 1.8 });
       }
+      this.waveLeaks = 0;
       if (this.endless) {
         const payout = 70 + this.waveIdx * 9;
         this.money += payout; this.stats.moneyEarned += payout; this.waveCountdown = 10;
@@ -900,7 +901,8 @@ export class Game {
       duration = Math.max(duration, g.delay + (g.count - 1) * g.interval);
     }
     this.waveIdx++;
-    this.waveLeaks = 0;
+    const leftover = this.enemies.some((e) => !e.dead && !e.escaped);
+    if (!leftover) this.waveLeaks = 0;
     if (this.endless) {
       const scripted = index < this.map.waves.length;
       this.nightMutator = scripted ? null : nightMutatorAt(proceduralIndex(index, this.map.waves.length));
@@ -943,7 +945,7 @@ export class Game {
       }
       p.pos = { ...goal };
       const release = (e: Enemy | undefined) => {
-        if (e) e.incoming = Math.max(0, e.incoming - p.damage);
+        if (e) e.incoming = Math.max(0, e.incoming - p.reserved);
       };
       if (p.splash > 0) {
         this.addEffect({ kind: 'splash', pos: { ...goal }, radius: p.splash, color: p.color, ttl: 0.3, max: 0.3 });

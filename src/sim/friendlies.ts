@@ -51,6 +51,18 @@ export function updateFriendlies(game: Game, dt: number): void {
       continue;
     }
     if (tower.frozen > 0 || tower.rebuild > 0) { releaseFriendly(game, f.id); f.targetId = null; f.swing = 0; continue; }
+    if ((tower.build ?? 0) > 0) {
+      releaseFriendly(game, f.id);
+      f.targetId = null;
+      f.swing = 0;
+      f.hitLanded = false;
+      const goal = f.home;
+      if (dist(f.pos, goal) > 2) {
+        const step = moveToward(f.pos, goal, (f.role === 'jayjay' ? 65 : 92) * dt * (0.45 + 0.55 * (f.moveBlend ?? 0)));
+        f.walkPhase += dist(f.pos, step.pos) * 0.13; f.pos = step.pos; f.facing = goal.x >= f.pos.x ? 1 : -1; f.moving = true;
+      }
+      continue;
+    }
     f.attackTimer = Math.max(0, f.attackTimer - dt);
     if (f.swing > 0) {
       f.swing = Math.max(0, f.swing - dt);

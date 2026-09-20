@@ -17,6 +17,22 @@ function field() {
 function step(g:Game,s:number) { for(let i=0;i<Math.ceil(s*60);i++) g.update(1/60); }
 
 describe('Real recruit towers',()=>{
+  it('recruits do not hold or punch while the shop is still installing', () => {
+    const g = field();
+    g.placeTower(0, 'jayjay');
+    expect((g.towers[0]!.build ?? 0)).toBeGreaterThan(0.5);
+    const f = g.friendlies[0]!;
+    const e = g.spawnEnemy('sludge', 0, 280);
+    e.pos = { ...f.pos };
+    e.def = { ...e.def, dps: 0, speed: 0 };
+    e.hp = e.maxHp = 10000;
+    const hp = e.hp;
+    step(g, 0.5);
+    expect((g.towers[0]!.build ?? 0)).toBeGreaterThan(0);
+    expect(e.heldBy).toBeNull();
+    expect(e.hp).toBe(hp);
+    expect(f.swing).toBe(0);
+  });
   it('four tool-bearing apprentices walk from the workshop, expanding to six at tier six',()=>{
     const g=field();g.placeTower(0,'apprentices');const t=g.towers[0]!;
     expect(g.friendlies).toHaveLength(4);expect(g.friendlies.every(f=>f.pos.y===150)).toBe(true);

@@ -17,7 +17,7 @@ import { TOWERS, TOWER_ORDER } from '../src/data/towers';
 import type { GearItem, MapDef, TowerId } from '../src/data/types';
 import { JEFF } from '../src/data/jeff';
 import { JEFF_LEVEL_CAP, levelFromXp, nightXp, talentPointsAvailable, xpBarCopy, xpToNext } from '../src/data/xp';
-import { applyDamage, pickTarget } from '../src/sim/combat';
+import { applyDamage, estimateDamage, pickTarget } from '../src/sim/combat';
 import { Game } from '../src/sim/game';
 import { Path } from '../src/sim/path';
 import { INVENTORY_CAP, SaveStore, starsForClear } from '../src/save/save';
@@ -808,5 +808,58 @@ describe('Loadout and new kit', () => {
     const c = game.spawnEnemy('drip', 0, 220);
     step(game, 1.2);
     expect([a, b, c].filter((e) => e.hp < e.maxHp).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('Review fixes', () => {
+  it('reserves mitigated projectile damage, not raw tower damage', () => {
+    const game = makeGame();
+    expect(game.placeTower(0, 'vent')).toBe(true);
+    game.towers[0]!.build = 0;
+    const crab = game.spawnEnemy('scaleCrab', 0, 200);
+    crab.def = { ...crab.def, speed: 0 };
+    const raw = game.effectiveDamage(game.towers[0]!);
+    const expected = estimateDamage(game, crab, raw, 'physical', 'vent', { groundMult: TOWERS.vent.groundMult });
+    expect(expected).toBeLessThan(raw);
+    expect(expected).toBeCloseTo(raw * (1 - crab.def.armor) * (TOWERS.vent.groundMult ?? 1));
+    step(game, 0.14);
+    expect(game.projectiles.length).toBeGreaterThan(0);
+    const shot = game.projectiles[0]!;
+    expect(shot.reserved).toBeCloseTo(expected);
+    expect(shot.reserved).toBeLessThan(shot.damage);
+    expect(crab.incoming).toBeCloseTo(expected);
+    expect(crab.hp - crab.incoming).toBeGreaterThan(0);
+  });
+
+  it('keeps leak count when the next wave starts over leftovers', () => {
+    const game = makeGame({
+      waves: [
+        { groups: [{ enemy: 'drip', count: 1, interval: 1, delay: 0, path: 0 }] },
+        { groups: [{ enemy: 'drip', count: 1, interval: 1, delay: 0, path: 0 }] },
+      ],
+    });
+    game.callNextWave();
+    const a = game.spawnEnemy('drip', 0, 10);
+    const b = game.spawnEnemy('drip', 0, 10);
+    a.progress = game.paths[0]!.length;
+    b.def = { ...b.def, speed: 0 };
+    step(game, FIXED_DT);
+    expect(a.escaped).toBe(true);
+    expect(game.waveLeaks).toBeGreaterThan(0);
+    const leaks = game.waveLeaks;
+    expect(b.escaped).toBe(false);
+    game.callNextWave();
+    expect(game.waveLeaks).toBe(leaks);
+    for (const e of game.enemies) {
+      if (!e.dead && !e.escaped) {
+        e.dead = true;
+        e.deathAge = 0;
+      }
+    }
+    game.spawns = [];
+    const money = game.money;
+    step(game, FIXED_DT);
+    expect(game.effects.some((fx) => fx.kind === 'text' && String(fx.text).includes('CLEAN CALL'))).toBe(false);
+    expect(game.money).toBe(money);
   });
 });

@@ -3,7 +3,7 @@ import { dist } from '../core/vec';
 import { PHASE_VISIBLE_SECONDS } from '../data/enemies';
 import { BARRICADE_REBUILD_SECONDS, BARRICADE_REGEN_PER_SEC, MINERAL_ENEMIES } from '../data/towers';
 import type { EnemyId } from '../data/types';
-import { applyDamage, heroOnYard, isTargetable, matchesTargetMode, pickTarget, predictedPos } from './combat';
+import { applyDamage, estimateDamage, heroOnYard, isTargetable, matchesTargetMode, pickTarget, predictedPos } from './combat';
 import type { Game } from './game';
 import type { Enemy, Tower } from './state';
 
@@ -435,7 +435,8 @@ function fireShooter(game: Game, t: Tower): void {
   const splash = lvl.splash ?? 0;
   const eta = dist(t.pos, target.pos) / Math.max(40, t.def.projectileSpeed);
   const aim = splash > 0 ? predictedPos(game, target, eta) : { ...target.pos };
-  target.incoming += damage;
+  const reserved = estimateDamage(game, target, damage, t.def.damageType, t.def.id, { groundMult: t.def.groundMult });
+  target.incoming += reserved;
   game.projectiles.push({
     id: game.nextEntityId(),
     pos: { ...t.pos },
@@ -445,6 +446,7 @@ function fireShooter(game: Game, t: Tower): void {
     lastTargetPos: aim,
     speed: t.def.projectileSpeed,
     damage,
+    reserved,
     damageType: t.def.damageType,
     splash,
     source: t.def.id,

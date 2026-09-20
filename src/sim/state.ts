@@ -127,6 +127,8 @@ export interface Projectile {
   lastTargetPos: Vec;
   speed: number;
   damage: number;
+  /** Mitigated amount already counted on `Enemy.incoming`. */
+  reserved: number;
   damageType: DamageType;
   splash: number;
   source: DamageSource;
