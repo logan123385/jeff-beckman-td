@@ -1,6 +1,5 @@
-/** Kit menu acceptance with a deliberate heroJobs fixture in an isolated profile.
- * Exercises family toggles and loadout summaries for all eight heroes. Not progression-rate evidence.
- * node scripts/browser-career-builds-ui.mjs <CDP port> <output directory>
+/** Production-input Kit acceptance: Jeff ranged kit, loadout summary, crawlspace basic attack.
+ * node scripts/browser-kit-check.mjs <CDP port> <output directory> [--fresh]
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
@@ -53,6 +52,17 @@ const textButton = async name => {
   const selector = await read(`(() => { const buttons=[...document.querySelectorAll('button')]; const i=buttons.findIndex(b => b.textContent.trim()===${JSON.stringify(name)} && !b.disabled); if(i<0)return null; buttons[i].setAttribute('data-playtest-button','yes'); return '[data-playtest-button="yes"]'; })()`);
   assert(selector, `Missing button: ${name}`); await click(selector); await read(`document.querySelector('[data-playtest-button]')?.removeAttribute('data-playtest-button')`);
 };
+const cardOption = async name => {
+  const selector = await read(`(() => { const buttons=[...document.querySelectorAll('.kit-card-option')]; const i=buttons.findIndex(b => b.querySelector('b')?.textContent.trim()===${JSON.stringify(name)} && !b.disabled); if(i<0)return null; buttons[i].setAttribute('data-playtest-card','yes'); return '[data-playtest-card="yes"]'; })()`);
+  assert(selector, `Missing card: ${name}`); await click(selector); await read(`document.querySelector('[data-playtest-card]')?.removeAttribute('data-playtest-card')`);
+};
+const clearAllCards = async () => {
+  for (let i = 0; i < 4; i++) {
+    const cleared = await read(`(() => { const btn=[...document.querySelectorAll('.kit-card-slot button')].find(b => b.textContent.trim()==='Clear'); if(!btn)return false; btn.click(); return true; })()`);
+    if (!cleared) break;
+    await delay(150);
+  }
+};
 const press = async (key, modifiers = 0) => {
   const code = ['Escape','Tab'].includes(key) ? key : key === ' ' ? 'Space' : /^[0-9]$/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`;
   const windowsVirtualKeyCode = key === 'Escape' ? 27 : key === 'Tab' ? 9 : key.toUpperCase().charCodeAt(0);
@@ -69,47 +79,45 @@ const shot = async name => {
   const { data } = await send('Page.captureScreenshot', { format: 'png' });
   writeFileSync(`${output}/${name}.png`, Buffer.from(data, 'base64'));
 };
-const stats = () => read(`({cash:Number(document.querySelector('.medal.coin b')?.textContent),lives:Number(document.querySelector('.medal.heart b')?.textContent),wave:document.querySelector('.medal.wave b')?.textContent,result:document.querySelector('.results')?.innerText})`);
-const until = async (expression, label, seconds = 25) => {
-  const deadline = Date.now() + seconds * 1000;
-  while (Date.now() < deadline) { if (await read(expression)) return; await delay(100); }
-  throw new Error(`Timed out: ${label}`);
-};
 try {
-  await send('Runtime.enable');await send('Page.enable');await send('Network.enable');await send('Network.setCacheDisabled',{cacheDisabled:true});
-  await read(`(()=>{const s=JSON.parse(localStorage.getItem('jbtd-save-v1')||'null')||{};s.heroJobs={jeff:3,mike:3,bob:3,chris:3,becbec:3,cbj:3,doni:3,jayjay:3};localStorage.setItem('jbtd-save-v1',JSON.stringify(s));})()`);
-  await send('Page.reload');await waitFor('.adventure-title');await textButton(await read(`document.querySelector('.adventure-copy .btn.primary').textContent`));
-  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:960,deviceScaleFactor:1,mobile:false});
+  await send('Runtime.enable'); await send('Page.enable'); await send('Network.enable'); await send('Network.setCacheDisabled', { cacheDisabled: true });
+  if (process.argv.includes('--fresh')) await read(`localStorage.clear()`);
+  await send('Page.reload'); await waitFor('.adventure-title');
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false });
+  await textButton(await read(`document.querySelector('.adventure-copy .btn.primary').textContent`));
+  await read(`(()=>{const s=JSON.parse(localStorage.getItem('jbtd-save-v1'));s.heroJobs={jeff:1};localStorage.setItem('jbtd-save-v1',JSON.stringify(s));})()`);
   await textButton('Kit8 heroes');
-  const heroes=await read(`[...document.querySelectorAll('[data-kit-hero]')].map(b=>({id:b.dataset.kitHero,name:b.querySelector('b').textContent}))`), checks=[];
-  for(const hero of heroes) {
-    await click(`[data-kit-hero="${hero.id}"]`);
-    const families=await read(`[...document.querySelectorAll('.kit-stance-toggle .btn-row button')].map(b=>b.textContent.trim())`);
-    assert.equal(families.length,2,`${hero.id} needs melee and ranged families`);
-    for(const family of families) {
-      await textButton(family);
-      const footer=await read(`document.querySelector('.kit-footer-line').textContent`);
-      assert(footer.includes(family),`${hero.id} footer must mention ${family}: ${footer}`);
-    }
-    await read(`window.scrollTo(0,0)`);await shot(`kit-${hero.id}`);
-    await textButton(`Take ${hero.name}`);await click('[aria-label^="1. Crawlspace"]');await click('.campaign-briefing .map-foot .btn.primary');
-    assert(await read(`document.querySelector('.hero-dossier .small').textContent.length>0`));
-    checks.push({hero:hero.id,families});
-    await textButton('← Van');await textButton('Kit8 heroes');
-  }
-  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
-  for(const hero of heroes) {
-    await click(`[data-kit-hero="${hero.id}"]`);
-    const metrics=await read(`({page:document.documentElement.scrollWidth,viewport:innerWidth,body:document.body.scrollWidth})`);
-    assert(metrics.page<=metrics.viewport+1,`${hero.id} mobile overflow: ${JSON.stringify(metrics)}`);
-  }
-  await read(`window.scrollTo(0,0)`);await shot('mobile-kit');
-  await textButton('← Van');await click('.supply-link');
-  assert(await read(`document.documentElement.scrollWidth<=innerWidth+1`));
-  await read(`window.scrollTo(0,0)`);await shot('mobile-store');
-  await textButton('Affordable');await textButton('Owned');await textButton('All towers');
-  assert.equal(await read(`document.querySelectorAll('[data-store-tower]').length`),24);
-  assert.deepEqual(errors,[]);
-  writeFileSync(`${output}/build-ui-report.json`,JSON.stringify({fixture:'heroJobs=3 per hero, isolated profile; family toggles through real controls',checks,mobileWidth:390,errors},null,2));
-  console.log(JSON.stringify({all8Heroes:checks,all24Techniques:true,mobileWidth:390,errors}));
-} finally {ws.close();}
+  await waitFor('[data-kit-hero="jeff"]');
+  await click('[data-kit-hero="jeff"]');
+  await textButton('Pressure Wand');
+  await clearAllCards();
+  await cardOption('Wash the Lane');
+  await cardOption('Steam Cloud');
+  const footer = await read(`document.querySelector('.kit-footer-line').textContent`);
+  assert(footer.includes('Pressure Wand'), footer);
+  assert(footer.includes('Wash'), footer);
+  assert(footer.includes('Cloud'), footer);
+  await shot('01-kit-ranged');
+  await textButton('Take Jeff');
+  await textButton('Apprentice');
+  await click('[aria-label^="1. Crawlspace"]');
+  await click('.campaign-briefing .map-foot .btn.primary');
+  const dossier = await read(`document.querySelector('.hero-dossier').textContent`);
+  assert(dossier.includes('Pressure Wand'), dossier);
+  assert(dossier.includes('Wash the Lane'), dossier);
+  assert(dossier.includes('Steam Cloud'), dossier);
+  assert(await read(`!!document.querySelector('.loadout .btn') && [...document.querySelectorAll('.loadout .btn')].some(b => b.textContent.trim()==='Edit kit')`));
+  await shot('02-loadout-kit');
+  await textButton('Take the call');
+  if (await read(`!!document.querySelector('.coach-skip')`)) await textButton('Skip tutorial');
+  await press('j'); await world(170, 275); await press(' ');
+  await delay(800);
+  await shot('03-ranged-basic');
+  const saved = await read(`JSON.parse(localStorage.getItem('jbtd-save-v1'))`);
+  assert.equal(saved.kits.jeff.family, 'jeff_ranged');
+  assert(saved.kits.jeff.cards.includes('jeff_lane'));
+  assert(saved.kits.jeff.cards.includes('jeff_control'));
+  assert.deepEqual(errors, []);
+  writeFileSync(`${output}/kit-check.json`, JSON.stringify({ footer, dossier, kit: saved.kits.jeff, errors }, null, 2));
+  console.log(JSON.stringify({ kit: saved.kits.jeff, footer, errors }));
+} finally { ws.close(); }
