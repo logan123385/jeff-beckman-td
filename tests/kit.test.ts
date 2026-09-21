@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { Rng } from '../src/core/rng';
 import { HERO_ORDER } from '../src/data/heroes';
 import { cardUnlocked, cardsFor, defaultCards, KIT_CARDS } from '../src/data/kitCards';
+import { rollChest } from '../src/data/loot';
 import { defaultFamily, familyHero, familyStance, implicitFor } from '../src/data/weapons';
 import { resolveAttackProfile as resolve } from '../src/sim/attackProfile';
 
@@ -35,6 +37,19 @@ describe('weapon families', () => {
     const boosted = resolve('jeff_melee', 'uncommon', [{ key: 'jeffHolds', amount: 1 }, { key: 'jeffReach', amount: 0.1 }]);
     expect(boosted.holds).toBe(3);
     expect(boosted.reach).toBeCloseTo(42 * 1.1, 5);
+  });
+});
+
+describe('kit chests', () => {
+  it('leans armor on campaign clears and the played hero on endless', () => {
+    const campaign = Array.from({ length: 200 }, (_, i) => rollChest(new Rng(i + 1), 'job', `c${i}`, 'jeff'));
+    const armor = campaign.filter(item => item.kind === 'armor').length;
+    expect(armor).toBeGreaterThan(110);
+    const night = Array.from({ length: 200 }, (_, i) => rollChest(new Rng(1000 + i), 'deepNight', `n${i}`, 'doni'));
+    const doniWeapons = night.filter(item => item.kind === 'weapon' && item.family.startsWith('doni_'));
+    expect(doniWeapons.length).toBeGreaterThan(90);
+    const relic = rollChest(new Rng(42), 'deepNight', 'r1', 'jeff');
+    expect(['uncommon', 'rare', 'relic']).toContain(relic.rarity);
   });
 });
 

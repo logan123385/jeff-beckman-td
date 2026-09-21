@@ -18,6 +18,8 @@ export function neutralModifiers(): Modifiers {
     jeffReach: 1,
     jeffRespawn: 1,
     jeffTapEvery: 1,
+    heroRate: 1,
+    onHitHeat: 0,
     crewHp: 1, crewDamage: 1, crewRespawn: 1,
   };
 }

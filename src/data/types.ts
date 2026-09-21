@@ -269,6 +269,8 @@ export interface Modifiers {
   jeffReach: number;
   jeffRespawn: number;
   jeffTapEvery: number;
+  heroRate: number;
+  onHitHeat: number;
   crewHp: number;
   crewDamage: number;
   crewRespawn: number;
