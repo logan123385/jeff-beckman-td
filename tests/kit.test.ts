@@ -12,6 +12,7 @@ import { resolveAttackProfile as resolve } from '../src/sim/attackProfile';
 import { Game } from '../src/sim/game';
 import { updateHero } from '../src/sim/hero';
 import { updateHeroMissiles } from '../src/sim/heroPowers';
+import { updateAuras } from '../src/sim/towers';
 
 function playJeff(family: 'jeff_melee' | 'jeff_ranged') {
   return new Game(CRAWLSPACE, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), hero: 'jeff', kit: { family, weapon: null, cards: [null, null] } });
@@ -110,6 +111,45 @@ function waitBasicCooldown(g: Game) {
 }
 
 describe('kit combat', () => {
+  it('Jeff anchor+crew raises holds to 3 and buffs nearby towers', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'jeff',
+      kit: { family: 'jeff_melee', weapon: null, cards: ['jeff_anchor', 'jeff_crew'] },
+      manualStart: true,
+    });
+    g.deployHero({ ...g.map.jeffStart });
+    g.placeTower(1, 'torch');
+    const tower = g.towers[0]!;
+    updateHero(g, 0.01);
+    expect(g.attackProfile.holds).toBe(3);
+    updateAuras(g, 0.01);
+    expect(g.buffs.get(tower.id)?.dmg).toBeCloseTo(0.12, 5);
+  });
+
+  it('Jeff lane+control slows hose targets', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'jeff',
+      kit: { family: 'jeff_ranged', weapon: null, cards: ['jeff_lane', 'jeff_control'] },
+      manualStart: true,
+    });
+    g.deployHero({ ...g.map.jeffStart });
+    const e = g.spawnEnemy('sludge', 0, 320);
+    e.lane = 0;
+    e.pos = { x: 340, y: 250 };
+    e.def = { ...e.def, dps: 0, speed: 0 };
+    e.hp = e.maxHp = 10000;
+    updateHero(g, 0.01);
+    updateHero(g, g.heroDef.swingTime * 0.2);
+    updateHero(g, g.heroDef.swingTime * 0.3);
+    expect(g.heroMissiles).toHaveLength(1);
+    updateHeroMissiles(g, 2);
+    expect(e.slow).toBeGreaterThanOrEqual(0.2);
+  });
+
   it('stuns on the third becbec_melee punch', () => {
     const g = new Game(CRAWLSPACE, {
       difficulty: DIFFICULTIES.apprentice,

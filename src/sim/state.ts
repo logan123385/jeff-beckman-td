@@ -68,6 +68,8 @@ export interface Enemy {
   burnTimer: number;
   burn?: { dps: number; left: number; source: TowerId };
   exposed?: { left: number; strength: number };
+  /** Stance-card basic slow; ticked in enemies.update. */
+  kitSlow?: { amount: number; left: number };
   ventCast?: { pos: Vec; left: number; duration: number };
 }
 

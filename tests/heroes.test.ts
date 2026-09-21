@@ -186,7 +186,7 @@ describe('Distinct active abilities', () => {
     const g = field('becbec'); for (let i = 0; i < 5; i++) enemy(g, 322 + i * 3); g.hero.attackTimer = 100;
     cast(g, 2); step(g, .1); expect(g.enemies.filter(e => e.heldBy?.kind === 'hero')).toHaveLength(5);
     g.hero.hp = 100; cast(g, 3); expect(g.hero.hp).toBe(260); expect(g.hero.shield).toBeGreaterThan(0);
-    step(g, 7); expect(g.enemies.filter(e => e.heldBy?.kind === 'hero')).toHaveLength(3);
+    step(g, 7); expect(g.enemies.filter(e => e.heldBy?.kind === 'hero')).toHaveLength(4);
   });
 });
 

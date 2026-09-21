@@ -1,4 +1,5 @@
-import { onBuildAttack, resolveBuildTechnique } from './heroBuilds';
+import { resolveBuildTechnique } from './heroBuilds';
+import { kitSummonDamageMult, onKitHit, prepareKitStrike } from './kitCards';
 import { dist, moveToward, type Vec } from '../core/vec';
 import { COOLDOWN_FIELDS, type AbilitySlot } from '../data/heroes';
 import { JEFF } from '../data/jeff';
@@ -318,13 +319,33 @@ export function heroAttackSpeed(game: Game): number {
   return game.heroDef.id === 'bob' ? 1.65 : ['mike', 'cbj'].includes(game.heroDef.id) ? 1.5 : 1.3;
 }
 
+function laserTargets(game: Game, first: Enemy, pierce: number): Enemy[] {
+  const hits = [first];
+  let from = first.pos;
+  for (let i = 0; i < pierce; i++) {
+    const next = game.enemies
+      .filter(e => isTargetable(e) && !hits.some(h => h.id === e.id) && e.pos.x >= Math.min(from.x, game.hero.pos.x) - 8)
+      .sort((a, b) => a.pos.x - b.pos.x)
+      .find(e => Math.abs(e.pos.y - from.y) < 40);
+    if (!next) break;
+    hits.push(next);
+    from = next.pos;
+  }
+  return hits;
+}
+
 export function strikeFromProfile(game: Game, enemy: Enemy): void {
   const h = game.hero;
   const profile = game.attackProfile;
   h.facing = enemy.pos.x >= h.pos.x ? 1 : -1;
+  const prep = prepareKitStrike(game, enemy);
   switch (profile.basic) {
     case 'laser': {
-      applyDamage(game, enemy, profile.damage * game.mods.jeffDamage, profile.damageType, 'jeff');
+      const base = profile.damage * game.mods.jeffDamage * prep.damageMult;
+      for (const target of laserTargets(game, enemy, profile.pierce)) {
+        applyDamage(game, target, base, profile.damageType, 'jeff');
+        onKitHit(game, target, base);
+      }
       visual(game, 'laser', { x: h.pos.x + h.facing * 18, y: h.pos.y - 25 }, { x: enemy.pos.x, y: enemy.pos.y - 10 }, 4, game.heroDef.color, .22);
       break;
     }
@@ -339,7 +360,7 @@ export function strikeFromProfile(game: Game, enemy: Enemy): void {
       break;
     }
     case 'contact': {
-      const dmg = profile.damage * game.mods.jeffDamage;
+      const dmg = profile.damage * game.mods.jeffDamage * prep.damageMult;
       if (profile.tapStunEvery !== null) {
         h.tapCount += 1;
         if (h.tapCount >= profile.tapStunEvery) {
@@ -357,7 +378,9 @@ export function strikeFromProfile(game: Game, enemy: Enemy): void {
       if (profile.stun > 0 && profile.stunChance === 0 && profile.tapStunEvery === null) {
         enemy.stun = Math.max(enemy.stun, profile.stun * game.mods.stunDuration);
       }
+      if (prep.stun > 0) enemy.stun = Math.max(enemy.stun, prep.stun * game.mods.stunDuration);
       const dealt = applyDamage(game, enemy, dmg, profile.damageType, 'jeff');
+      onKitHit(game, enemy, dmg);
       if (profile.splash > 0) {
         for (const e of targets(game, profile.splashRadius, enemy.pos)) {
           if (e.id === enemy.id) continue;
@@ -393,7 +416,6 @@ export function strikeNewHero(game: Game, enemy: Enemy): void {
   else if (def.id === 'doni') fireHeroMissile(game, 'hook', enemy.pos, def.damage, enemy.id);
   else if (def.id === 'bob') {
     applyDamage(game, enemy, def.damage * game.mods.jeffDamage, 'heat', 'jeff');
-    onBuildAttack(game, enemy, def.damage * game.mods.jeffDamage);
     visual(game, 'laser', { x: h.pos.x + h.facing * 18, y: h.pos.y - 25 }, { x: enemy.pos.x, y: enemy.pos.y - 10 }, 4, def.color, .22);
   } else if (def.id === 'becbec' || def.id === 'jayjay') {
     h.tapCount++;
@@ -457,8 +479,16 @@ export function updateHeroMissiles(game: Game, dt: number): void {
     const step = moveToward(p.pos, p.goal, speed * dt);
     p.pos = step.pos;
     if (!step.arrived) { keep.push(p); continue; }
+    if (p.basic && target) {
+      const prep = prepareKitStrike(game, target);
+      p.damage *= prep.damageMult;
+      if (prep.stun > 0) p.stun = Math.max(p.stun ?? 0, prep.stun);
+    }
     if (p.splash > 0) for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, p.damageType ?? 'physical', 'jeff');
-    else if (target) applyDamage(game, target, p.damage, p.damageType ?? 'physical', 'jeff');
+    else if (target) {
+      applyDamage(game, target, p.damage, p.damageType ?? 'physical', 'jeff');
+      if (p.basic) onKitHit(game, target, p.damage);
+    }
     if (target && !target.dead) {
       if ((p.stun ?? 0) > 0 && ((p.pull ?? 0) <= 0 || !target.def.flying)) {
         target.stun = Math.max(target.stun, p.stun ?? 0);
@@ -528,7 +558,7 @@ export function updateHeroSummons(game: Game, dt: number): void {
       if (s.pendingTarget !== undefined && s.swing <= .46 * .52) {
         const e = game.enemies.find(e => e.id === s.pendingTarget && isTargetable(e)); s.pendingTarget = undefined;
         if (e && dist(e.pos, s.pos) <= 30 + e.def.radius) {
-          applyDamage(game, e, (s.damage ?? 14) * game.mods.jeffDamage * friendlyDamageBuff(game, s.pos), 'physical', 'crew');
+          applyDamage(game, e, (s.damage ?? 14) * game.mods.jeffDamage * friendlyDamageBuff(game, s.pos) * kitSummonDamageMult(game), 'physical', 'crew');
           game.addEffect({ kind: 'hit', pos: { x: e.pos.x, y: e.pos.y - 8 }, color: '#d2e397', ttl: .16, max: .16 });
         }
       }

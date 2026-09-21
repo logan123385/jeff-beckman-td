@@ -7,6 +7,7 @@ import { COOLDOWN_FIELDS, isHeroId, type AbilitySlot, type HeroDef, type HeroId 
 import { defaultCards } from '../data/kitCards';
 import { defaultFamily, type AttackProfile, type WeaponFamilyId } from '../data/weapons';
 import { resolveAttackProfile } from './attackProfile';
+import { syncKitProfile } from './kitCards';
 import { updateHeroMissiles, updateHeroSummons, summonLogan, useHeroAbility, fireJeffAbility } from './heroPowers';
 import type { HeroMissile, HeroSummon, HeroVisual, HeroZone } from './state';
 import { TOWERS, TOWER_ORDER } from '../data/towers';
@@ -65,7 +66,10 @@ export class Game {
   readonly heroDef: HeroDef;
   readonly heroBuild: HeroBuild;
   readonly attackProfile: AttackProfile;
+  readonly baseAttackProfile: AttackProfile;
   readonly kitCards: [string | null, string | null];
+  kitState = { focusId: null as number | null, focusHits: 0, helperTimer: 22, hitCounts: {} as Record<string, number> };
+  kitTowerMark = 0;
   buildState = { focusId: 0, focusHits: 0, helperTimer: 3, overtime: 0 };
   buildZones: { pos: Vec; radius: number; left: number; duration: number; dps: number }[] = [];
   rewardsClaimed = false;
@@ -163,6 +167,8 @@ export class Game {
     const weapon = kitInput.weapon ?? null;
     this.kitCards = kitInput.cards;
     this.attackProfile = resolveAttackProfile(kitInput.family, weapon?.rarity ?? 'common', weapon?.affixes ?? []);
+    this.baseAttackProfile = { ...this.attackProfile };
+    syncKitProfile(this);
     this.manualStart = opts.manualStart ?? false;
     this.remaster = opts.remaster ?? 'classic';
     this.endless = map.endless === true;

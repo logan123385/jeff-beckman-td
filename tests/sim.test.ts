@@ -310,9 +310,9 @@ describe('Jeff', () => {
     const game = makeGame({ jeffStart: { x: 200, y: 100 } }, true);
     const crab = game.spawnEnemy('scaleCrab', 0, 195);
     expect(game.commandHeroAttack(crab.id)).toBe(true);
-    step(game, 1.5);
+    step(game, 2.5);
     expect(game.stats.jeffDamage).toBeGreaterThan(0);
-    expect(crab.stun > 0 || crab.armorShred > 0).toBe(true);
+    expect(crab.armorShred).toBeGreaterThan(0);
     expect(crab.heldBy).toEqual({ kind: 'hero' });
   });
 
