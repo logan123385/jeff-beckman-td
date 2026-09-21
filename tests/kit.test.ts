@@ -351,3 +351,16 @@ describe('save v2', () => {
     expect(save.setFamily('jeff', 'mike_ranged')).toBe(false);
   });
 });
+
+describe('hero job unlocks', () => {
+  it('increments heroJobs on a finished run and stamps the played hero on the chest rng path', () => {
+    const save = new SaveStore(null);
+    const g = new Game(CRAWLSPACE, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), hero: 'chris' });
+    g.status = 'lost';
+    g.stats.kills = 3;
+    g.completedWaves = 1;
+    save.recordHeroJob('chris');
+    expect(save.data.heroJobs.chris).toBe(1);
+    expect(cardUnlocked(cardsFor('chris', 'melee').find(c => c.job === 'crew')!, save.data.heroJobs.chris ?? 0)).toBe(true);
+  });
+});

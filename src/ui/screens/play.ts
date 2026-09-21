@@ -1273,6 +1273,9 @@ cancelAim();
       if (game.endless) app.save.recordServiceCall(game.completedWaves);
       audio.lose();
     }
+    if (['won', 'lost', 'retired'].includes(game.status)) {
+      app.save.recordHeroJob(game.heroDef.id);
+    }
     const reward = grantRunRewards(app.save, game, earned, firstClear);
     const idx = MAPS.findIndex((m) => m.id === map.id);
     const next = remaster === 'classic' && !game.endless ? MAPS[idx + 1] : undefined;

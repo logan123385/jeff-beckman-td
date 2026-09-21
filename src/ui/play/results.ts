@@ -3,10 +3,14 @@ import { affixLabel, chestBlurb, RARITY_LABEL } from '../../data/loot';
 import type { RunReward } from '../../data/progress';
 import { remasterTitle, isOneLife } from '../../data/remasters';
 import { TOWERS, TOWER_ORDER } from '../../data/towers';
+import type { ArmorSlot, KitItem } from '../../data/types';
+import { familyLabel, isWeaponFamilyId } from '../../data/weapons';
 import type { Game } from '../../sim/game';
 import { h, stars } from '../dom';
 import { enemyForMap } from '../../data/bosses';
 import type { EnemyId } from '../../data/types';
+
+const ARMOR_SLOT_LABEL: Record<ArmorSlot, string> = { chest: 'Chest', boots: 'Boots' };
 
 export interface ResultsHandlers {
   onRetry(): void;
@@ -92,15 +96,7 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
             reward.chests.length > 0
               ? h('div', { class: 'small muted', text: reward.chests.map(chestBlurb).join(' · ') })
               : null,
-            ...reward.items.map((item) =>
-              h(
-                'div',
-                { class: `loot-item rarity-${item.rarity}` },
-                h('b', { text: item.name }),
-                h('span', { class: 'small muted', text: ` ${RARITY_LABEL[item.rarity]}` }),
-                h('div', { class: 'small', text: item.affixes.map(affixLabel).join(' · ') }),
-              ),
-            ),
+            ...reward.items.map((item) => lootItemRow(item)),
           )
         : null,
       h(
@@ -157,6 +153,22 @@ function serviceRewardCard(points: number, won: boolean): HTMLElement {
   const copy = serviceRewardCopy(points, won);
   if (!copy.paid) return h('p', { class: 'small muted', text: copy.text });
   return h('div', { class: 'service-reward' }, h('b', { text: copy.title }), h('span', { text: copy.detail }));
+}
+
+function lootItemRow(item: KitItem): HTMLElement {
+  const detail =
+    item.kind === 'weapon' && isWeaponFamilyId(item.family)
+      ? [familyLabel(item.family), ...item.affixes.map(affixLabel)].join(' · ')
+      : item.kind === 'armor'
+        ? [ARMOR_SLOT_LABEL[item.slot], ...item.affixes.map(affixLabel)].filter(Boolean).join(' · ')
+        : item.affixes.map(affixLabel).join(' · ');
+  return h(
+    'div',
+    { class: `loot-item rarity-${item.rarity}` },
+    h('b', { text: item.name }),
+    h('span', { class: 'small muted', text: ` ${RARITY_LABEL[item.rarity]}` }),
+    h('div', { class: 'small', text: detail }),
+  );
 }
 
 function stat(label: string, value: string): HTMLElement {

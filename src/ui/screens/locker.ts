@@ -1,6 +1,8 @@
+import { HEROES } from '../../data/heroes';
 import { affixLabel, RARITY_LABEL } from '../../data/loot';
 import { JEFF_LEVEL_CAP, levelFromXp, xpBarCopy } from '../../data/xp';
 import type { ArmorSlot, KitItem } from '../../data/types';
+import { familyHero, isWeaponFamilyId } from '../../data/weapons';
 import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
 import { heroPortrait } from '../portraits';
@@ -68,10 +70,15 @@ export function renderLocker(app: App): ScreenView {
 }
 
 function invCard(app: App, item: KitItem, render: () => void): HTMLElement {
+  const selectedHero = app.save.data.selectedHero;
   const equipped =
     (item.kind === 'armor' && item.slot === 'chest' && app.save.data.chestId === item.id) ||
-    (item.kind === 'armor' && item.slot === 'boots' && app.save.data.bootsId === item.id);
+    (item.kind === 'armor' && item.slot === 'boots' && app.save.data.bootsId === item.id) ||
+    (item.kind === 'weapon' && app.save.heroKit(selectedHero).weaponId === item.id);
   const slotLabel = item.kind === 'armor' ? SLOT_LABEL[item.slot] : 'Weapon';
+  const weaponHero = item.kind === 'weapon' && isWeaponFamilyId(item.family) ? familyHero(item.family) : null;
+  const canEquipWeapon = item.kind === 'weapon' && weaponHero === selectedHero;
+  const weaponEquipped = item.kind === 'weapon' && equipped;
   return h(
     'article',
     { class: `gear-card rarity-${item.rarity} ${equipped ? 'equipped' : ''}` },
@@ -91,7 +98,17 @@ function invCard(app: App, item: KitItem, render: () => void): HTMLElement {
               render();
             },
           })
-        : h('span', { class: 'small muted', text: 'Equip from Kit screen' }),
+        : canEquipWeapon
+          ? h('button', {
+              class: 'btn primary',
+              text: weaponEquipped ? 'Equipped' : `Equip on ${HEROES[selectedHero].name}`,
+              disabled: weaponEquipped,
+              onClick: () => {
+                app.save.equipWeapon(selectedHero, item.id);
+                render();
+              },
+            })
+          : null,
       h('button', {
         class: 'btn danger',
         text: 'Salvage',
