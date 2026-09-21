@@ -1,0 +1,25 @@
+{
+  "pass": true,
+  "ordinaryResources": true,
+  "callMashGuard": true,
+  "earlyCallCooldownRecovery": 8,
+  "nonblockingRanks": true,
+  "rankKeyboard": true,
+  "combatKeysPreserved": true,
+  "queuedMovement": true,
+  "deferredRanks": true,
+  "manualPausePreserved": true,
+  "trayHotkeysMatch": [
+    "torch",
+    "washer",
+    "barricade"
+  ],
+  "upgradePreview": true,
+  "waveReceipts": true,
+  "mobileWidth": 390,
+  "mobileCommands": {
+    "contained": true,
+    "reachable": true
+  },
+  "errors": []
+}

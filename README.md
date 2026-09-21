@@ -158,8 +158,9 @@ Local check: `npm run build && npm run preview`.
 | **X**, then click the yard | Torch rain — three fire dumps (hits ground and air) |
 | Barricade selected, **G**, then click a nearby route | Move the valve’s hold point |
 | **Space** / **N** | Call next wave early for cash and skill cooldown recovery |
-| **I** / Scout / entrance flag | Pause and inspect the next wave by route |
-| **F** | Cycle 1× / 2× / 3× speed |
+| **I** / Scout / entrance flag | Inspect three upcoming waves, health, routes and shooter coverage |
+| **B** / Plan defenses | Freeze time while building, upgrading and giving orders; B resumes |
+| **F** | Cycle 1× / 2× / 3× / ½× speed |
 | **P** | Pause (Resume / sound / Quit panel) |
 | **Esc** | Deselect, or open/close pause when nothing is selected |
 | Clock out | The Neverending Service Call soft-exit (keeps the wave record) |
@@ -181,3 +182,5 @@ Progress is saved in `localStorage` under `jbtd-save-v1`.
 
 Sound combines Rain on Glass, quiet yard ambience, and combat cues. In a job, cycle the sound
 button: **Off → Soft → Full**.
+
+Research-driven additions include three saved hero/tool crews and optional campaign commendations per difficulty and remaster. See [research and design decisions](docs/research-driven-defense/research.md).

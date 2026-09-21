@@ -89,7 +89,9 @@ try {
   await press('i'); await shot('03-scout');
   assert(await read(`document.querySelector('.battle-intel').textContent.includes('×6')`));
   await textButton('Back to defenses');
-  await press('p'); await press('i'); await click('.intel-footer .btn.primary');
+  await press('p'); await press('i');
+  assert(await read(`document.querySelector('.intel-footer .btn.primary').disabled`), 'Scout cannot call while manually paused');
+  await textButton('Back to defenses');
   assert(await read(`!!document.querySelector('.pause-overlay:not(.hidden)')`), 'Calling a wave from Scout must preserve manual pause.');
   assert.equal((await stats()).wave, '0 / 10', 'No wave starts while manually paused.');
   await press('p');
@@ -200,11 +202,14 @@ try {
   const won = final.result.toLowerCase().includes('job complete');
   if (won) {
     assert(saved.stars.crawlspace.apprentice > 0);
+    assert(await read(`document.querySelectorAll('.result-goals .goal-card').length===3`), 'Results show all optional goals');
+    if (final.lives === 20) assert(saved.commendations['crawlspace:apprentice:classic'].includes('clean'));
     if (Object.values(priorSave?.stars?.crawlspace ?? {}).some(stars => stars > 0)) assert.equal(saved.inventory.length, priorSave.inventory.length, 'Replays must not duplicate first-clear gear.');
   }
   await textButton('Back to the van'); await shot('06-campaign-after');
   await send('Page.reload'); await waitFor('.adventure-copy .btn.primary'); await textButton('Back to the Van');
   assert(await read(`document.querySelector('[aria-label^="2. Boiler Room"]').getAttribute('aria-label').includes('Ready to play')`));
+  assert.deepEqual(await read(`JSON.parse(localStorage.getItem('jbtd-save-v1')).commendations`), saved.commendations, 'Commendations persist across reload');
   assert.deepEqual(errors, []);
   const report = { pass: true, purpose: 'Production playthrough with ordinary resources', hero: heroName, difficulty: 'apprentice', won, lives: final.lives, abilitiesTrained: trained, abilityActivated, towerActiveUsed: activeUsed, heroRanksPicked: ranksPicked, xp: saved.jeffXp, gear: saved.inventory.length, errors, evidence: output };
   writeFileSync(`${output}/report.json`, JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));

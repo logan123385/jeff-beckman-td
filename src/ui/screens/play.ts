@@ -1,3 +1,4 @@
+import { earnedCommendations } from '../../data/commendations';
 import { COOLDOWN_FIELDS, type AbilitySlot } from '../../data/heroes';
 import { AudioBus, moodForMap } from '../../audio/bus';
 import { GameLoop } from '../../core/loop';
@@ -100,6 +101,8 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   let stickyTower: TowerId | null = null;
   let autoPauseWaves = false;
   let userPaused = false;
+  let planning = false;
+  const planButton = h('button', { class: 'btn plan-button', text: 'Plan defenses (B)', attrs: { 'aria-pressed': 'false' }, onClick: () => togglePlanning() });
   let lastTowerTap = { id: 0, at: 0 };
   let wasDowned = false;
   let rankPanel!: ReturnType<typeof createRankPanel>;
@@ -280,7 +283,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     {
       onCallWave: () => callWave(),
       onToggleSpeed: () => {
-        loop.speed = loop.speed >= 2.5 ? 1 : loop.speed >= 1.5 ? 3 : 2;
+        loop.speed = loop.speed === 3 ? .5 : loop.speed === .5 ? 1 : loop.speed + 1;
         hud.syncTransport();
       },
       onTogglePause: () => {
@@ -309,7 +312,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       onArm: (id) => arm(id, true),
       onScout: () => intel.open(),
     },
-    () => (loop.speed >= 2.5 ? '▶▶▶ 3×' : loop.speed >= 1.5 ? '▶▶ 2×' : '▶ 1×'),
+    () => (loop.speed >= 2.5 ? '▶▶▶ 3×' : loop.speed >= 1.5 ? '▶▶ 2×' : loop.speed === .5 ? '▶ ½×' : '▶ 1×'),
     () => (loop.paused ? 'Resume' : 'Pause'),
   );
 
@@ -317,6 +320,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     onOpen: () => { clearSelection(); banner.classList.add('hidden'); el.classList.add('scouting'); syncPause(); },
     onClose: () => { el.classList.remove('scouting'); syncPause(); },
     onCall: () => callWave(),
+    canCall: () => !planning && !userPaused,
     onRoute: route => { view.scoutedRoute = route; },
   });
   stage.append(intel.entries, intel.el, intel.inspection);
@@ -388,6 +392,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     h('span', { class: 'eyebrow', text: game.endless ? 'After hours' : map.subtitle }),
     h('b', { text: map.name }),
     rankCall,
+    planButton,
     h('span', { class: 'pill', text: remasterTitle(remaster) }),
     h('span', { class: 'pill', text: difficulty.name }),
     game.endless ? h('span', { class: 'small muted', text: 'Clock out anytime' }) : h('span', { class: 'small muted', text: `${map.waves.length} waves` }),
@@ -485,6 +490,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   }
 
   function callWave(): void {
+    if (planning) { hud.setHint('Finish planning with B to call the wave.'); return; }
     if (!live()) return;
     if (!game.canCallWave) { hud.setHint(game.callBlockReason); return; }
     const recovery = game.callCooldownRecovery;
@@ -511,15 +517,19 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   function live(): boolean {
     if (game.status !== 'playing') return false;
     if (rankPanel.isOpen()) return false;
-    if (!loop.paused) return true;
+    if (!loop.paused || (planning && !userPaused && !intel.isOpen)) return true;
     hud.setHint('Paused — press P or Esc to resume.');
     return false;
   }
 
   function syncPause(): void {
     const rankLock = rankPanel.isOpen() && game.status === 'playing';
-    loop.paused = userPaused || rankLock || intel.isOpen;
-    el.classList.toggle('paused', loop.paused);
+    loop.paused = planning || userPaused || rankLock || intel.isOpen;
+    el.classList.toggle('paused', loop.paused && !planning);
+    el.classList.toggle('planning', planning);
+    planButton.textContent = planning ? 'Resume action (B)' : 'Plan defenses (B)';
+    planButton.setAttribute('aria-pressed', String(planning));
+    hud.planning = planning;
     hud.syncTransport();
     if (userPaused && !rankLock && !intel.isOpen) pausePanel.show();
     else pausePanel.hide();
@@ -556,9 +566,19 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     }
   }
 
+  function togglePlanning(): void {
+    if (game.status !== 'playing' || rankPanel.isOpen()) return;
+    if (intel.isOpen) intel.close();
+    planning = !planning;
+    userPaused = false;
+    syncPause();
+    hud.setHint(planning ? 'Planning: build, upgrade, set rallies and issue orders. B resumes time.' : 'Back on the clock.');
+  }
+
   function togglePause(): void {
     if (intel.isOpen) { intel.close(); return; }
     if (rankPanel.isOpen()) { closeRanks(); return; }
+    if (planning) { togglePlanning(); return; }
     setPaused(!userPaused);
   }
 
@@ -1043,8 +1063,9 @@ cancelAim();
       }
       return;
     }
-    if (' ilvqertcdgjufpsanx123456789'.includes(key) || ev.key === ' ' || key === 'escape') ev.preventDefault();
+    if (' bilvqertcdgjufpsanx123456789'.includes(key) || ev.key === ' ' || key === 'escape') ev.preventDefault();
     switch (key) {
+      case 'b': togglePlanning(); break;
       case 'l': openRanks(); break;
       case 'i': intel.open(); break;
       case 'd': beginCrew(); break;
@@ -1068,7 +1089,7 @@ cancelAim();
       case ' ':
       case 'n': ev.preventDefault(); callWave(); break;
       case 'f':
-        loop.speed = loop.speed >= 2.5 ? 1 : loop.speed >= 1.5 ? 3 : 2;
+        loop.speed = loop.speed === 3 ? .5 : loop.speed === .5 ? 1 : loop.speed + 1;
         hud.syncTransport();
         break;
       case 'p':
@@ -1234,6 +1255,7 @@ cancelAim();
         firstClear = app.save.recordRemaster(map.id, remaster);
         earned = firstClear ? 1 : 0;
       }
+      app.save.recordCommendations(map.id, difficulty.id, remaster, earnedCommendations(game));
       audio.win();
     } else if (game.status === 'retired') {
       app.save.recordServiceCall(game.completedWaves);

@@ -1,3 +1,4 @@
+import { COMMENDATIONS, commendationKey, type CommendationId } from '../data/commendations';
 import { isHeroId, type HeroId } from '../data/heroes';
 import { CORE_MAPS, MAPS } from '../data/maps';
 import { ENEMY_ORDER } from '../data/enemies';
@@ -11,6 +12,8 @@ import type { DifficultyId, EnemyId, GearItem, GearSlot, RemasterId, TowerId } f
 export const INVENTORY_CAP = 24;
 export const SAVE_KEY = 'jbtd-save-v1';
 export const SAVE_BAK_KEY = 'jbtd-save-v1.bak';
+
+export interface CrewPreset { hero: HeroId; towers: TowerId[] }
 
 export interface SaveData {
   version: 1;
@@ -32,6 +35,8 @@ export interface SaveData {
   equipped: Partial<Record<GearSlot, string>>;
   gearSeq: number;
   lastLoadout: TowerId[];
+  crews: (CrewPreset | null)[];
+  commendations: Record<string, CommendationId[]>;
   /** First-job coach completed or skipped. */
   tutorialDone: boolean;
 }
@@ -73,6 +78,8 @@ function blank(): SaveData {
     equipped: {},
     gearSeq: 1,
     lastLoadout: [],
+    crews: [null, null, null],
+    commendations: {},
     tutorialDone: false,
   };
 }
@@ -190,6 +197,18 @@ export function normalizeSave(parsed: Partial<SaveData> & Record<string, unknown
   const lastLoadout = Array.isArray(parsed.lastLoadout)
     ? parsed.lastLoadout.filter((id): id is TowerId => typeof id === 'string' && TOWER_ORDER.includes(id as TowerId))
     : [];
+  const crews = Array.from({ length: 3 }, (_, index): CrewPreset | null => {
+    const value = Array.isArray(parsed.crews) ? parsed.crews[index] : null;
+    if (!value || typeof value !== 'object' || !Array.isArray(value.towers)) return null;
+    const towers = [...new Set(value.towers.filter((id: unknown): id is TowerId => typeof id === 'string' && TOWER_ORDER.includes(id as TowerId)))].slice(0, 5) as TowerId[];
+    return towers.length ? { hero: isHeroId(value.hero) ? value.hero : 'jeff', towers } : null;
+  });
+  const commendations: Record<string, CommendationId[]> = {};
+  for (const map of MAPS.filter(map => !map.endless)) for (const difficulty of DIFFICULTIES) for (const remaster of ['classic', ...REMASTERS]) {
+    const key = commendationKey(map.id, difficulty, remaster);
+    const value = parsed.commendations && typeof parsed.commendations === 'object' ? parsed.commendations[key] : null;
+    if (Array.isArray(value)) commendations[key] = COMMENDATIONS.filter(goal => value.includes(goal.id)).map(goal => goal.id);
+  }
   const data: SaveData = {
     ...base,
     selectedHero: isHeroId(parsed.selectedHero) ? parsed.selectedHero : 'jeff',
@@ -208,6 +227,8 @@ export function normalizeSave(parsed: Partial<SaveData> & Record<string, unknown
     equipped,
     gearSeq: Math.max(1, Math.round(finiteNumber(parsed.gearSeq, 1, 1, 1_000_000))),
     lastLoadout,
+    crews,
+    commendations,
     tutorialDone: parsed.tutorialDone === true,
   };
   return data;
@@ -543,6 +564,22 @@ export class SaveStore {
   setHero(id: HeroId): void {
     if (!isHeroId(id)) return;
     this.data.selectedHero = id; this.save();
+  }
+
+  saveCrew(slot: number, towers: readonly TowerId[]): void {
+    if (!Number.isInteger(slot) || slot < 0 || slot >= 3) return;
+    const legal = [...new Set(towers.filter(id => TOWER_ORDER.includes(id)))].slice(0, 5);
+    if (!legal.length) return;
+    this.data.crews[slot] = { hero: this.data.selectedHero, towers: legal };
+    this.save();
+  }
+
+  recordCommendations(map: string, difficulty: DifficultyId, remaster: RemasterId, earned: readonly CommendationId[]): void {
+    if (!MAPS.some(m => m.id === map && !m.endless) || !DIFFICULTIES.includes(difficulty) || (remaster !== 'classic' && !REMASTERS.includes(remaster))) return;
+    const key = commendationKey(map, difficulty, remaster);
+    const existing = this.data.commendations[key] ?? [];
+    this.data.commendations[key] = COMMENDATIONS.filter(goal => existing.includes(goal.id) || earned.includes(goal.id)).map(goal => goal.id);
+    this.save();
   }
 
   setLoadout(ids: TowerId[]): void {

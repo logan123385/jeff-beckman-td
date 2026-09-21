@@ -74,3 +74,24 @@
 .specialist-header>div { flex: 1; }
 .specialist-header h3 { margin: 3px 0; font-size: 16px; }
 .kr-specialists .tower-powers { margin-top: 10px; }
+
+/* Tactical preparation and optional mastery, shared across desktop and touch. */
+.saved-crews,.mission-goals { padding: 18px; }
+.crew-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.crew-card,.goal-card { padding: 12px; border: 1px solid #cfb67955; border-radius: 9px; background: #102a3088; }
+.crew-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.crew-card p { flex: 1; margin: 0; line-height: 1.6; }
+.goal-card { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; }
+.goal-card span { font-size: 12px; color: #c5cec4; }
+.goal-card[data-earned="true"] { border-color: #e4c783; background: #52603c55; }
+.plan-button { font-size: 11px; padding: 5px 10px; }
+.plan-button[aria-pressed="true"] { background: #d9c78e; color: #152d36; border-color: #fff0ba; }
+.planning .stage { outline: 2px solid #8ccfc3; outline-offset: 2px; }
+.intel-forecast { margin: 8px 0; }
+.battle-intel .intel-forecast .chip[aria-pressed="true"] { color: #172f36; background: #e4cb8d; }
+.intel-coverage { margin: 9px 0; padding: 10px; border: 1px solid #afc9c044; border-radius: 6px; background: #061e3266; font-size: 12px; }
+.intel-coverage p { margin: 6px 0; }.intel-coverage small { color: #b9c9c1; line-height: 1.4; }
+@media(max-width:650px) { .crew-grid { grid-template-columns: 1fr; }.saved-crews,.mission-goals { padding: 12px; }.plan-button { font-size: 10px; } }
+.loadout button { scroll-margin-block: 24px 110px; }
+/* A filtered ancestor otherwise traps position:fixed inside the tiny mobile yard. */
+@media(max-width:580px) { .play.scouting .stage { animation: none; filter: none; } }
