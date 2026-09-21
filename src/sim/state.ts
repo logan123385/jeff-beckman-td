@@ -47,6 +47,8 @@ export interface Enemy {
   dotDps: number;
   dotTime: number;
   dotSource: DamageSource | null;
+  /** When set, DoT ticks as this type. Jeff onHitHeat uses heat; descaler stays water. */
+  dotType: DamageType | null;
   marked: boolean;
   markBonus?: number;
   /** Snapshot / camera paint that survives the per-frame aura reset. */

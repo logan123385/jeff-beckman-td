@@ -7,7 +7,7 @@ import { availableTowers } from '../src/data/loadout';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
 import { MAPS } from '../src/data/maps';
 import { DIFFICULTIES } from '../src/data/difficulty';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import { grantRunRewards } from '../src/data/progress';
 import { serviceRewardCopy } from '../src/ui/play/results';
 import { SaveStore, normalizeSave } from '../src/save/save';

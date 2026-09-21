@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
 import { DIFFICULTIES } from '../src/data/difficulty';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import { TOWER_ORDER } from '../src/data/towers';
 import { Game } from '../src/sim/game';
 import { applyDamage } from '../src/sim/combat';

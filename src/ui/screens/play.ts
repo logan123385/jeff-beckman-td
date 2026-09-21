@@ -1,4 +1,3 @@
-import { earnedCommendations } from '../../data/commendations';
 import { COOLDOWN_FIELDS, type AbilitySlot } from '../../data/heroes';
 import { AudioBus, moodForMap } from '../../audio/bus';
 import { GameLoop } from '../../core/loop';
@@ -9,17 +8,16 @@ import { MAPS, WORLD_H, WORLD_W, mapById } from '../../data/maps';
 import { availableTowers, resolveLoadout } from '../../data/loadout';
 import { TOWERS } from '../../data/towers';
 import { NIGHT_MUTATORS } from '../../data/night';
-import { remasterTitle, isOneLife, isNoPowers, isNoSell } from '../../data/remasters';
+import { remasterTitle, isNoPowers, isNoSell } from '../../data/remasters';
 import { PROPERTY_LABEL } from '../../data/leakProperties';
 import { splitLine, splitOf } from '../../data/splits';
 import { AIM_HINT, AIM_LABEL, scaledCastRange, heroAbilityHitsAir } from '../../sim/combat';
 import { towerAbilityReady } from '../../sim/towerAbilities';
-import { buildRunModifiers, grantRunRewards } from '../../data/progress';
+import { bankTerminalRun, buildRunModifiers, clockOutHint, emptyRunReward, pauseBlocksSettle, shouldBankOnLeave } from '../../data/progress';
 import type { EnemyId, RemasterId, TowerId } from '../../data/types';
 import { Renderer, type RenderView } from '../../render/renderer';
 import { JEFF_SELECT_RADIUS } from '../../render/sprites';
 import { Game } from '../../sim/game';
-import { starsForClear } from '../../save/save';
 import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
 import { Hud } from '../play/hud';
@@ -302,7 +300,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         if (!live()) return;
         if (game.retire()) {
           audio.clock();
-          hud.setHint('Clocked out. Record saved.');
+          hud.setHint(clockOutHint(false));
         } else if (game.endless && game.waveIdx <= 0) {
           hud.setHint('Start the call before you clock out — no XP for standing in the lot.');
         }
@@ -349,6 +347,11 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   }
 
   function quitJob(): void {
+    if (shouldBankOnLeave(game.status, finished)) {
+      persistTerminal();
+      app.go({ kind: 'hub' });
+      return;
+    }
     if (game.status !== 'playing') {
       app.go({ kind: 'hub' });
       return;
@@ -532,7 +535,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
 
   function syncPause(): void {
     const rankLock = rankPanel.isOpen() && game.status === 'playing';
-    loop.paused = planning || userPaused || rankLock || intel.isOpen;
+    loop.paused = pauseBlocksSettle(game.status) && (planning || userPaused || rankLock || intel.isOpen);
     el.classList.toggle('paused', loop.paused && !planning);
     el.classList.toggle('planning', planning);
     planButton.textContent = planning ? 'Resume action (B)' : 'Plan defenses (B)';
@@ -1247,45 +1250,28 @@ cancelAim();
     banner.classList.remove('hidden');
   }
 
-  function finish(): void {
+  function persistTerminal(): ReturnType<typeof bankTerminalRun> {
+    if (finished) return { earned: 0, firstClear: false, reward: emptyRunReward() };
     finished = true;
+    return bankTerminalRun(app.save, game);
+  }
+
+  function finish(): void {
+    const outcome = persistTerminal();
     loop.stop();
     audio.stopAmbient();
-    app.save.markSeen(game.seen);
-    const startLives = isOneLife(game.remaster) ? 1 : Math.max(1, Math.round(map.lives * difficulty.livesMult));
-    let earned = 0;
-    let firstClear = true;
-    if (game.status === 'won' && !game.endless) {
-      if (remaster === 'classic') {
-        firstClear = app.save.starsFor(map.id) === 0;
-        earned = starsForClear(game.lives, startLives);
-        app.save.recordClear(map.id, difficulty.id, earned);
-      } else {
-        firstClear = app.save.recordRemaster(map.id, remaster);
-        earned = firstClear ? 1 : 0;
-      }
-      app.save.recordCommendations(map.id, difficulty.id, remaster, earnedCommendations(game));
-      audio.win();
-    } else if (game.status === 'retired') {
-      app.save.recordServiceCall(game.completedWaves);
-      audio.clock();
-    } else if (game.status === 'lost') {
-      if (game.endless) app.save.recordServiceCall(game.completedWaves);
-      audio.lose();
-    }
-    if (['won', 'lost', 'retired'].includes(game.status)) {
-      app.save.recordHeroJob(game.heroDef.id);
-    }
-    const reward = grantRunRewards(app.save, game, earned, firstClear);
+    if (game.status === 'won') audio.win();
+    else if (game.status === 'retired') audio.clock();
+    else if (game.status === 'lost') audio.lose();
     const idx = MAPS.findIndex((m) => m.id === map.id);
     const next = remaster === 'classic' && !game.endless ? MAPS[idx + 1] : undefined;
     clearSelection({ disarm: true });
     overlayHost.append(
-      renderResults(game, earned, {
+      renderResults(game, outcome.earned, {
         onRetry: replay,
         onNext: game.status === 'won' && next ? () => app.go({ kind: 'loadout', mapId: next.id, remaster: 'classic' }) : null,
         onHub: () => app.go({ kind: 'hub' }),
-      }, reward),
+      }, outcome.reward, app.save),
     );
   }
 
@@ -1300,7 +1286,11 @@ cancelAim();
   stageWatch?.observe(stage);
   window.addEventListener('resize', onResize);
   window.visualViewport?.addEventListener('resize', onResize);
+  const onPageHide = () => {
+    if (shouldBankOnLeave(game.status, finished)) persistTerminal();
+  };
   document.addEventListener('visibilitychange', onHide);
+  window.addEventListener('pagehide', onPageHide);
   lastForeshadow = game.waveIdx;
   showUpcomingBanner();
   if (import.meta.env.DEV) {
@@ -1313,6 +1303,7 @@ cancelAim();
   return {
     el,
     dispose() {
+      if (shouldBankOnLeave(game.status, finished)) persistTerminal();
       loop.stop();
       audio.dispose();
       coach?.dispose();
@@ -1324,6 +1315,7 @@ cancelAim();
       window.removeEventListener('resize', onResize);
       window.visualViewport?.removeEventListener('resize', onResize);
       document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onPageHide);
     },
   };
 }

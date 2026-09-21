@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { HEROES, HERO_ORDER, COOLDOWN_FIELDS, type HeroId, type AbilitySlot } from '../src/data/heroes';
 import { DIFFICULTIES } from '../src/data/difficulty';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import { TOWER_ORDER } from '../src/data/towers';
 import { SaveStore } from '../src/save/save';
 import { Game } from '../src/sim/game';

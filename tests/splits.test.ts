@@ -5,7 +5,7 @@ import { BOILER_ROOM } from '../src/data/maps/boilerRoom';
 import { pack, RUSH_GAP, rush } from '../src/data/maps/helpers';
 import { fieldRbe, leakRbe, previewRbe, splitCount, splitOf, splitPreview } from '../src/data/splits';
 import { generateEndlessWave } from '../src/data/night';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import { applyDamage } from '../src/sim/combat';
 import { Game } from '../src/sim/game';
 

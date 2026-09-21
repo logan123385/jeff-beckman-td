@@ -5,7 +5,7 @@ import { DIFFICULTIES } from '../src/data/difficulty';
 import { MAPS } from '../src/data/maps';
 import { TOWERS } from '../src/data/towers';
 import { SPECIALIST_KITS } from '../src/data/specialistAbilities';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import type { DifficultyId, TowerId } from '../src/data/types';
 import { Game } from '../src/sim/game';
 import { isTargetable, scaledCastRange } from '../src/sim/combat';

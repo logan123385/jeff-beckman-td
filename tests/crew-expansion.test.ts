@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { DIFFICULTIES } from '../src/data/difficulty';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
 import { SERVICE_CALL } from '../src/data/maps/serviceCall';
-import { SKILLS, neutralModifiers } from '../src/data/skills';
+import { KIT_CARDS } from '../src/data/kitCards';
+import { HERO_ORDER } from '../src/data/heroes';
+import { neutralModifiers } from '../src/data/modifiers';
 import { TOWERS, TOWER_ORDER } from '../src/data/towers';
 import { chestsForRun, xpForRun } from '../src/data/progress';
 import { SaveStore, starsForClear } from '../src/save/save';
@@ -56,7 +58,7 @@ describe('90’s workshop',()=>{
     const save=new SaveStore(null);save.recordClear('crawlspace','journeyman',3);save.recordClear('crawlspace','journeyman',1);
     expect(save.availableStars()).toBe(3);
     save.recordClear('boilerRoom','journeyman',3);expect(save.availableStars()).toBe(6);
-    expect(SKILLS).toHaveLength(28);
+    expect(KIT_CARDS).toHaveLength(HERO_ORDER.length * 8);
   });
   it('migrates the old endless best and skill-tree saves into v2 kit data',()=>{
     const storage={length:1,clear:()=>{},key:()=>null,getItem:()=>JSON.stringify({version:1,nightShiftBest:42,skills:['sharpTools']}),setItem:()=>{},removeItem:()=>{}};

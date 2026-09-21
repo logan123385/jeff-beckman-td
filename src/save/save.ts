@@ -5,7 +5,7 @@ import { HERO_ORDER, isHeroId, type HeroId } from '../data/heroes';
 import { CORE_MAPS, MAPS } from '../data/maps';
 import { ENEMY_ORDER } from '../data/enemies';
 import { gearScore } from '../data/loot';
-import { salvageXp, levelFromXp, talentPointsAvailable } from '../data/xp';
+import { salvageXp, levelFromXp } from '../data/xp';
 import { TOWER_ORDER } from '../data/towers';
 import { cardById, cardUnlocked } from '../data/kitCards';
 import { defaultFamily, familyHero, familyStance, isWeaponFamilyId, type WeaponFamilyId } from '../data/weapons';
@@ -25,6 +25,8 @@ export interface HeroKit {
 
 export interface SaveData {
   version: 2;
+  /** Monotonic write generation. Missing on pre-fix blobs (treated as 0). */
+  rev: number;
   selectedHero: HeroId;
   servicePoints: number;
   ownedTowers: TowerId[];
@@ -83,6 +85,7 @@ function blank(): SaveData {
   for (const hero of HERO_ORDER) kits[hero] = defaultHeroKit(hero);
   return {
     version: 2,
+    rev: 0,
     selectedHero: 'jeff',
     servicePoints: WELCOME_POINTS,
     ownedTowers: [...STARTER_TOWERS],
@@ -112,6 +115,16 @@ function finiteNumber(value: unknown, fallback: number, min = 0, max = Number.MA
   const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
+}
+
+function nextGearSeq(raw: unknown, inventory: KitItem[]): number {
+  let next = Math.max(1, Math.round(finiteNumber(raw, 1, 1, 1_000_000)));
+  for (const item of inventory) {
+    const match = /^g(\d+)$/.exec(item.id);
+    if (!match) continue;
+    next = Math.max(next, Number(match[1]) + 1);
+  }
+  return next;
 }
 
 function looksLikeV1(parsed: Record<string, unknown>): boolean {
@@ -457,7 +470,8 @@ export function normalizeSave(parsed: Partial<SaveData> & Record<string, unknown
     bootsId,
     kits,
     heroJobs,
-    gearSeq: Math.max(1, Math.round(finiteNumber(parsed.gearSeq, 1, 1, 1_000_000))),
+    gearSeq: nextGearSeq(parsed.gearSeq, inventory),
+    rev: Math.max(0, Math.round(finiteNumber(parsed.rev, 0, 0, Number.MAX_SAFE_INTEGER))),
     lastLoadout,
     crews,
     commendations,
@@ -470,9 +484,39 @@ export class SaveStore {
   data: SaveData;
   lastWriteOk = true;
   recoveredFromBackup = false;
+  /** Set when save() refuses to overwrite a newer tab's blob (SR-002). */
+  staleWriteSkipped = false;
+  private holdSaves = 0;
+  private pendingSave = false;
+  private readonly onStorage?: (ev: StorageEvent) => void;
 
   constructor(private readonly storage: Storage | null = typeof localStorage === 'undefined' ? null : localStorage) {
     this.data = this.load();
+    if (typeof window !== 'undefined' && this.storage && this.storage === window.localStorage) {
+      this.onStorage = (ev: StorageEvent) => {
+        if (ev.key !== SAVE_KEY || !ev.newValue) return;
+        const incoming = this.parseBlob(ev.newValue);
+        if (!incoming) return;
+        if ((incoming.rev ?? 0) > (this.data.rev ?? 0)) this.data = incoming;
+      };
+      window.addEventListener('storage', this.onStorage);
+    }
+  }
+
+  /** Collapse several mutations into one disk write (SR-004). */
+  transact<T>(fn: () => T): T {
+    this.holdSaves += 1;
+    const prevPending = this.pendingSave;
+    try {
+      const result = fn();
+      this.holdSaves -= 1;
+      if (this.holdSaves === 0 && this.pendingSave) this.save();
+      return result;
+    } catch (err) {
+      this.holdSaves -= 1;
+      this.pendingSave = prevPending;
+      throw err;
+    }
   }
 
   private readKey(key: string): string | null {
@@ -548,10 +592,34 @@ export class SaveStore {
   }
 
   save(): boolean {
+    if (this.holdSaves > 0) {
+      this.pendingSave = true;
+      return true;
+    }
+    if (!this.mayWriteOverDisk()) {
+      this.lastWriteOk = true;
+      this.staleWriteSkipped = true;
+      this.pendingSave = false;
+      return false;
+    }
+    this.staleWriteSkipped = false;
+    this.data.rev = (this.data.rev ?? 0) + 1;
     const payload = JSON.stringify(this.data);
     const ok = this.writeKey(SAVE_KEY, payload);
     this.lastWriteOk = ok;
+    this.pendingSave = false;
     return ok;
+  }
+
+  /** False when another tab already persisted a newer generation. Adopts that blob. */
+  private mayWriteOverDisk(): boolean {
+    const raw = this.readKey(SAVE_KEY);
+    if (!raw) return true;
+    const disk = this.parseBlob(raw);
+    if (!disk) return true;
+    if ((disk.rev ?? 0) <= (this.data.rev ?? 0)) return true;
+    this.data = disk;
+    return false;
   }
 
   reset(): boolean {
@@ -559,7 +627,9 @@ export class SaveStore {
       this.lastWriteOk = false;
       return false;
     }
+    const keepRev = this.data.rev ?? 0;
     this.data = blank();
+    this.data.rev = keepRev;
     this.recoveredFromBackup = false;
     return this.save();
   }
@@ -609,7 +679,6 @@ export class SaveStore {
       this.totalStars() > 0 ||
       this.data.jeffXp > 0 ||
       this.data.inventory.length > 0 ||
-      this.data.seen.length > 0 ||
       this.data.serviceCallBest > 0 ||
       Object.values(this.data.heroJobs).some((j) => (j ?? 0) > 0)
     );
@@ -639,20 +708,12 @@ export class SaveStore {
     return MAPS.reduce((sum, m) => sum + this.starsFor(m.id), 0) + this.remasterStars();
   }
 
-  spentStars(): number {
-    return 0;
-  }
-
   availableStars(): number {
     return this.totalStars();
   }
 
   jeffLevel(): number {
     return levelFromXp(this.data.jeffXp).level;
-  }
-
-  talentPoints(): number {
-    return talentPointsAvailable(this.data.jeffXp, 0);
   }
 
   addXp(amount: number): void {
@@ -810,7 +871,8 @@ export class SaveStore {
       const kit = this.data.kits[hero];
       if (kit?.weaponId === id) this.data.kits[hero] = { ...kit, weaponId: null };
     }
-    this.data.inventory = this.data.inventory.filter((g) => g.id !== id);
+    const idx = this.data.inventory.findIndex((g) => g.id === id);
+    if (idx >= 0) this.data.inventory.splice(idx, 1);
     const xp = salvageXp(item.rarity);
     this.data.jeffXp += xp;
     this.save();
@@ -826,10 +888,7 @@ export class SaveStore {
         changed = true;
       }
     }
-    if (changed) {
-      this.data.seen = [...set];
-      this.save();
-    }
+    if (changed) this.data.seen = [...set];
   }
 
   hasSeen(id: EnemyId): boolean {

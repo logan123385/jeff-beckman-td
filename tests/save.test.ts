@@ -1,6 +1,11 @@
 import { expect, test } from 'vitest';
+import { DIFFICULTIES } from '../src/data/difficulty';
+import { CRAWLSPACE } from '../src/data/maps/crawlspace';
+import { bankTerminalRun, clockOutHint, pauseBlocksSettle, shouldBankOnLeave } from '../src/data/progress';
 import { persistWarning } from '../src/ui/persist';
 import { SAVE_BAK_KEY, SAVE_KEY, SaveStore, normalizeSave, type SaveData } from '../src/save/save';
+import { Game } from '../src/sim/game';
+import { neutralModifiers } from '../src/data/modifiers';
 
 class MemoryStorage implements Storage {
   private readonly data = new Map<string, string>();
@@ -142,4 +147,89 @@ test('normalizeSave never throws on garbage fields', () => {
   expect(data.inventory.length).toBe(0);
   expect(data.chestId).toBeNull();
   expect(data.bootsId).toBeNull();
+});
+
+test('gearSeq advances past existing gN inventory ids (SR-003)', () => {
+  const data = normalizeSave({
+    version: 2,
+    gearSeq: 1,
+    inventory: [{
+      kind: 'armor',
+      id: 'g7',
+      name: 'Old vest',
+      slot: 'chest',
+      rarity: 'common',
+      affixes: [{ key: 'jeffDamage', amount: 0.05 }],
+    }],
+  } as unknown as Partial<SaveData> & Record<string, unknown>);
+  expect(data.gearSeq).toBe(8);
+});
+
+test('salvage removes one matching inventory row (SR-003)', () => {
+  const save = new SaveStore(null);
+  const row = {
+    kind: 'armor' as const,
+    id: 'g1',
+    name: 'Dup vest',
+    slot: 'chest' as const,
+    rarity: 'common' as const,
+    affixes: [{ key: 'jeffDamage' as const, amount: 0.05 }],
+  };
+  save.data.inventory.push({ ...row }, { ...row });
+  save.salvage('g1');
+  expect(save.data.inventory.filter((item) => item.id === 'g1')).toHaveLength(1);
+});
+
+test('markSeen is not progress and does not write (SR-005)', () => {
+  const storage = new MemoryStorage();
+  const save = new SaveStore(storage);
+  save.markSeen(['drip']);
+  expect(save.hasSeen('drip')).toBe(true);
+  expect(save.hasAnyProgress()).toBe(false);
+  expect(storage.getItem(SAVE_KEY)).toBeNull();
+});
+
+test('stale tab cannot wipe a newer finished run (SR-002)', () => {
+  const storage = new MemoryStorage();
+  const fresh = new SaveStore(storage);
+  const stale = new SaveStore(storage);
+  fresh.recordClear('crawlspace', 'journeyman', 3);
+  fresh.addXp(200);
+  expect(fresh.data.jeffXp).toBe(200);
+  stale.setMuted(true);
+  expect(stale.staleWriteSkipped).toBe(true);
+  expect(persistWarning(stale)).toMatch(/Another tab/);
+  const disk = JSON.parse(storage.getItem(SAVE_KEY)!) as { jeffXp: number; stars: { crawlspace: { journeyman: number } }; muted: boolean };
+  expect(disk.stars.crawlspace.journeyman).toBe(3);
+  expect(disk.jeffXp).toBe(200);
+  expect(disk.muted).toBe(false);
+});
+
+test('quit after a terminal win still banks stars and the first chest (SR-001 / SR-004)', () => {
+  const storage = new MemoryStorage();
+  const save = new SaveStore(storage);
+  const game = new Game(CRAWLSPACE, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), manualStart: true });
+  game.status = 'won';
+  game.lives = Math.max(1, Math.round(CRAWLSPACE.lives * DIFFICULTIES.apprentice.livesMult));
+  expect(shouldBankOnLeave(game.status, false)).toBe(true);
+  expect(pauseBlocksSettle(game.status)).toBe(false);
+  expect(clockOutHint(false)).not.toMatch(/saved/i);
+  expect(clockOutHint(true)).toMatch(/Record saved/);
+  let writes = 0;
+  const setItem = storage.setItem.bind(storage);
+  storage.setItem = (key: string, value: string) => {
+    if (key === SAVE_KEY) writes += 1;
+    setItem(key, value);
+  };
+  const first = bankTerminalRun(save, game);
+  expect(first.earned).toBe(3);
+  expect(first.firstClear).toBe(true);
+  expect(first.reward.chests.length).toBeGreaterThan(0);
+  expect(save.starsFor('crawlspace')).toBe(3);
+  expect(save.data.jeffXp).toBeGreaterThan(0);
+  expect(save.data.heroJobs.jeff).toBe(1);
+  expect(writes).toBe(1);
+  const replay = bankTerminalRun(save, game);
+  expect(replay.reward.xp).toBe(0);
+  expect(save.data.heroJobs.jeff).toBe(1);
 });

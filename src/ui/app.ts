@@ -14,9 +14,6 @@ export type Screen =
   | { kind: 'title' }
   | { kind: 'hub' }
   | { kind: 'kit' }
-  | { kind: 'skills' }
-  | { kind: 'talents' }
-  | { kind: 'crewTalents' }
   | { kind: 'store' }
   | { kind: 'locker' }
   | { kind: 'encyclopedia' }
@@ -46,11 +43,6 @@ export class App {
         view = renderHub(this);
         break;
       case 'kit':
-        view = renderKit(this);
-        break;
-      case 'skills':
-      case 'talents':
-      case 'crewTalents':
         view = renderKit(this);
         break;
       case 'store': view = renderStore(this); break;

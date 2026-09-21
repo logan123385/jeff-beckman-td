@@ -336,6 +336,7 @@ function applyBasicHeat(game: Game, enemy: Enemy): void {
   enemy.dotDps = Math.max(enemy.dotDps, game.mods.onHitHeat);
   enemy.dotTime = Math.max(enemy.dotTime, 2);
   enemy.dotSource = 'jeff';
+  enemy.dotType = 'heat';
 }
 
 export function strikeFromProfile(game: Game, enemy: Enemy): void {
@@ -355,12 +356,15 @@ export function strikeFromProfile(game: Game, enemy: Enemy): void {
       break;
     }
     case 'missile': {
+      const prep = prepareKitStrike(game, enemy);
       fireHeroMissile(game, profile.missile!, enemy.pos, profile.damage, enemy.id, profile.splashRadius || profile.splash, profile.bounce, undefined, { pull: profile.pull, stun: profile.stun });
       const missile = game.heroMissiles.at(-1);
       if (missile) {
         missile.basic = true;
         missile.pierce = profile.pierce;
         missile.damageType = profile.damageType;
+        missile.damage *= prep.damageMult;
+        if (prep.stun > 0) missile.stun = Math.max(missile.stun ?? 0, prep.stun);
       }
       break;
     }
@@ -464,11 +468,6 @@ export function updateHeroMissiles(game: Game, dt: number): void {
     const step = moveToward(p.pos, p.goal, speed * dt);
     p.pos = step.pos;
     if (!step.arrived) { keep.push(p); continue; }
-    if (p.basic && target) {
-      const prep = prepareKitStrike(game, target);
-      p.damage *= prep.damageMult;
-      if (prep.stun > 0) p.stun = Math.max(p.stun ?? 0, prep.stun);
-    }
     if (p.splash > 0) {
       for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, p.damageType ?? 'physical', 'jeff');
       if (p.basic && target) {

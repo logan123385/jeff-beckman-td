@@ -3,6 +3,7 @@ import { h } from './dom';
 
 export function persistWarning(save: SaveStore): string | null {
   if (!save.lastWriteOk) return "Couldn't save progress on this device. This tab still has the run — download a copy before you close it.";
+  if (save.staleWriteSkipped) return 'Another tab saved newer progress. This tab did not overwrite it — reload to pick up that record.';
   if (save.recoveredFromBackup) return 'Restored from a backup copy. Download your save if this looks right.';
   return null;
 }
