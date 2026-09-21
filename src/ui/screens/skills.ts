@@ -8,7 +8,7 @@ export function renderSkills(app: App): ScreenView {
   const save = app.save;
   const el = h('div', { class: 'screen skills perk-workshop' });
   const render = () => {
-    clear(el); const owned = new Set(save.data.skills);
+    clear(el); const owned = new Set<string>();
     el.append(h('header', { class: 'screen-header sheet' },
       h('button', { class: 'btn link', text: '← Van', onClick: () => app.go({ kind: 'hub' }) }),
       h('div', {}, h('div', { class: 'eyebrow', text: 'Craft your strategy' }), h('h1', { text: 'The 90’s Workshop' })),

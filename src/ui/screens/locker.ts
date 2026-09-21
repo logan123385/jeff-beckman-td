@@ -1,9 +1,12 @@
-import { affixLabel, GEAR_SLOTS, RARITY_LABEL, SLOT_LABEL } from '../../data/loot';
+import { affixLabel, RARITY_LABEL } from '../../data/loot';
 import { JEFF_LEVEL_CAP, levelFromXp, xpBarCopy } from '../../data/xp';
-import type { GearItem, GearSlot } from '../../data/types';
+import type { ArmorSlot, KitItem } from '../../data/types';
 import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
 import { heroPortrait } from '../portraits';
+
+const ARMOR_SLOTS: ArmorSlot[] = ['chest', 'boots'];
+const SLOT_LABEL: Record<ArmorSlot, string> = { chest: 'Chest', boots: 'Boots' };
 
 export function renderLocker(app: App): ScreenView {
   const save = app.save;
@@ -20,7 +23,7 @@ export function renderLocker(app: App): ScreenView {
         h('h1', { text: 'Crew Locker' }),
         h('span', { class: 'pill big', text: xp.level >= JEFF_LEVEL_CAP ? `Lv ${xp.level} · ${xpBarCopy(xp)}` : `Lv ${xp.level} · ${xp.into} / ${xp.need} XP` }),
       ),
-      h('p', { class: 'lede', text: 'First-clear job chests and The Neverending Service Call mileposts drop gear. All heroes share the same five equipped gear slots. Inventory is 24 — extras salvage into XP. Nothing here is exclusive to The Neverending Service Call.' }),
+      h('p', { class: 'lede', text: 'First-clear job chests and The Neverending Service Call mileposts drop gear. Shared chest and boots slots. Inventory is 24 — extras salvage into XP.' }),
       h(
         'div',
         { class: 'locker-layout' },
@@ -28,21 +31,22 @@ export function renderLocker(app: App): ScreenView {
           'div',
           { class: 'equip-col sheet' },
           h('div', { class: 'locker-jeff' }, heroPortrait(save.data.selectedHero, 96)),
-          ...GEAR_SLOTS.map((slot) => {
-            const id = save.data.equipped[slot];
+          ...ARMOR_SLOTS.map((slot) => {
+            const id = slot === 'chest' ? save.data.chestId : save.data.bootsId;
             const item = id ? save.itemById(id) : undefined;
+            const armor = item?.kind === 'armor' ? item : undefined;
             return h(
               'div',
-              { class: `equip-slot ${item ? `rarity-${item.rarity}` : ''}` },
+              { class: `equip-slot ${armor ? `rarity-${armor.rarity}` : ''}` },
               h('div', { class: 'eyebrow', text: SLOT_LABEL[slot] }),
-              item
+              armor
                 ? h(
                     'div',
                     {},
-                    h('b', { text: item.name }),
-                    h('div', { class: 'small muted', text: RARITY_LABEL[item.rarity] }),
-                    ...item.affixes.map((a) => h('div', { class: 'small', text: affixLabel(a) })),
-                    h('button', { class: 'btn link', text: 'Unequip', onClick: () => { save.unequip(slot); render(); } }),
+                    h('b', { text: armor.name }),
+                    h('div', { class: 'small muted', text: RARITY_LABEL[armor.rarity] }),
+                    ...armor.affixes.map((a) => h('div', { class: 'small', text: affixLabel(a) })),
+                    h('button', { class: 'btn link', text: 'Unequip', onClick: () => { save.unequipArmor(slot); render(); } }),
                   )
                 : h('div', { class: 'small muted', text: 'Empty' }),
             );
@@ -63,26 +67,31 @@ export function renderLocker(app: App): ScreenView {
   return { el };
 }
 
-function invCard(app: App, item: GearItem, render: () => void): HTMLElement {
-  const equipped = app.save.data.equipped[item.slot] === item.id;
+function invCard(app: App, item: KitItem, render: () => void): HTMLElement {
+  const equipped =
+    (item.kind === 'armor' && item.slot === 'chest' && app.save.data.chestId === item.id) ||
+    (item.kind === 'armor' && item.slot === 'boots' && app.save.data.bootsId === item.id);
+  const slotLabel = item.kind === 'armor' ? SLOT_LABEL[item.slot] : 'Weapon';
   return h(
     'article',
     { class: `gear-card rarity-${item.rarity} ${equipped ? 'equipped' : ''}` },
-    h('div', { class: 'eyebrow', text: `${SLOT_LABEL[item.slot as GearSlot]} · ${RARITY_LABEL[item.rarity]}` }),
+    h('div', { class: 'eyebrow', text: `${slotLabel} · ${RARITY_LABEL[item.rarity]}` }),
     h('b', { text: item.name }),
     ...item.affixes.map((a) => h('div', { class: 'small', text: affixLabel(a) })),
     h(
       'div',
       { class: 'btn-row' },
-      h('button', {
-        class: 'btn primary',
-        text: equipped ? 'Equipped' : 'Equip',
-        disabled: equipped,
-        onClick: () => {
-          app.save.equip(item.id);
-          render();
-        },
-      }),
+      item.kind === 'armor'
+        ? h('button', {
+            class: 'btn primary',
+            text: equipped ? 'Equipped' : 'Equip',
+            disabled: equipped,
+            onClick: () => {
+              app.save.equipArmor(item.id);
+              render();
+            },
+          })
+        : h('span', { class: 'small muted', text: 'Equip from Kit screen' }),
       h('button', {
         class: 'btn danger',
         text: 'Salvage',

@@ -34,7 +34,7 @@ test('missing version still loads a schema-shaped save', () => {
   const storage = new MemoryStorage();
   storage.setItem(SAVE_KEY, JSON.stringify({ jeffXp: 500, selectedHero: 'jeff', stars: { crawlspace: { apprentice: 3 } } }));
   const save = new SaveStore(storage);
-  expect(save.data.version).toBe(1);
+  expect(save.data.version).toBe(2);
   expect(save.data.jeffXp).toBe(500);
   expect(save.starsOn('crawlspace', 'apprentice')).toBe(3);
   expect(save.recoveredFromBackup).toBe(false);
@@ -42,9 +42,9 @@ test('missing version still loads a schema-shaped save', () => {
 
 test('unknown version keeps a v1-shaped blob instead of wiping', () => {
   const storage = new MemoryStorage();
-  storage.setItem(SAVE_KEY, JSON.stringify({ version: 2, jeffXp: 40, selectedHero: 'mike' }));
+  storage.setItem(SAVE_KEY, JSON.stringify({ version: 99, jeffXp: 40, selectedHero: 'mike' }));
   const save = new SaveStore(storage);
-  expect(save.data.version).toBe(1);
+  expect(save.data.version).toBe(2);
   expect(save.data.jeffXp).toBe(40);
   expect(save.data.selectedHero).toBe('mike');
 });
@@ -57,7 +57,6 @@ test('string version "1" and string XP coerce without concatenating', () => {
   );
   const save = new SaveStore(storage);
   expect(save.data.difficulty).toBe('journeyman');
-  expect(save.data.skills).toEqual([]);
   expect(save.data.jeffXp).toBe(5000);
   expect(save.data.inventory.length).toBe(0);
   save.addXp(36);
@@ -137,11 +136,10 @@ test('normalizeSave never throws on garbage fields', () => {
     inventory: [{ id: 'ok', slot: 'wrench', rarity: 'common', affixes: [{ key: 'jeffDamage', amount: 2 }] }],
   } as unknown as Partial<SaveData> & Record<string, unknown>);
   expect(data.difficulty).toBe('journeyman');
-  expect(data.skills).toEqual([]);
-  expect(data.talents).toEqual([]);
-  expect(data.jeffXp).toBe(0);
+  expect(data.jeffXp).toBe(8);
   expect(data.seen).toEqual(['drip']);
   expect(data.lastLoadout).toEqual(['torch']);
-  expect(data.inventory.length).toBe(1);
-  expect(data.equipped.wrench).toBeUndefined();
+  expect(data.inventory.length).toBe(0);
+  expect(data.chestId).toBeNull();
+  expect(data.bootsId).toBeNull();
 });

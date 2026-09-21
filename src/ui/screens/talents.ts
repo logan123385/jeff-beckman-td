@@ -12,7 +12,7 @@ export function renderTalents(app: App): ScreenView {
 
   const render = () => {
     clear(el);
-    const owned = new Set(save.data.talents);
+    const owned = new Set<string>();
     const xp = levelFromXp(save.data.jeffXp);
     el.append(
       h(
@@ -24,7 +24,7 @@ export function renderTalents(app: App): ScreenView {
         h('button', {
           class: 'btn',
           text: 'Respec (free)',
-          disabled: save.data.talents.length === 0,
+          disabled: true,
           onClick: () => {
             save.respecTalents();
             render();

@@ -14,7 +14,7 @@ import { buildRunModifiers, chestsForRun, xpForRun } from '../src/data/progress'
 import { buildModifiers, canUnlock, neutralModifiers } from '../src/data/skills';
 import { applyTalents, canUnlockTalent } from '../src/data/talents';
 import { TOWERS, TOWER_ORDER } from '../src/data/towers';
-import type { GearItem, MapDef, TowerId } from '../src/data/types';
+import type { MapDef, TowerId } from '../src/data/types';
 import { JEFF } from '../src/data/jeff';
 import { JEFF_LEVEL_CAP, levelFromXp, nightXp, talentPointsAvailable, xpBarCopy, xpToNext } from '../src/data/xp';
 import { applyDamage, estimateDamage, pickTarget } from '../src/sim/combat';
@@ -462,11 +462,8 @@ describe('Skills and save', () => {
     save.recordClear('crawlspace', 'journeyman', 1);
     expect(save.starsFor('crawlspace')).toBe(2);
     expect(save.isUnlocked(1)).toBe(true);
-    expect(save.unlockSkill('sharpTools')).toBe(true);
-    expect(save.unlockSkill('bulkDiscount')).toBe(true);
-    expect(save.unlockSkill('longReach')).toBe(false);
-    save.respec();
     expect(save.availableStars()).toBe(2);
+    expect(save.unlockSkill('sharpTools')).toBe(false);
   });
 
   it('stars for a clear follow the lives kept', () => {
@@ -608,22 +605,20 @@ describe('Stage 3 progression and kit', () => {
     expect(canUnlockTalent('wreckingTap', owned)).toBe(false);
   });
 
-  it('folds skills, talents, and locker gear into a run', () => {
+  it('folds equipped armor into a run', () => {
     const save = new SaveStore(null);
-    save.data.skills = ['sharpTools'];
-    save.data.talents = ['bossBreaker'];
-    const item: GearItem = {
+    const item = {
+      kind: 'armor' as const,
       id: 'g-run',
-      name: 'test wrench',
-      slot: 'wrench',
-      rarity: 'rare',
-      affixes: [{ key: 'jeffDamage', amount: 0.1 }],
+      name: 'test vest',
+      slot: 'chest' as const,
+      rarity: 'rare' as const,
+      affixes: [{ key: 'towerDamage' as const, amount: 0.1 }],
     };
     expect(save.addGear(item).kept).toBe(true);
-    expect(save.equip(item.id)).toBe(true);
+    expect(save.equipArmor(item.id)).toBe(true);
     const m = buildRunModifiers(save);
     expect(m.towerDamage).toBeCloseTo(1.1);
-    expect(m.jeffDamage).toBeCloseTo(1.32);
     expect(save.hasAnyProgress()).toBe(true);
   });
 
@@ -634,18 +629,14 @@ describe('Stage 3 progression and kit', () => {
     expect(m.jeffDamage).toBeCloseTo(1.15);
   });
 
-  it('save store refuses skipped skill and talent tiers', () => {
+  it('save store no-ops legacy skill and talent unlocks', () => {
     const save = new SaveStore(null);
     for (const map of CORE_MAPS) save.recordClear(map.id, 'master', 3);
     expect(save.unlockSkill('longReach')).toBe(false);
-    expect(save.unlockSkill('sharpTools')).toBe(true);
-    expect(save.unlockSkill('longReach')).toBe(false);
-    expect(save.unlockSkill('bulkDiscount')).toBe(true);
-    expect(save.unlockSkill('longReach')).toBe(true);
+    expect(save.unlockSkill('sharpTools')).toBe(false);
     save.addXp(xpToNext(1) + xpToNext(2) + xpToNext(3) + xpToNext(4));
     expect(save.unlockTalent('wreckingTap')).toBe(false);
-    expect(save.unlockTalent('ironGrip')).toBe(true);
-    expect(save.unlockTalent('wreckingTap')).toBe(true);
+    expect(save.unlockTalent('ironGrip')).toBe(false);
   });
 
   it('chests roll gear and affixes fold into modifiers', () => {
@@ -701,28 +692,26 @@ describe('Stage 3 progression and kit', () => {
     expect(chestsForRun(remaster, 1, false)).toEqual([]);
   });
 
-  it('save store banks XP, talents, and locker gear', () => {
+  it('save store banks XP and locker gear', () => {
     const save = new SaveStore(null);
     save.addXp(xpToNext(1) + xpToNext(2));
     expect(save.jeffLevel()).toBe(3);
-    expect(save.unlockTalent('ironGrip')).toBe(true);
-    expect(save.unlockTalent('wreckingTap')).toBe(true);
     const item = rollChest(new Rng(3), 'job', save.nextGearId());
-    expect(save.addGear(item as GearItem).kept).toBe(true);
+    expect(save.addGear(item).kept).toBe(true);
     expect(save.itemById(item.id)?.id).toBe(item.id);
   });
 
   it('full locker salvages the weakest item, not just the lowest rarity', () => {
     const save = new SaveStore(null);
-    const weak: GearItem = { id: 'weak', name: 'weak', slot: 'boots', rarity: 'uncommon', affixes: [{ key: 'jeffSpeed', amount: 0.01 }] };
-    const strongCommon: GearItem = { id: 'strong', name: 'strong', slot: 'shirt', rarity: 'common', affixes: [{ key: 'jeffHp', amount: 0.2 }] };
+    const weak = { kind: 'armor' as const, id: 'weak', name: 'weak', slot: 'boots' as const, rarity: 'uncommon' as const, affixes: [{ key: 'jeffSpeed' as const, amount: 0.01 }] };
+    const strongCommon = { kind: 'armor' as const, id: 'strong', name: 'strong', slot: 'chest' as const, rarity: 'common' as const, affixes: [{ key: 'jeffHp' as const, amount: 0.2 }] };
     expect(gearScore(strongCommon)).toBeGreaterThan(gearScore(weak));
     for (let i = 0; i < INVENTORY_CAP - 1; i++) {
-      const pad: GearItem = { id: `pad-${i}`, name: 'pad', slot: 'gauges', rarity: 'uncommon', affixes: [{ key: 'cooldown', amount: 0.12 }] };
+      const pad = { kind: 'armor' as const, id: `pad-${i}`, name: 'pad', slot: 'chest' as const, rarity: 'uncommon' as const, affixes: [{ key: 'cooldown' as const, amount: 0.12 }] };
       save.addGear(pad);
     }
     save.addGear(weak);
-    const junkIn: GearItem = { id: 'junk-in', name: 'junk', slot: 'belt', rarity: 'common', affixes: [{ key: 'startMoney', amount: 20 }] };
+    const junkIn = { kind: 'armor' as const, id: 'junk-in', name: 'junk', slot: 'chest' as const, rarity: 'common' as const, affixes: [{ key: 'startMoney' as const, amount: 20 }] };
     expect(gearScore(junkIn)).toBeLessThan(gearScore(weak));
     expect(save.addGear(junkIn).kept).toBe(false);
     expect(save.itemById('weak')).toBeTruthy();

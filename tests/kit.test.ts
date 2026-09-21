@@ -4,6 +4,7 @@ import { HERO_ORDER } from '../src/data/heroes';
 import { cardUnlocked, cardsFor, defaultCards, KIT_CARDS } from '../src/data/kitCards';
 import { rollChest } from '../src/data/loot';
 import { defaultFamily, familyHero, familyStance, implicitFor } from '../src/data/weapons';
+import { normalizeSave, SaveStore } from '../src/save/save';
 import { resolveAttackProfile as resolve } from '../src/sim/attackProfile';
 
 describe('weapon families', () => {
@@ -70,5 +71,32 @@ describe('kit cards', () => {
     expect(cardUnlocked(sweep, 3)).toBe(true);
     expect(defaultCards('jeff')).toEqual(['jeff_anchor', 'jeff_breaker']);
     expect(defaultCards('mike')).toEqual(['mike_lane', 'mike_pin']);
+  });
+});
+
+describe('save v2', () => {
+  it('migrates a v1 tree save without stuffing starter weapons into the locker', () => {
+    const data = normalizeSave({
+      version: 1,
+      jeffXp: 400,
+      skills: ['sharpTools'],
+      talents: ['ironGrip'],
+      heroBuilds: { jeff: { nodes: ['venom:1', 'venom:2', 'venom:3', 'venom:4'], technique: 'venom' } },
+      inventory: [{ id: 'g1', name: 'Hi-Vis Tee', slot: 'shirt', rarity: 'rare', affixes: [{ key: 'jeffHp', amount: 0.12 }] }],
+      equipped: { shirt: 'g1' },
+    } as never);
+    expect(data.version).toBe(2);
+    expect(data.inventory.some(i => i.kind === 'weapon' && i.rarity === 'common')).toBe(false);
+    expect(data.kits.jeff?.family).toBe('jeff_melee');
+    expect(data.kits.jeff?.cards).toEqual(['jeff_anchor', 'jeff_breaker']);
+    expect(data.heroJobs.jeff).toBeGreaterThanOrEqual(3);
+    expect(data.inventory.some(i => i.kind === 'armor' && i.slot === 'chest' && i.name === 'Veteran Vest')).toBe(true);
+    expect((data as { skills?: unknown }).skills).toBeUndefined();
+  });
+  it('rejects a weapon for the wrong hero', () => {
+    const save = new SaveStore(null);
+    save.data.inventory.push({ kind: 'weapon', id: 'w1', family: 'mike_ranged', name: 'Test', rarity: 'rare', affixes: [] });
+    expect(save.equipWeapon('jeff', 'w1')).toBe(false);
+    expect(save.setFamily('jeff', 'mike_ranged')).toBe(false);
   });
 });

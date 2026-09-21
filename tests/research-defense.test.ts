@@ -51,7 +51,7 @@ describe('Honest scouting and route coverage', () => {
 
 describe('Crew slots and optional commendations', () => {
   it('migrates old saves and bounds malformed crew data', () => {
-    expect(normalizeSave({ version: 1 }).crews).toEqual([null, null, null]);
+    expect(normalizeSave({ version: 1 } as never).crews).toEqual([null, null, null]);
     const dirty = JSON.parse('{"crews":[{"hero":"retired","towers":["torch","torch","cbj","washer"]},null,{"hero":"doni","towers":[]},{"hero":"cbj","towers":["torch"]}],"commendations":{"unknown":["clean"]}}');
     const save = normalizeSave(dirty);
     expect(save.crews).toEqual([{ hero: 'jeff', towers: ['torch', 'washer'] }, null, null]);

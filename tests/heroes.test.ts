@@ -48,7 +48,8 @@ describe('Playable hero selection and legacy saves', () => {
   it('old saves and corrupt hero ids safely default to Jeff without erasing progression', () => {
     for (const selectedHero of [undefined, 'missing', null]) {
       const storage = { length: 0, clear() {}, key() { return null; }, getItem() { return JSON.stringify({ version: 1, selectedHero, skills: ['sharpTools'], serviceCallBest: 42 }); }, setItem() {}, removeItem() {} };
-      const save = new SaveStore(storage); expect(save.data.selectedHero).toBe('jeff'); expect(save.data.skills).toEqual(['sharpTools']); expect(save.data.serviceCallBest).toBe(42);
+      const save = new SaveStore(storage); expect(save.data.selectedHero).toBe('jeff'); expect(save.data.serviceCallBest).toBe(42);
+      expect(save.data.inventory.some(i => i.kind === 'armor' && i.name === 'Veteran Vest')).toBe(true);
     }
   });
 });

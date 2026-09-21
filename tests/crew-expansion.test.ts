@@ -34,8 +34,9 @@ describe('Retired crew towers and saved loadouts', () => {
     const save = new SaveStore(storage);
     expect(save.data.lastLoadout).toEqual(['torch']);
     expect(resolveLoadout(save.data.lastLoadout, CRAWLSPACE.allowedTowers)).toEqual(['torch', 'washer', 'barricade']);
-    expect(save.starsFor('crawlspace')).toBe(3); expect(save.data.skills).toEqual(['sharpTools']);
+    expect(save.starsFor('crawlspace')).toBe(3);
     expect(save.data.jeffXp).toBe(500); expect(save.data.serviceCallBest).toBe(42); expect(save.data.selectedHero).toBe('doni');
+    expect(save.data.inventory.some(i => i.kind === 'armor' && i.name === 'Veteran Vest')).toBe(true);
   });
 });
 
@@ -50,19 +51,17 @@ describe('Six tiers and ongoing investment',()=>{
 });
 
 describe('90’s workshop',()=>{
-  it('grades lives, awards best ratings once, gates choices and spends real node costs',()=>{
+  it('grades lives and awards best ratings once',()=>{
     expect([starsForClear(20,20),starsForClear(19,20),starsForClear(10,20),starsForClear(9,20),starsForClear(0,20)]).toEqual([3,2,2,1,0]);
     const save=new SaveStore(null);save.recordClear('crawlspace','journeyman',3);save.recordClear('crawlspace','journeyman',1);
-    expect(save.availableStars()).toBe(3);expect(save.unlockSkill('crewArmor')).toBe(false);
-    expect(save.unlockSkill('crewTraining')).toBe(true);expect(save.unlockSkill('crewPractice')).toBe(true);expect(save.unlockSkill('crewArmor')).toBe(false);
-    expect(save.unlockSkill('crewReturn')).toBe(true);expect(save.availableStars()).toBe(0);
-    save.recordClear('boilerRoom','journeyman',3);expect(save.unlockSkill('crewPathA')).toBe(true);expect(save.availableStars()).toBe(1);
-    expect(save.unlockSkill('crewMastery')).toBe(false);save.respec();expect(save.availableStars()).toBe(6);expect(save.data.skills).toHaveLength(0);
+    expect(save.availableStars()).toBe(3);
+    save.recordClear('boilerRoom','journeyman',3);expect(save.availableStars()).toBe(6);
     expect(SKILLS).toHaveLength(28);
   });
-  it('migrates the old endless best without losing existing progression',()=>{
+  it('migrates the old endless best and skill-tree saves into v2 kit data',()=>{
     const storage={length:1,clear:()=>{},key:()=>null,getItem:()=>JSON.stringify({version:1,nightShiftBest:42,skills:['sharpTools']}),setItem:()=>{},removeItem:()=>{}};
-    const save=new SaveStore(storage);expect(save.data.serviceCallBest).toBe(42);expect(save.data.skills).toContain('sharpTools');
+    const save=new SaveStore(storage);expect(save.data.serviceCallBest).toBe(42);
+    expect(save.data.inventory.some(i => i.kind === 'armor' && i.name === 'Veteran Vest')).toBe(true);
   });
 });
 
