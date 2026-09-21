@@ -46,6 +46,10 @@ const AFFIX_ROLL: Record<AffixKey, { min: number; max: number; label: (n: number
   jeffRespawn: { min: 0.08, max: 0.2, label: (n) => `−${pct(n)} downed time` },
   startMoney: { min: 20, max: 50, label: (n) => `+$${Math.round(n)} starting cash` },
   towerDamage: { min: 0.04, max: 0.1, label: (n) => `+${pct(n)} tower damage` },
+  heroRate: { min: 0.06, max: 0.14, label: (n) => `+${pct(n)} attack rate` },
+  onHitHeat: { min: 4, max: 10, label: (n) => `+${Math.round(n)} on-hit heat dps` },
+  bounty: { min: 0.08, max: 0.16, label: (n) => `+${pct(n)} bounty` },
+  sellRate: { min: 0.1, max: 0.2, label: (n) => `+${pct(n)} sell value` },
 };
 
 function pct(n: number): string {
@@ -71,7 +75,12 @@ function affixScore(a: GearAffix): number {
     case 'jeffReach':
     case 'jeffRespawn':
     case 'towerDamage':
+    case 'heroRate':
+    case 'bounty':
+    case 'sellRate':
       return a.amount * 100;
+    case 'onHitHeat':
+      return a.amount * 3;
     default: {
       const _exhaustive: never = a.key;
       return _exhaustive;
@@ -120,6 +129,15 @@ export function applyAffix(m: Modifiers, a: GearAffix): void {
       return;
     case 'towerDamage':
       m.towerDamage *= 1 + a.amount;
+      return;
+    case 'bounty':
+      m.bounty *= 1 + a.amount;
+      return;
+    case 'sellRate':
+      m.sellRate *= 1 + a.amount;
+      return;
+    case 'heroRate':
+    case 'onHitHeat':
       return;
     default: {
       const _exhaustive: never = a.key;
