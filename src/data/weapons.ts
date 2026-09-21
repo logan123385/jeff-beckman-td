@@ -73,7 +73,7 @@ const FAMILY_BASE: Record<WeaponFamilyId, FamilyBase> = {
   becbec_melee: {
     reach: 43, damage: 32, attackRate: 1.18, holds: 3, air: false, damageType: 'physical',
     basic: 'contact', pierce: 0, bounce: 0, splash: 0, splashRadius: 0, pull: 0,
-    stun: 0, stunChance: 0, shred: 0, tapStunEvery: 3,
+    stun: 0.35, stunChance: 0, shred: 0, tapStunEvery: 3,
   },
   becbec_ranged: {
     reach: 160, damage: 26, attackRate: 1.05, holds: 0, air: true, damageType: 'physical',
@@ -103,7 +103,7 @@ const FAMILY_BASE: Record<WeaponFamilyId, FamilyBase> = {
   jayjay_melee: {
     reach: 48, damage: 42, attackRate: 0.83, holds: 4, air: false, damageType: 'physical',
     basic: 'contact', pierce: 0, bounce: 0, splash: 0, splashRadius: 0, pull: 0,
-    stun: 0, stunChance: 0, shred: 0, tapStunEvery: 3,
+    stun: 0.35, stunChance: 0, shred: 0, tapStunEvery: 3,
   },
   jayjay_ranged: {
     reach: 150, damage: 34, attackRate: 0.90, holds: 0, air: true, damageType: 'physical',

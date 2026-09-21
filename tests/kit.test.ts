@@ -96,7 +96,43 @@ describe('kit cards', () => {
   });
 });
 
+function landContactBasic(g: Game) {
+  const swing = g.heroDef.swingTime;
+  updateHero(g, 0.01);
+  updateHero(g, swing * 0.2);
+  updateHero(g, swing * 0.3);
+}
+
+function waitBasicCooldown(g: Game) {
+  const swing = g.heroDef.swingTime;
+  const cooldown = 1 / (g.attackProfile.attackRate * g.mods.heroRate);
+  updateHero(g, swing + cooldown + 0.05);
+}
+
 describe('kit combat', () => {
+  it('stuns on the third becbec_melee punch', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'becbec',
+      kit: { family: 'becbec_melee', weapon: null, cards: [null, null] },
+      manualStart: true,
+    });
+    g.deployHero({ ...g.map.jeffStart });
+    const e = g.spawnEnemy('sludge', 0, 320);
+    e.lane = 0;
+    e.pos = { x: 340, y: 250 };
+    e.def = { ...e.def, dps: 0, speed: 0 };
+    e.hp = e.maxHp = 10000;
+    landContactBasic(g);
+    expect(e.stun).toBe(0);
+    waitBasicCooldown(g);
+    landContactBasic(g);
+    expect(e.stun).toBe(0);
+    waitBasicCooldown(g);
+    landContactBasic(g);
+    expect(e.stun).toBeGreaterThanOrEqual(0.35);
+  });
   it('stuns on jayjay_ranged bell impact without pull', () => {
     const g = new Game(CRAWLSPACE, {
       difficulty: DIFFICULTIES.apprentice,
