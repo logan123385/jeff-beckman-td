@@ -378,6 +378,11 @@ export function strikeFromProfile(game: Game, enemy: Enemy): void {
       if (prep.stun > 0) enemy.stun = Math.max(enemy.stun, prep.stun * game.mods.stunDuration);
       const dealt = applyDamage(game, enemy, dmg, profile.damageType, 'jeff');
       onKitHit(game, enemy, dmg);
+      if (game.mods.onHitHeat > 0) {
+        enemy.dotDps = Math.max(enemy.dotDps, game.mods.onHitHeat);
+        enemy.dotTime = Math.max(enemy.dotTime, 2);
+        enemy.dotSource = 'jeff';
+      }
       if (profile.splash > 0) {
         for (const e of targets(game, profile.splashRadius, enemy.pos)) {
           if (e.id === enemy.id) continue;

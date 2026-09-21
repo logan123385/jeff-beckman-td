@@ -82,6 +82,8 @@ describe('weapon families', () => {
     const boosted = resolve('jeff_melee', 'uncommon', [{ key: 'jeffHolds', amount: 1 }, { key: 'jeffReach', amount: 0.1 }]);
     expect(boosted.holds).toBe(3);
     expect(boosted.reach).toBeCloseTo(42 * 1.1, 5);
+    expect(implicitFor('cbj_melee', 'common').splash).toBeCloseTo(0.20, 5);
+    expect(implicitFor('cbj_melee', 'common').splashRadius).toBe(36);
   });
 });
 
@@ -224,6 +226,68 @@ describe('kit combat', () => {
     expect(nearby.hp).toBeLessThan(nearbyHp);
   });
 
+  it('cbj_melee common splash is ~20% of primary, not 20×', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'cbj',
+      kit: { family: 'cbj_melee', weapon: null, cards: [null, null] },
+      manualStart: true,
+    });
+    g.deployHero({ ...g.map.jeffStart });
+    const primary = g.spawnEnemy('sludge', 0, 320);
+    primary.lane = 0;
+    primary.pos = { x: 340, y: 250 };
+    primary.def = { ...primary.def, dps: 0, speed: 0 };
+    primary.hp = primary.maxHp = 10000;
+    const nearby = g.spawnEnemy('sludge', 0, 320);
+    nearby.lane = 0;
+    nearby.pos = { x: 365, y: 250 };
+    nearby.def = { ...nearby.def, dps: 0, speed: 0 };
+    nearby.hp = nearby.maxHp = 10000;
+    const primaryHpBefore = primary.hp;
+    const nearbyHpBefore = nearby.hp;
+    landContactBasic(g);
+    const primaryDmg = primaryHpBefore - primary.hp;
+    const splashDmg = nearbyHpBefore - nearby.hp;
+    expect(primaryDmg).toBeGreaterThan(0);
+    expect(splashDmg).toBeGreaterThan(0);
+    expect(splashDmg / primaryDmg).toBeCloseTo(0.20, 1);
+    expect(splashDmg).toBeLessThan(primaryDmg);
+  });
+
+  it('applies weapon onHitHeat DoT on basic connect', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'jeff',
+      kit: {
+        family: 'jeff_melee',
+        weapon: {
+          kind: 'weapon',
+          id: 'w-test',
+          family: 'jeff_melee',
+          name: 'Hot Wrench',
+          rarity: 'rare',
+          affixes: [{ key: 'onHitHeat', amount: 8 }],
+        },
+        cards: [null, null],
+      },
+      manualStart: true,
+    });
+    expect(g.mods.onHitHeat).toBe(8);
+    g.deployHero({ ...g.map.jeffStart });
+    const e = g.spawnEnemy('sludge', 0, 320);
+    e.lane = 0;
+    e.pos = { x: 340, y: 250 };
+    e.def = { ...e.def, dps: 0, speed: 0 };
+    e.hp = e.maxHp = 10000;
+    landContactBasic(g);
+    expect(e.dotDps).toBe(8);
+    expect(e.dotTime).toBe(2);
+    expect(e.dotSource).toBe('jeff');
+  });
+
   it('stuns on jayjay_ranged bell impact without pull', () => {
     const g = new Game(CRAWLSPACE, {
       difficulty: DIFFICULTIES.apprentice,
@@ -270,6 +334,24 @@ describe('save v2', () => {
     expect(veteranBoots?.rarity).toBe('rare');
     expect(data.inventory.find(i => i.id === 'g-veteran-chest')?.rarity).toBe('rare');
     expect((data as { skills?: unknown }).skills).toBeUndefined();
+  });
+  it('keeps veteran armor when migrating a full v1 locker', () => {
+    const fullInv = Array.from({ length: 24 }, (_, i) => ({
+      id: `g${i}`,
+      kind: 'armor',
+      slot: i % 2 === 0 ? 'chest' : 'boots',
+      name: `Item ${i}`,
+      rarity: 'common',
+      affixes: [],
+    }));
+    const data = normalizeSave({
+      version: 1,
+      skills: ['sharpTools'],
+      inventory: fullInv,
+    } as never);
+    expect(data.inventory.some((i) => i.id === 'g-veteran-chest')).toBe(true);
+    expect(data.inventory.some((i) => i.id === 'g-veteran-boots')).toBe(true);
+    expect(data.inventory.length).toBeLessThanOrEqual(24);
   });
   it('persists v2 kits, heroJobs, and armor across reload', () => {
     class MemoryStorage implements Storage {

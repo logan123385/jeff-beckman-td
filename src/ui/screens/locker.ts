@@ -76,8 +76,12 @@ function invCard(app: App, item: KitItem, render: () => void): HTMLElement {
     (item.kind === 'armor' && item.slot === 'boots' && app.save.data.bootsId === item.id) ||
     (item.kind === 'weapon' && app.save.heroKit(selectedHero).weaponId === item.id);
   const slotLabel = item.kind === 'armor' ? SLOT_LABEL[item.slot] : 'Weapon';
+  const heroKitState = app.save.heroKit(selectedHero);
   const weaponHero = item.kind === 'weapon' && isWeaponFamilyId(item.family) ? familyHero(item.family) : null;
-  const canEquipWeapon = item.kind === 'weapon' && weaponHero === selectedHero;
+  const canEquipWeapon =
+    item.kind === 'weapon' &&
+    weaponHero === selectedHero &&
+    item.family === heroKitState.family;
   const weaponEquipped = item.kind === 'weapon' && equipped;
   return h(
     'article',

@@ -72,7 +72,7 @@ h('li', { html: '<b>Q</b> <b>E</b> <b>R</b> <b>T</b> <b>C</b> are your selected 
             class: 'btn link danger',
             text: 'Reset all progress',
             onClick: () => {
-              if (confirm('Wipe 90’s, talents, locker, skills and encyclopedia? A backup copy stays on this device. Download your save first if you might want it back.')) {
+              if (confirm('Wipe kit, locker, and save progress? A backup copy stays on this device. Download your save first if you might want it back.')) {
                 app.save.reset();
                 app.go({ kind: 'title' });
               }

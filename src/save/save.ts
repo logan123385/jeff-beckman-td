@@ -318,6 +318,24 @@ function veteranArmor(): { chest: ArmorItem; boots: ArmorItem } {
   };
 }
 
+function trimInventoryToCap(inventory: KitItem[], preserveIds: ReadonlySet<string>): void {
+  while (inventory.length > INVENTORY_CAP) {
+    let junkIdx = -1;
+    let junkScore = Infinity;
+    for (let i = 0; i < inventory.length; i++) {
+      const item = inventory[i]!;
+      if (preserveIds.has(item.id)) continue;
+      const score = gearScore(item);
+      if (score < junkScore) {
+        junkScore = score;
+        junkIdx = i;
+      }
+    }
+    if (junkIdx < 0) break;
+    inventory.splice(junkIdx, 1);
+  }
+}
+
 function migrateEquippedArmor(
   parsed: Record<string, unknown>,
   inventory: KitItem[],
@@ -357,11 +375,22 @@ export function normalizeSave(parsed: Partial<SaveData> & Record<string, unknown
     const veteran = veteranArmor();
     if (!inventory.some((i) => i.id === veteran.chest.id)) inventory.push(veteran.chest);
     if (!inventory.some((i) => i.id === veteran.boots.id)) inventory.push(veteran.boots);
+    const preserve = new Set<string>([veteran.chest.id, veteran.boots.id]);
+    if (chestId) preserve.add(chestId);
+    if (bootsId) preserve.add(bootsId);
+    trimInventoryToCap(inventory, preserve);
     if (!chestId && inventory.some((i) => i.id === veteran.chest.id)) chestId = veteran.chest.id;
     if (!bootsId && inventory.some((i) => i.id === veteran.boots.id)) bootsId = veteran.boots.id;
+  } else {
+    const preserve = new Set<string>();
+    if (chestId) preserve.add(chestId);
+    if (bootsId) preserve.add(bootsId);
+    trimInventoryToCap(inventory, preserve);
   }
 
-  if (inventory.length > INVENTORY_CAP) inventory.length = INVENTORY_CAP;
+  const invIds = new Set(inventory.map((i) => i.id));
+  if (chestId && !invIds.has(chestId)) chestId = null;
+  if (bootsId && !invIds.has(bootsId)) bootsId = null;
 
   const stars: SaveData['stars'] = {};
   if (parsed.stars && typeof parsed.stars === 'object') {

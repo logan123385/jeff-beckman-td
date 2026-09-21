@@ -1,7 +1,8 @@
 import { COMMENDATIONS, commendationKey } from '../../data/commendations';
 import { cardById } from '../../data/kitCards';
 import { ABILITY_KEYS, HEROES, HERO_ORDER } from '../../data/heroes';
-import { familyLabel } from '../../data/weapons';
+import { familyLabel, familyStance } from '../../data/weapons';
+import { resolveAttackProfile } from '../../sim/attackProfile';
 import { skillGlyph } from '../play/icons';
 import { availableTowers, loadoutCap, resolveLoadout } from '../../data/loadout';
 import { mapById } from '../../data/maps';
@@ -42,6 +43,13 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
     const kit = app.save.heroKit(selected.id);
     const weaponItem = kit.weaponId ? app.save.itemById(kit.weaponId) : undefined;
     const weaponName = weaponItem?.kind === 'weapon' ? weaponItem.name : familyLabel(kit.family);
+    const weaponAffixes = weaponItem?.kind === 'weapon' ? weaponItem.affixes : [];
+    const profile = resolveAttackProfile(
+      kit.family,
+      weaponItem?.kind === 'weapon' ? weaponItem.rarity : 'common',
+      weaponAffixes,
+    );
+    const stanceLabel = familyStance(kit.family) === 'ranged' ? 'Ranged' : 'Melee';
     const cardNames = kit.cards.map((id) => (id ? cardById(id)?.name : null)).filter(Boolean);
     const kitLine = cardNames.length
       ? `${weaponName} · ${cardNames.join(' · ')}`
@@ -59,7 +67,7 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
       h('div', { class: 'hero-dossier', attrs: { style: `--hero-color: ${selected.color}`,  'aria-live': 'polite' } },
         h('div', { class: 'hero-dossier-intro' }, h('span', { class: 'eyebrow', text: selected.title }), h('p', { text: selected.description }),
           h('p', { class: 'small', text: kitLine }),
-          h('div', { class: 'hero-statline', text: `${selected.hp} HP  ·  ${selected.ranged ? 'Ranged' : 'Melee'}  ·  ${selected.damage} damage  ·  ${selected.reach} reach` })),
+          h('div', { class: 'hero-statline', text: `${selected.hp} HP  ·  ${stanceLabel}  ·  ${Math.round(profile.damage)} damage  ·  ${Math.round(profile.reach)} reach` })),
         h('div', { class: 'hero-aura-card' }, h('span', { class: 'eyebrow', text: 'Always active aura' }), h('b', { text: selected.aura.name }), h('p', { text: selected.aura.description })),
         h('div', { class: 'hero-kit' }, ...selected.abilities.map((a, index) => h('div', { class: 'hero-kit-skill', title: a.description },
           h('span', { class: 'hero-kit-icon', html: skillGlyph(a.glyph) }), h('div', {}, h('b', { text: a.name }), h('span', { text: a.description })),

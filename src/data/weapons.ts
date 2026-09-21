@@ -159,7 +159,7 @@ const SHRED_IMPLICIT: Partial<Record<WeaponFamilyId, readonly [number, number, n
 };
 
 const SPLASH_IMPLICIT: Partial<Record<WeaponFamilyId, readonly [number, number, number, number]>> = {
-  cbj_melee: [20, 28, 40, 55],
+  cbj_melee: [0.20, 0.28, 0.40, 0.55],
 };
 
 const SPLASH_RADIUS_IMPLICIT: Partial<Record<WeaponFamilyId, readonly [number, number, number, number]>> = {

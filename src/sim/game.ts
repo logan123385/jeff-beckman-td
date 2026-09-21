@@ -17,6 +17,7 @@ import { propertiesFor } from '../data/leakProperties';
 import { isNoPowers, isNoSell, isOneLife, isTruckMoney } from '../data/remasters';
 import { fieldRbe } from '../data/splits';
 import type { Difficulty, EnemyId, LeakProperty, MapDef, Modifiers, RemasterId, TowerId, WaveDef, WeaponItem } from '../data/types';
+import { applyAffix } from '../data/loot';
 import { AIM_ORDER, applyDamage, canTowerDamage, heroOnYard, isTargetable, matchesTargetMode, missionXpToNext, predictedPos, abilityRangeFactor, abilityRank } from './combat';
 import { updateEnemies } from './enemies';
 import { updateHero } from './hero';
@@ -162,6 +163,11 @@ export class Game {
     this.kitCards = kitInput.cards;
     this.attackProfile = resolveAttackProfile(kitInput.family, weapon?.rarity ?? 'common', weapon?.affixes ?? []);
     this.baseAttackProfile = { ...this.attackProfile };
+    if (weapon) {
+      for (const affix of weapon.affixes) {
+        if (affix.key === 'cooldown' || affix.key === 'onHitHeat') applyAffix(this.mods, affix);
+      }
+    }
     syncKitProfile(this);
     this.manualStart = opts.manualStart ?? false;
     this.remaster = opts.remaster ?? 'classic';
