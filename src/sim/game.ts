@@ -66,6 +66,8 @@ export class Game {
   jeffSpeedAura = 1;
   jeffCdAura = 1;
   waveHpScale = 1;
+  peakTowerCount = 0;
+  readonly builtTypes = new Set<TowerId>();
   nightMutator: NightMutatorId | null = null;
 
   enemies: Enemy[] = [];
@@ -310,12 +312,23 @@ export class Game {
     return [...new Set(w.groups.map((g) => g.enemy))];
   }
 
-  nextWavePreview(): { enemy: EnemyId; count: number; path: number; properties: LeakProperty[] }[] {
-    const groups = this.waveDefAt(this.waveIdx)?.groups ?? [];
-    const mut = this.mutatorFor(this.waveIdx);
+  waveHealthScale(index: number): number {
+    index = Math.max(0, index);
+    return this.endless ? 1 + index * .03 + Math.pow(Math.max(0, index - 24), 1.4) * .006 : 1 + Math.max(0, index - 4) * .012;
+  }
+
+  previewHealth(id: EnemyId, index: number, properties: readonly LeakProperty[]): number {
+    const base = Math.round(enemyForMap(id, this.map.id).hp * this.difficulty.hpMult * this.waveHealthScale(index));
+    return properties.includes('pressurized') ? Math.round(base * 1.45) : base;
+  }
+
+  nextWavePreview(offset = 0): { enemy: EnemyId; count: number; path: number; properties: LeakProperty[] }[] {
+    const index = this.waveIdx + Math.max(0, Math.floor(offset));
+    const groups = this.waveDefAt(index)?.groups ?? [];
+    const mut = this.mutatorFor(index);
     const preview: { enemy: EnemyId; count: number; path: number; properties: LeakProperty[] }[] = [];
     for (const group of groups) {
-      const properties = propertiesFor(group.enemy, this.waveIdx, mut, group.properties);
+      const properties = propertiesFor(group.enemy, index, mut, group.properties);
       const old = preview.find(
         (p) => p.enemy === group.enemy && p.path === group.path && p.properties.join() === properties.join(),
       );
@@ -323,6 +336,11 @@ export class Game {
       else preview.push({ enemy: group.enemy, count: group.count, path: group.path, properties });
     }
     return preview;
+  }
+
+  waveEntryDuration(offset = 0): number {
+    const groups = this.waveDefAt(this.waveIdx + offset)?.groups ?? [];
+    return groups.reduce((last, group) => Math.max(last, group.delay + (group.count - 1) * group.interval), 0);
   }
 
   nextWaveIsRush(): boolean {
@@ -493,6 +511,8 @@ export class Game {
       lastTargetId: 0,
       abilityCd: 0,
     });
+    this.peakTowerCount = Math.max(this.peakTowerCount, this.towers.length);
+    this.builtTypes.add(id);
     syncRecruits(this, this.towers[this.towers.length - 1]!);
     this.addEffect({ kind: 'ring', pos: { ...pos }, radius: 34, color: '#ffe082', ttl: 0.42, max: 0.42 });
     this.addEffect({ kind: 'splash', pos: { ...pos }, radius: 20, color: def.color, ttl: 0.28, max: 0.28 });
@@ -765,8 +785,7 @@ export class Game {
 
   spawnEnemy(id: EnemyId, pathIdx: number, progress = -SPAWN_LEAD, properties: readonly LeakProperty[] = [], waveId = this.waveIdx): Enemy {
     const def = enemyForMap(id, this.map.id);
-    let hp = Math.round(def.hp * this.difficulty.hpMult * this.waveHpScale);
-    if (properties.includes('pressurized')) hp = Math.round(hp * 1.45);
+    const hp = this.previewHealth(id, Math.max(0, waveId - 1), properties);
     const shell = properties.includes('cast') ? Math.round(hp * 0.85) : 0;
     const path = this.paths[pathIdx] ?? this.paths[0]!;
     const at = path.pointAt(progress);
@@ -993,9 +1012,7 @@ export class Game {
     const index = this.waveIdx;
     const w = this.waveDefAt(index);
     if (!w) return;
-    this.waveHpScale = this.endless
-      ? 1 + index * 0.03 + Math.pow(Math.max(0, index - 24), 1.4) * 0.006
-      : 1 + Math.max(0, index - 4) * 0.012;
+    this.waveHpScale = this.waveHealthScale(index);
     this.activeWaves.set(index + 1, { started: this.time, kills: 0, leaks: 0, livesLost: 0, bounty: 0 });
     this.waveJustCleared = false;
     let duration = 0;

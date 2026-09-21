@@ -37,6 +37,7 @@ export interface HudHandlers {
 
 /** Top and bottom bars. `update()` runs every frame and only touches text that changed. */
 export class Hud {
+  planning = false;
   readonly top: HTMLElement;
   readonly bottom: HTMLElement;
   private readonly lives = h('b');
@@ -424,8 +425,8 @@ ability(this.crewBtn, this.crewCd, 'D', 'Summon Logan', 'Tiny gremlin · 18s', h
       }
       const bonus = g.callBonus;
       this.set(this.callBtn, g.waveIdx === 0 ? `Start job  (+$${bonus})` : rushing ? `Call rush  (+$${bonus})` : `Call wave  (+$${bonus})`);
-      this.callBtn.disabled = !g.canCallWave;
-      this.callBtn.title = g.canCallWave ? `+$${bonus}${g.callCooldownRecovery > 0 ? ` and ${g.callCooldownRecovery.toFixed(1)}s off hero, Logan, and torch rain cooldowns` : ''}` : g.callBlockReason;
+      this.callBtn.disabled = this.planning || !g.canCallWave;
+      this.callBtn.title = this.planning ? 'Resume with B before calling a wave' : g.canCallWave ? `+$${bonus}${g.callCooldownRecovery > 0 ? ` and ${g.callCooldownRecovery.toFixed(1)}s off hero, Logan, and torch rain cooldowns` : ''}` : g.callBlockReason;
       this.callBtn.classList.toggle('hidden', g.endless && g.waveActive);
     }
 

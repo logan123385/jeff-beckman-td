@@ -1,3 +1,4 @@
+import { COMMENDATIONS, earnedCommendations } from '../../data/commendations';
 import { affixLabel, chestBlurb, RARITY_LABEL } from '../../data/loot';
 import type { RunReward } from '../../data/progress';
 import { remasterTitle, isOneLife } from '../../data/remasters';
@@ -61,6 +62,9 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
       h('div', { class: 'eyebrow', text: eyebrow }),
       h('h2', { text: headline }),
       h('p', { class: 'muted', text: blurb }),
+      won && !game.endless ? h('section', { class: 'mission-goals result-goals' }, h('h3', { text: 'Mission commendations' }),
+        ...COMMENDATIONS.map(goal => h('div', { class: 'goal-card', attrs: { 'data-earned': String(earnedCommendations(game).includes(goal.id)) } },
+          h('b', { text: `${earnedCommendations(game).includes(goal.id) ? '◆ Earned · ' : '◇ '}${goal.name}` }), h('span', { text: goal.description })))) : null,
       leakDef && biggestLeak ? h('aside', { class: 'result-advice' },
         h('b', { text: `Field note: ${leakDef.name}` }),
         h('p', { text: `${biggestLeak[1]} escaped. ${leakDef.counters}` })) : null,

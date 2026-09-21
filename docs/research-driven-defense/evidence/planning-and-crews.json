@@ -1,0 +1,15 @@
+{
+  "pass": true,
+  "ordinaryResources": true,
+  "crewSavedAndReloaded": true,
+  "planningConstruction": true,
+  "planningCooldownFrozen": true,
+  "planningCallBlocked": true,
+  "scoutThreeWaves": true,
+  "futureCallBlocked": true,
+  "scoutPreservesPlanning": true,
+  "manualPausePreserved": true,
+  "halfSpeed": true,
+  "mobileWidth": 390,
+  "errors": []
+}

@@ -1,3 +1,4 @@
+import { COMMENDATIONS, commendationKey } from '../../data/commendations';
 import { ABILITY_KEYS, HEROES, HERO_ORDER } from '../../data/heroes';
 import { skillGlyph } from '../play/icons';
 import { availableTowers, loadoutCap, resolveLoadout } from '../../data/loadout';
@@ -31,6 +32,7 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
   const cap = loadoutCap(available);
   let picked = resolveLoadout(app.save.data.lastLoadout, available);
 
+  let crewNotice = 'Save a hero and tool kit together. Loading adapts the kit to this job’s legal tools.';
   const el = h('div', { class: 'screen loadout' });
 
   const heroPicker = () => {
@@ -72,7 +74,29 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
             const enemy = enemyForMap(id, map.id);
             return h('span', { class: 'pill', text: enemy.name, title: `${enemyTraits(enemy).join(' · ')}. ${enemy.counters}` });
           }))),
+      ...(!map.endless ? [h('section', { class: 'sheet mission-goals' }, h('h2', { text: 'Optional commendations' }),
+        h('p', { class: 'small muted', text: 'Collect on this difficulty and job variant. No power rewards or unlock requirements.' }),
+        ...COMMENDATIONS.map(goal => h('div', { class: 'goal-card' },
+          h('b', { text: `${app.save.data.commendations[commendationKey(map.id, app.save.data.difficulty, remaster)]?.includes(goal.id) ? '◆ Earned · ' : '◇ '}${goal.name}` }),
+          h('span', { text: goal.description }))))] : []),
       heroPicker(),
+      h('section', { class: 'sheet saved-crews', attrs: { 'aria-label': 'Saved crews' } }, h('h2', { text: 'Saved crews' }),
+        h('p', { class: 'small muted', text: crewNotice, attrs: { role: 'status' } }),
+        h('div', { class: 'crew-grid' }, ...[0, 1, 2].map(slot => {
+          const crew = app.save.data.crews[slot];
+          return h('article', { class: 'crew-card' }, h('b', { text: `Crew ${slot + 1}${crew ? ` · ${HEROES[crew.hero].name}` : ' · empty'}` }),
+            h('p', { class: 'small', text: crew ? crew.towers.map(id => TOWERS[id].name).join(' · ') : 'Your next strategy goes here.' }),
+            h('div', { class: 'btn-row' },
+              h('button', { class: 'btn', text: 'Load crew', disabled: !crew, attrs: { 'aria-label': `Load crew ${slot + 1}` }, onClick: () => {
+                if (!crew) return;
+                picked = resolveLoadout(crew.towers, available); app.save.setHero(crew.hero);
+                crewNotice = picked.join() === crew.towers.join() ? `Crew ${slot + 1} loaded.` : `Crew ${slot + 1} loaded. Unavailable tools were replaced and empty spaces filled for this job.`;
+                paint(); el.querySelector<HTMLButtonElement>(`[aria-label="Load crew ${slot + 1}"]`)?.focus({ preventScroll: true });
+              } }),
+              h('button', { class: 'btn', text: crew ? 'Replace crew' : 'Save crew', disabled: picked.length !== cap, attrs: { 'aria-label': `Save crew ${slot + 1}` }, onClick: () => {
+                app.save.saveCrew(slot, picked); crewNotice = `Crew ${slot + 1} saved.`; paint(); el.querySelector<HTMLButtonElement>(`[aria-label="Save crew ${slot + 1}"]`)?.focus({ preventScroll: true });
+              } })));
+        }))),
       h(
         'p',
         { class: 'lede' },

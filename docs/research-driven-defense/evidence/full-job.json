@@ -1,0 +1,16 @@
+{
+  "pass": true,
+  "purpose": "Production playthrough with ordinary resources",
+  "hero": "CBJ",
+  "difficulty": "apprentice",
+  "won": true,
+  "lives": 20,
+  "abilitiesTrained": true,
+  "abilityActivated": true,
+  "towerActiveUsed": true,
+  "heroRanksPicked": 6,
+  "xp": 84,
+  "gear": 1,
+  "errors": [],
+  "evidence": "/tmp/jeff-research-full-run"
+}
