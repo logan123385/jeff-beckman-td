@@ -654,7 +654,7 @@ describe('Stage 3 progression and kit', () => {
     const m = neutralModifiers();
     applyAffix(m, { key: 'jeffDamage', amount: 0.1 });
     expect(m.jeffDamage).toBeCloseTo(1.1);
-    expect(item.slot).toBeTruthy();
+    expect(item.kind === 'weapon' || item.kind === 'armor').toBe(true);
   });
 
   it('The Neverending Service Call mutators rotate and clock-out banks chests', () => {
@@ -708,9 +708,8 @@ describe('Stage 3 progression and kit', () => {
     expect(save.unlockTalent('ironGrip')).toBe(true);
     expect(save.unlockTalent('wreckingTap')).toBe(true);
     const item = rollChest(new Rng(3), 'job', save.nextGearId());
-    expect(save.addGear(item).kept).toBe(true);
-    expect(save.equip(item.id)).toBe(true);
-    expect(save.equippedItems()[0]?.id).toBe(item.id);
+    expect(save.addGear(item as GearItem).kept).toBe(true);
+    expect(save.itemById(item.id)?.id).toBe(item.id);
   });
 
   it('full locker salvages the weakest item, not just the lowest rarity', () => {

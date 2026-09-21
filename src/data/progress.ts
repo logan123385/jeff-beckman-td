@@ -71,8 +71,8 @@ export function grantRunRewards(save: SaveStore, game: Game, earnedStars: number
   const rng = new Rng(((save.data.jeffXp * 7919) ^ (game.waveIdx * 997) ^ (game.stats.kills * 13) ^ 0x9e3779b9) >>> 0);
   for (const quality of chests) {
     const item = rollChest(rng, quality, save.nextGearId());
-    const added = save.addGear(item);
-    if (added.kept) items.push(item);
+    const added = save.addGear(item as GearItem);
+    if (added.kept) items.push(item as GearItem);
     salvagedXp += added.salvagedXp;
   }
   const after = save.jeffLevel();
