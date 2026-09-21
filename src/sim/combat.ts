@@ -8,6 +8,11 @@ import type { DamageType, EnemyId, LeakProperty, TargetMode, TowerId } from '../
 import type { Game } from './game';
 import type { AimPriority, DamageSource, Enemy, Tower } from './state';
 
+/** Shared by aiming UI and cast validation, including unlocked precision techniques. */
+export function heroAbilityHitsAir(game: Game, slot: AbilitySlot): boolean {
+  return !['becbec', 'jayjay'].includes(game.heroDef.id) || (slot === 4 && game.heroBuild.technique === 'hunter');
+}
+
 export function hasProp(enemy: Enemy, prop: LeakProperty): boolean {
   return enemy.properties.includes(prop);
 }

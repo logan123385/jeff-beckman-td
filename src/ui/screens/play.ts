@@ -12,7 +12,7 @@ import { NIGHT_MUTATORS } from '../../data/night';
 import { remasterTitle, isOneLife, isNoPowers, isNoSell } from '../../data/remasters';
 import { PROPERTY_LABEL } from '../../data/leakProperties';
 import { splitLine, splitOf } from '../../data/splits';
-import { AIM_HINT, AIM_LABEL, scaledCastRange } from '../../sim/combat';
+import { AIM_HINT, AIM_LABEL, scaledCastRange, heroAbilityHitsAir } from '../../sim/combat';
 import { towerAbilityReady } from '../../sim/towerAbilities';
 import { buildRunModifiers, grantRunRewards } from '../../data/progress';
 import type { EnemyId, RemasterId, TowerId } from '../../data/types';
@@ -52,7 +52,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   const difficulty = DIFFICULTIES[app.save.data.difficulty];
   const mods = buildRunModifiers(app.save);
   const kit = resolveLoadout(loadout ?? app.save.data.lastLoadout, availableTowers(app.save, map, remaster));
-  const game = new Game(map, { heroId: app.save.data.selectedHero, difficulty, mods, seed: (Date.now() & 0xffff) + 1, remaster, loadout: kit, manualStart: true });
+  const game = new Game(map, { heroId: app.save.data.selectedHero, heroBuild: app.save.heroBuild(), difficulty, mods, seed: (Date.now() & 0xffff) + 1, remaster, loadout: kit, manualStart: true });
   const audio = new AudioBus({
     muted: app.save.data.muted,
     sfxGain: app.save.data.sfxVolume,
@@ -805,7 +805,8 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       return;
     }
     if (game.useAbility(slot)) {
-      if (game.heroDef.id === 'jeff') audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
+      if (game.heroDef.id === 'jeff' && !(slot === 4 && game.heroBuild.technique !== 'signature')) audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
+      else audio.heroImpact('cast');
       hud.setHint(`${ability.name} — ${ability.description}`);
     } else if (game.hero.downed > 0) hud.setHint(`${game.heroDef.name} is recovering.`);
     else if (game.hero.cast) hud.setHint(`Finishing ${game.heroDef.abilities[game.hero.cast.slot].name}.`);
@@ -847,7 +848,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         hud.setHint(`Click a leak within ${range}. Esc cancels.`);
         return;
       }
-      if (['becbec', 'jayjay'].includes(game.heroDef.id) && prey.def.flying) {
+      if (prey.def.flying && !heroAbilityHitsAir(game, slot)) {
         hud.setHint(`${ability.name} only hits ground leaks.`);
         return;
       }
@@ -856,7 +857,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         return;
       }
       if (game.useAbility(slot, { pos: prey.pos, enemyId })) {
-        if (game.heroDef.id === 'jeff') audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
+        if (game.heroDef.id === 'jeff' && !(slot === 4 && game.heroBuild.technique !== 'signature')) audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
         else audio.heroImpact('cast');
         cancelAim();
         hud.setHint(`${ability.name} — ${ability.description}`);
@@ -868,7 +869,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       return;
     }
     if (game.useAbility(slot, { pos: p })) {
-      if (game.heroDef.id === 'jeff') audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
+      if (game.heroDef.id === 'jeff' && !(slot === 4 && game.heroBuild.technique !== 'signature')) audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
       else audio.heroImpact('cast');
       cancelAim();
       hud.setHint(`${ability.name} — ${ability.description}`);

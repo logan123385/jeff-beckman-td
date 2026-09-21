@@ -62,6 +62,7 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
       h('div', { class: 'eyebrow', text: eyebrow }),
       h('h2', { text: headline }),
       h('p', { class: 'muted', text: blurb }),
+      reward ? h('div', { class: 'service-reward' }, h('b', { text: `+${reward.servicePoints} service points` }), h('span', { text: won ? 'Full job payment · spend in the Supply Store' : 'Work completed still counts · spend in the Supply Store' })) : null,
       won && !game.endless ? h('section', { class: 'mission-goals result-goals' }, h('h3', { text: 'Mission commendations' }),
         ...COMMENDATIONS.map(goal => h('div', { class: 'goal-card', attrs: { 'data-earned': String(earnedCommendations(game).includes(goal.id)) } },
           h('b', { text: `${earnedCommendations(game).includes(goal.id) ? '◆ Earned · ' : '◇ '}${goal.name}` }), h('span', { text: goal.description })))) : null,

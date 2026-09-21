@@ -1,3 +1,4 @@
+import { servicePointsForRun } from './store';
 import { Rng } from '../core/rng';
 import type { SaveStore } from '../save/save';
 import type { Game } from '../sim/game';
@@ -18,6 +19,7 @@ export function buildRunModifiers(save: SaveStore): Modifiers {
 
 export interface RunReward {
   xp: number;
+  servicePoints: number;
   leveledTo: number | null;
   items: GearItem[];
   salvagedXp: number;
@@ -56,7 +58,11 @@ export function xpForRun(game: Game, earnedStars: number): number {
 }
 
 export function grantRunRewards(save: SaveStore, game: Game, earnedStars: number, firstClear = true): RunReward {
+  if (game.rewardsClaimed || !['won', 'lost', 'retired'].includes(game.status)) return { xp: 0, servicePoints: 0, leveledTo: null, items: [], salvagedXp: 0, chests: [] };
+  game.rewardsClaimed = true;
   const xp = xpForRun(game, earnedStars);
+  const servicePoints = servicePointsForRun(game);
+  save.addServicePoints(servicePoints);
   const before = save.jeffLevel();
   save.addXp(xp);
   const items: GearItem[] = [];
@@ -72,6 +78,7 @@ export function grantRunRewards(save: SaveStore, game: Game, earnedStars: number
   const after = save.jeffLevel();
   return {
     xp,
+    servicePoints,
     leveledTo: after > before ? after : null,
     items,
     salvagedXp,

@@ -1,3 +1,5 @@
+import { renderBuilds } from './screens/builds';
+import { renderStore } from './screens/store';
 import type { RemasterId, TowerId } from '../data/types';
 import { SaveStore } from '../save/save';
 import { clear } from './dom';
@@ -15,6 +17,8 @@ export type Screen =
   | { kind: 'hub' }
   | { kind: 'skills' }
   | { kind: 'talents' }
+  | { kind: 'crewTalents' }
+  | { kind: 'store' }
   | { kind: 'locker' }
   | { kind: 'encyclopedia' }
   | { kind: 'loadout'; mapId: string; remaster?: RemasterId }
@@ -49,11 +53,9 @@ export class App {
         }
         view = renderSkills(this);
         break;
-      case 'talents':
-        if (!this.save.hasAnyProgress()) {
-          view = renderHub(this);
-          break;
-        }
+      case 'store': view = renderStore(this); break;
+      case 'talents': view = renderBuilds(this); break;
+      case 'crewTalents':
         view = renderTalents(this);
         break;
       case 'locker':

@@ -53,7 +53,7 @@ function abilityHasWork(game: Game, t: Tower): boolean {
     case 'vent':
       return inRange(game, t, range, (e) => e.def.flying).length > 0;
     case 'barricade':
-      return game.enemies.some((e) => e.heldBy?.kind === 'tower' && e.heldBy.id === t.id);
+      return game.enemies.some((e) => heldByBarricade(game, e, t));
     case 'pipeSnake': {
       const { pathIdx, progress } = game.nearestPath(t.pos);
       const pierce = (t.def.levels[t.level]!.pierce ?? 160) * 1.35;
@@ -91,7 +91,7 @@ function fireAbility(game: Game, t: Tower): void {
       return;
     case 'barricade':
       for (const e of game.enemies) {
-        if (e.heldBy?.kind === 'tower' && e.heldBy.id === t.id) e.stun = Math.max(e.stun, 1.8 * game.mods.stunDuration);
+        if (heldByBarricade(game, e, t)) e.stun = Math.max(e.stun, 1.8 * game.mods.stunDuration);
       }
       return;
     case 'vent':
@@ -227,4 +227,9 @@ function burst(
     }
     if (opts.stun) e.stun = Math.max(e.stun, opts.stun * game.mods.stunDuration);
   }
+}
+
+function heldByBarricade(game: Game, enemy: Enemy, tower: Tower): boolean {
+  const hold = enemy.heldBy;
+  return hold?.kind === 'tower' ? hold.id === tower.id : hold?.kind === 'friendly' && game.friendlies.some(f => f.id === hold.id && f.towerId === tower.id);
 }

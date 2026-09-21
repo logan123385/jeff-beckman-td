@@ -1,4 +1,4 @@
-import { actorArt, meshActor, attackSprite, walkSprite, artReady, blendPoses, type ActorSheet } from './art';
+import { apprenticeSprite, actorArt, meshActor, attackSprite, walkSprite, artReady, blendPoses, type ActorSheet } from './art';
 import { ENEMIES } from '../data/enemies';
 import { ENEMY_ART } from './art';
 type Ctx = CanvasRenderingContext2D;
@@ -17,6 +17,10 @@ const motionCache = new Map<string, HTMLCanvasElement>();
 const smooth = (x:number) => {const t=Math.max(0,Math.min(1,x));return t*t*(3-2*t);};
 /** Smoothly skinned painted mesh, cached at 48 poses per cycle; no detached cutout edges. */
 export function humanoid(ctx: Ctx, sheet: ActorSheet, index: number, height: number, m: Motion): boolean {
+  if (sheet === 'recruits' && index < 4 && apprenticeSprite(ctx, index, height, m.walk, m.phase, m.attacking, m.moving, m.walkWeight ?? 1)) {
+    if ((m.tier ?? 0) > 0) equipment(ctx, height * .65, height, m.tier!, m.attacking ? attackPose(m.phase) : 0);
+    return true;
+  }
   const art=actorArt(sheet,index,height);if(!art)return false;
   if((m.cast??0)>.02&&sheet==='units'&&artReady('crewAttacks')){
     const amount=m.cast!;

@@ -15,7 +15,7 @@ export interface TowerAbilityDef {
 export const TOWER_ABILITIES: Partial<Record<TowerId, TowerAbilityDef>> = {
   torch: { name: 'Cut-in', blurb: 'Fire dump on the toughest leak in range, plus splash.', cooldown: 28, parts: 3, minLevel: 1 },
   washer: { name: 'Full Flush', blurb: 'A wide pressure blast. Slows the pack.', cooldown: 32, parts: 4, minLevel: 1 },
-  barricade: { name: 'Lockdown', blurb: 'Stun everything this valve is holding.', cooldown: 30, parts: 3, minLevel: 1 },
+  barricade: { name: 'Crew Lockdown', blurb: 'Stun every enemy held by this apprentice squad.', cooldown: 30, parts: 3, minLevel: 1 },
   vent: { name: 'Draft', blurb: 'Yank flying leaks and clip their wings.', cooldown: 26, parts: 3, minLevel: 1 },
   radiant: { name: 'Overheat', blurb: 'Slow nova. Thaws neighboring tools.', cooldown: 30, parts: 3, minLevel: 1 },
   pipeSnake: { name: 'Rod Whip', blurb: 'Auger pulse down the pipe itself.', cooldown: 28, parts: 3, minLevel: 1 },

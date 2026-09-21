@@ -5,7 +5,7 @@ A Kingdom Rush–style tower defense with a plumbing / hydronic-heating theme. E
 Twenty-four unique towers across nine campaign maps. Before each job you pack up to
 five tools — Kingdom Rush style — from what later calls have taught you. Opt-in
 remasters after a Classic clear (Code Inspection / Frozen Main / Cash Job / Clean Hands), and The Neverending Service Call
-after the first four service calls. Heroes share crew XP, talent points, and equipped locker gear. Each has a different combat kit and aura.
+after the first four service calls. Heroes share crew XP, shared training, and equipped locker gear. Each also has an independent career build, combat kit, and aura.
 
 ## Gameplay flow overhaul
 
@@ -75,7 +75,7 @@ skill emblems, numeric cooldowns, enemy previews, and a boss health bar.
 - **D** arms Summon Logan targeting. Click a route to deploy Logan for
   18 seconds; the ability recharges in 28 seconds. He holds and batters ground
   enemies and can be defeated. Invalid placement never spends the cooldown.
-- Select a Shutoff Valve Barricade and press **G** to move its hold point onto a nearby route.
+- Select an Apprentice Barricade and press **G** to rally its four apprentices onto a nearby route.
 - Open Scout (I) for paused route intelligence; hover enemies for health and counters. A **RUSH** pill means packed parents — splash or the children flood. The pipe medal counts lives on the line, including kids still inside parents.
 - Big leaks **split** when they pop: Scale Crabs shed drips, Frozen Mains shed crabs, Sediment Boulders become Lime Scale. Pressurized mains shed one extra child. Child pips sit under a parent on the yard; hover it to read the family. Splash the children; letting a parent walk off costs the whole family.
 - **Clean Hands** is the CHIMPS remaster: no selling, no actives, no Logan, no torch rain, truck money only, one leak.
@@ -93,6 +93,30 @@ and [verification with screenshots](docs/overhaul/verification.md).
 - Full painted attack and walking sequences cover Jeff, Jayjay, CBJ, and Doni. Monsters deform continuously through locomotion, anticipation, contact, and recovery. Damage lands at the contact pose; towers wind up and recoil.
 
 See [crew update verification](docs/overhaul/crew-verification.md) and [generation prompts](docs/overhaul/crew-art-prompts.md).
+
+## Apprentice careers and the Supply Store
+
+The van now offers **Hero builds** and the **Supply Store** before the first job.
+Each of the eight heroes has three career paths with passive upgrades and an alternate
+**C** skill at the end of each path. Start with one point; crew levels give each hero
+an independent budget, up to eight points. Mix branches, choose one unlocked C skill,
+and respec a hero for free between jobs. The existing shared training and gear remain.
+Support towers, apply poison, summon helpers, splash crowds, or specialize in one target.
+
+All 24 towers are visible in the store immediately. Torch, Washer, and Apprentice
+Barricade are included; the starting 100 service points can buy another license.
+Every purchase permanently unlocks that tower for every job, subject to inspection
+bans and the five-tool loadout. Wins and replays pay service points, and losses pay
+half the work completed. Map clears no longer gate tower licenses. Old saves keep
+the tools previously available from their unlocked maps.
+
+The Apprentice Barricade fields four distinct workers with individual health,
+contact-timed attacks, knockout and nine-second respawn. Tier I is 48 HP each
+(192 combined, formerly 260 shared); all six tiers keep exactly four apprentices.
+Idle apprentices help allies against a held enemy. All towers have working animated
+mechanisms, material details, and improved turret assemblies.
+
+See [implementation, art and acceptance evidence](docs/apprentice-careers/verification.md).
 
 ## Eight playable heroes
 

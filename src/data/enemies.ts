@@ -71,7 +71,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     id: 'pressureSpike',
     name: 'Pressure Spike',
     fantasy: 'A surge with somewhere to be. Hammers barricades on the way through.',
-    counters: 'Jeff\u2019s Pipe Clamp, Expansion Tank shields, kill it before it reaches the valve.',
+    counters: 'Jeff\u2019s Pipe Clamp, focus fire, protect your apprentices from its charge.',
     hp: 128,
     speed: 130,
     armor: 0.2,

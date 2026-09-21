@@ -43,6 +43,7 @@ export interface Enemy {
   /** Attack cooldown while held. */
   attackTimer: number;
   wobble: number;
+  buildPoison?: { left: number; dps: number; slow: number };
   dotDps: number;
   dotTime: number;
   dotSource: DamageSource | null;
@@ -171,7 +172,7 @@ export interface Projectile {
 
 export interface Hero {
   id?: HeroId;
-  cast?: { slot: AbilitySlot; left: number; duration: number; fired: boolean; target: Vec; targetId?: number; hits: number };
+  cast?: { slot: AbilitySlot; buildTechnique?: boolean; left: number; duration: number; fired: boolean; target: Vec; targetId?: number; hits: number };
   swingDuration?: number;
   overdrive?: number;
   shield?: number;
@@ -220,7 +221,7 @@ export interface Hero {
 export interface HeroMissile {
   id: number; kind: 'plunger' | 'golf' | 'tater' | 'hook'; from: Vec; pos: Vec; prev: Vec; goal: Vec; targetId?: number;
   age: number; duration: number; damage: number; splash: number; bounces: number; hitIds: number[];
-  pull?: number; stun?: number;
+  pull?: number; stun?: number; basic?: boolean;
 }
 export interface HeroZone {
   id: number; kind: 'supply' | 'gas' | 'rain' | 'review' | 'sand' | 'net' | 'taterRain'; pos: Vec; radius: number;
@@ -231,6 +232,8 @@ export interface HeroVisual {
   from: Vec; to: Vec; radius: number; color: string; left: number; duration: number;
 }
 export interface HeroSummon {
+  buildHelper?: boolean;
+  damage?: number;
   anchor: Vec;
   id: number; pos: Vec; prev: Vec; hp: number; maxHp: number; left: number; duration: number;
   facing: number; walkPhase: number; moving: boolean; moveBlend: number;

@@ -1,3 +1,4 @@
+import { updateBuildEffects } from './heroBuilds';
 import { updateHeroAura, updateHeroZones } from './heroPowers';
 import { dist, turnToward } from '../core/vec';
 import { PHASE_VISIBLE_SECONDS } from '../data/enemies';
@@ -54,6 +55,7 @@ export function updateAuras(game: Game, dt: number): void {
 
   updateHeroAura(game, dt);
   updateHeroZones(game, dt);
+  updateBuildEffects(game, dt);
 
   // Buff pads first so zone tools and Jeff haste read this frame's auras.
   for (const t of game.towers) {

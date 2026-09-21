@@ -1,3 +1,4 @@
+import { towerMechanisms } from './towerMotion';
 import { drawNewHero } from './heroActors';
 import { JEFF } from '../data/jeff';
 import type { Enemy, Hero, Tower, Friendly } from '../sim/state';
@@ -44,12 +45,13 @@ export function paintedJeff(ctx: Ctx, hero: Hero, time: number, showBar: boolean
   const { x, y } = hero.pos;
   const size = 68 * scale / 1.72;
   const moving = !!hero.moving || (hero.moveBlend ?? 0) > 0;
-  const phase = hero.swing > 0 ? 1 - hero.swing / JEFF.swingTime : 0;
+  const technique = hero.cast?.buildTechnique ? hero.cast : undefined;
+  const phase = technique ? 1 - technique.left / technique.duration : hero.swing > 0 ? 1 - hero.swing / JEFF.swingTime : 0;
   castShadow(ctx, x, y + 14, size * 0.26, size * 0.08, 0.32);
   ctx.save(); ctx.translate(x, y + 18);
   if (hero.downed > 0) { ctx.globalAlpha = 0.48; ctx.rotate(-1.15); }
   ctx.scale(hero.facing, 1);
-  humanoid(ctx, 'units', 0, size, { time, walk: hero.walkPhase ?? 0, walkWeight: hero.moveBlend ?? 0, moving, phase, attacking: hero.swing > 0, cast: Math.sin(Math.PI * (hero.castTimer ?? 0) / .72) });
+  humanoid(ctx, 'units', 0, size, { time, walk: hero.walkPhase ?? 0, walkWeight: hero.moveBlend ?? 0, moving, phase, attacking: hero.swing > 0 || !!technique, cast: technique ? 0 : Math.sin(Math.PI * (hero.castTimer ?? 0) / .72) });
   ctx.restore();
   if (hero.swing > 0) {
     ctx.save(); ctx.translate(x + hero.facing * 8, y - 22); ctx.scale(hero.facing, 1);
@@ -69,6 +71,11 @@ export function paintedEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number
   if (index === undefined || !artReady(index >= 16 ? 'unitsAdvanced' : 'units')) return false;
   const { x, y } = e.pos;
   const boss = e.def.traits.includes('boss');
+  if (e.buildPoison && !e.dead) {
+    ctx.save();
+    for (let i = 0; i < 3; i++) { const phase = (time * .65 + i / 3) % 1; ctx.globalAlpha = Math.sin(phase * Math.PI) * .8; disc(ctx, x + Math.sin(i * 2.5) * 10, y - 10 - phase * 25, 1.6 + phase, '#b8e477'); }
+    ctx.restore();
+  }
   const height = Math.max(37, e.def.radius * (boss ? 3 : 2.8));
   const moving = e.heldBy === null && e.stun <= 0 && !e.ventCast && !e.dead;
   const stride = Math.sin(e.wobble * 1.7);
@@ -182,6 +189,7 @@ export function paintedTower(ctx: Ctx, t: Tower, time: number): boolean {
   towerArmor(ctx, t, height, false);
   paintedSprite(ctx, 'towers', index, 0, 0, height, height * 1.2);
   towerArmor(ctx, t, height, true);
+  towerMechanisms(ctx, t, height, time);
   if (gun) drawPaintedTurret(ctx, t, height, recoil);
   ctx.restore();
   // Physical brass level plates keep upgrades legible at game scale.
@@ -224,7 +232,7 @@ function drawPaintedTurret(ctx: Ctx, t: Tower, height: number, recoil: number): 
   celFill(ctx, '#5d4037', 1.8);
   disc(ctx, -1.2, -1.5, 2.4, rgba('#fff8e1', 0.35));
   // Barrel
-  const barrelLen = 18 + t.level * 2;
+  const barrelLen = (t.def.id === 'vent' || t.def.id === 'steamTrap' ? 26 : t.def.id === 'washer' ? 15 : 18) + t.level * 2;
   ctx.fillStyle = metalFill(ctx, 4 - kick, -3.2, barrelLen, 6.4, '#90a4ae');
   ctx.beginPath();
   ctx.roundRect(4 - kick, -3.2, barrelLen, 6.4, 2);
@@ -232,6 +240,11 @@ function drawPaintedTurret(ctx: Ctx, t: Tower, height: number, recoil: number): 
   ctx.strokeStyle = '#1a1008';
   ctx.lineWidth = 1.6;
   ctx.stroke();
+  // Reinforced fins and segmented barrel bands make equipment tiers readable.
+  ctx.strokeStyle = '#dac18a'; ctx.lineWidth = 1.6;
+  for (let i = 0; i < 2 + Math.floor(t.level / 2); i++) { const x = 8 + i * 5 - kick; ctx.beginPath(); ctx.moveTo(x, -4); ctx.lineTo(x, 4); ctx.stroke(); }
+  if (t.def.id === 'manifold') { ctx.fillStyle = '#7aa2b8'; ctx.fillRect(4 - kick, -9, barrelLen - 2, 4); ctx.fillRect(4 - kick, 5, barrelLen - 2, 4); }
+  if (t.def.id === 'hammerDrill') { ctx.fillStyle = '#c0cbca'; ctx.beginPath(); ctx.moveTo(barrelLen + 6 - kick, -5); ctx.lineTo(barrelLen + 17 - kick, 0); ctx.lineTo(barrelLen + 6 - kick, 5); ctx.fill(); }
   // Muzzle tip in tower color
   glow(ctx, t.def.color, t.recoil > 0 ? 12 : 4);
   ctx.beginPath();
@@ -248,10 +261,10 @@ function drawPaintedTurret(ctx: Ctx, t: Tower, height: number, recoil: number): 
 
 export function paintedFriendly(ctx: Ctx, f: Friendly, time: number): void {
   if (f.respawn > 0 && (f.fall ?? 0) <= 0) return;
-  const height = f.role === 'jayjay' ? 62 : f.role === 'doni' ? 56 : f.role === 'cbj' ? 53 : 43;
+  const height = f.role === 'jayjay' ? 62 : f.role === 'doni' ? 56 : f.role === 'cbj' ? 53 : 48;
   const index = f.role === 'jayjay' ? 4 : f.role === 'cbj' ? 5 : f.role === 'doni' ? 6 : f.slot % 4;
   castShadow(ctx, f.pos.x, f.pos.y + 8, height * .23, 4, .3);
-  ctx.save(); ctx.translate(f.pos.x, f.pos.y + 10); ctx.scale(f.facing,1);
+  ctx.save(); ctx.translate(f.pos.x, f.pos.y + 10 - (f.moving ? Math.abs(Math.sin(f.walkPhase)) * 1.3 : Math.sin(time * 2 + f.slot) * .4)); ctx.scale(f.facing,1);
   if (f.respawn > 0) { const k=(f.fall??0)/.55; ctx.globalAlpha=k;ctx.rotate((1-k)*1.15);ctx.scale(1,.55+.45*k); if (!humanoid(ctx,'recruits',index,height,{time,walk:0,moving:false,attacking:false,phase:0,tier:f.tier})) fallbackFriendly(ctx, height); ctx.restore();return; }
   if (!humanoid(ctx, 'recruits', index, height, { time: time + f.id, moving: f.moving || (f.moveBlend ?? 0) > 0, walkWeight: f.moveBlend ?? 0, walk: f.walkPhase, phase: 1 - f.swing / FRIENDLY_SWING, attacking: f.swing > 0, tier: f.tier, punch: f.role !== 'apprentice' })) {
     fallbackFriendly(ctx, height);

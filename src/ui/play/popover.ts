@@ -298,7 +298,7 @@ export class Popover {
     const damageRatio = current.damage > 0 ? g.effectiveDamage(t) / current.damage : g.mods.towerDamage;
     const rangeRatio = current.range > 0 ? g.effectiveRange(t) / current.range : g.mods.towerRange;
     const comparison = t.def.kind === 'barricade'
-      ? `${Math.round(current.hp ?? 0)}${next?.hp ? ` → ${Math.round(next.hp)}` : ''} health · ${current.holds ?? 0}${next ? ` → ${next.holds ?? 0}` : ''} holds`
+      ? `${t.def.recruits ? '4 apprentices · ' : ''}${Math.round(current.hp ?? 0)}${next?.hp ? ` → ${Math.round(next.hp)}` : ''} HP${t.def.recruits ? ' each' : ''} · ${current.holds ?? 0}${next ? ` → ${next.holds ?? 0}` : ''} holds`
       : `${damage}${next ? ` → ${Math.round(next.damage * damageRatio)}` : ''} damage · ${range}${next ? ` → ${Math.round(next.range * rangeRatio)}` : ''} reach`;
     this.el.append(h('aside', { class: 'kr-investment' }, h('b', { text: next ? 'NEXT UPGRADE' : 'FULLY EQUIPPED' }),
       h('span', { text: comparison }), h('span', { text: t.def.kind === 'shooter' && t.def.id !== 'pipeSnake' ? 'Click a leak to focus this tower · A for aim' : t.def.role })));

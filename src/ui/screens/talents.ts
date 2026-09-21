@@ -19,7 +19,7 @@ export function renderTalents(app: App): ScreenView {
         'header',
         { class: 'screen-header sheet' },
         h('button', { class: 'btn link', text: '← Van', onClick: () => app.go({ kind: 'hub' }) }),
-        h('h1', { text: 'Hero Talent Tree' }),
+        h('h1', { text: 'Shared Crew Training' }),
         h('span', { class: 'pill big', text: `Lv ${xp.level} · ${save.talentPoints()} point${save.talentPoints() === 1 ? '' : 's'}` }),
         h('button', {
           class: 'btn',

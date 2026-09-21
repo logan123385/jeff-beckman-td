@@ -1,0 +1,8 @@
+{
+  "fixture": "Existing isolated 5000-XP career UI fixture",
+  "hero": "jeff",
+  "technique": "Acid Flush",
+  "castThroughRealInput": true,
+  "planningFreezesCooldown": true,
+  "errors": []
+}
