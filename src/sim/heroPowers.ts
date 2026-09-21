@@ -350,7 +350,7 @@ export function strikeFromProfile(game: Game, enemy: Enemy): void {
       break;
     }
     case 'missile': {
-      fireHeroMissile(game, profile.missile!, enemy.pos, profile.damage, enemy.id, profile.splash, profile.bounce, undefined, { pull: profile.pull, stun: profile.stun });
+      fireHeroMissile(game, profile.missile!, enemy.pos, profile.damage, enemy.id, profile.splashRadius || profile.splash, profile.bounce, undefined, { pull: profile.pull, stun: profile.stun });
       const missile = game.heroMissiles.at(-1);
       if (missile) {
         missile.basic = true;
@@ -484,8 +484,10 @@ export function updateHeroMissiles(game: Game, dt: number): void {
       p.damage *= prep.damageMult;
       if (prep.stun > 0) p.stun = Math.max(p.stun ?? 0, prep.stun);
     }
-    if (p.splash > 0) for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, p.damageType ?? 'physical', 'jeff');
-    else if (target) {
+    if (p.splash > 0) {
+      for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, p.damageType ?? 'physical', 'jeff');
+      if (p.basic && target) onKitHit(game, target, p.damage);
+    } else if (target) {
       applyDamage(game, target, p.damage, p.damageType ?? 'physical', 'jeff');
       if (p.basic) onKitHit(game, target, p.damage);
     }

@@ -173,6 +173,36 @@ describe('kit combat', () => {
     landContactBasic(g);
     expect(e.stun).toBeGreaterThanOrEqual(0.35);
   });
+  it('cbj lane+Extra Spud passes splash radius on tater basics', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'cbj',
+      kit: { family: 'cbj_ranged', weapon: null, cards: ['cbj_lane', null] },
+      manualStart: true,
+    });
+    g.deployHero({ ...g.map.jeffStart });
+    expect(g.attackProfile.splashRadius).toBeGreaterThanOrEqual(18);
+    const primary = g.spawnEnemy('sludge', 0, 320);
+    primary.lane = 0;
+    primary.pos = { x: 340, y: 250 };
+    primary.def = { ...primary.def, dps: 0, speed: 0 };
+    primary.hp = primary.maxHp = 10000;
+    const nearby = g.spawnEnemy('sludge', 0, 320);
+    nearby.lane = 0;
+    nearby.pos = { x: 360, y: 250 };
+    nearby.def = { ...nearby.def, dps: 0, speed: 0 };
+    nearby.hp = nearby.maxHp = 10000;
+    const nearbyHp = nearby.hp;
+    updateHero(g, 0.01);
+    updateHero(g, g.heroDef.swingTime * 0.2);
+    updateHero(g, g.heroDef.swingTime * 0.3);
+    expect(g.heroMissiles).toHaveLength(1);
+    expect(g.heroMissiles[0]?.splash).toBeGreaterThanOrEqual(18);
+    updateHeroMissiles(g, 2);
+    expect(nearby.hp).toBeLessThan(nearbyHp);
+  });
+
   it('stuns on jayjay_ranged bell impact without pull', () => {
     const g = new Game(CRAWLSPACE, {
       difficulty: DIFFICULTIES.apprentice,
