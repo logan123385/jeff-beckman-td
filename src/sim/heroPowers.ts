@@ -349,7 +349,7 @@ export function strikeFromProfile(game: Game, enemy: Enemy): void {
       }
       if (profile.shred > 0) {
         enemy.armorShred = Math.max(enemy.armorShred, profile.shred);
-        enemy.shredTimer = Math.max(enemy.shredTimer, 4);
+        enemy.shredTimer = Math.max(enemy.shredTimer, 3);
       }
       if (profile.stunChance > 0 && game.rng.next() < profile.stunChance) {
         enemy.stun = Math.max(enemy.stun, profile.stun * game.mods.stunDuration);
@@ -459,9 +459,14 @@ export function updateHeroMissiles(game: Game, dt: number): void {
     if (!step.arrived) { keep.push(p); continue; }
     if (p.splash > 0) for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, p.damageType ?? 'physical', 'jeff');
     else if (target) applyDamage(game, target, p.damage, p.damageType ?? 'physical', 'jeff');
-    if (target && !target.dead && (p.pull ?? 0) > 0 && !target.def.flying) {
-      shove(target, p.pull!); target.stun = Math.max(target.stun, p.stun ?? 0);
-      visual(game, 'hook', p.from, p.goal, 25, '#71d5ce', .3);
+    if (target && !target.dead) {
+      if ((p.stun ?? 0) > 0 && ((p.pull ?? 0) <= 0 || !target.def.flying)) {
+        target.stun = Math.max(target.stun, p.stun ?? 0);
+      }
+      if ((p.pull ?? 0) > 0 && !target.def.flying) {
+        shove(target, p.pull!);
+        visual(game, 'hook', p.from, p.goal, 25, '#71d5ce', .3);
+      }
     }
     game.addEffect({ kind: 'hit', pos: { ...p.goal }, color: p.kind === 'golf' || p.kind === 'bell' ? '#fffde7' : p.kind === 'hook' ? '#71d5ce' : p.kind === 'tater' ? '#efbb68' : p.kind === 'hose' ? '#8ddfe9' : p.kind === 'rebar' ? '#b87333' : '#e1a886', ttl: .24, max: .24 });
     if (p.splash > 0) game.addEffect({ kind: 'ring', pos: { ...p.goal }, radius: p.splash, color: '#eab982', ttl: .35, max: .35 });

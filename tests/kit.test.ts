@@ -10,6 +10,8 @@ import { defaultFamily, familyHero, familyStance, implicitFor } from '../src/dat
 import { SAVE_KEY, normalizeSave, SaveStore } from '../src/save/save';
 import { resolveAttackProfile as resolve } from '../src/sim/attackProfile';
 import { Game } from '../src/sim/game';
+import { updateHero } from '../src/sim/hero';
+import { updateHeroMissiles } from '../src/sim/heroPowers';
 
 function playJeff(family: 'jeff_melee' | 'jeff_ranged') {
   return new Game(CRAWLSPACE, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), hero: 'jeff', kit: { family, weapon: null, cards: [null, null] } });
@@ -91,6 +93,31 @@ describe('kit cards', () => {
     expect(cardUnlocked(sweep, 3)).toBe(true);
     expect(defaultCards('jeff')).toEqual(['jeff_anchor', 'jeff_breaker']);
     expect(defaultCards('mike')).toEqual(['mike_lane', 'mike_pin']);
+  });
+});
+
+describe('kit combat', () => {
+  it('stuns on jayjay_ranged bell impact without pull', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'jayjay',
+      kit: { family: 'jayjay_ranged', weapon: null, cards: [null, null] },
+      manualStart: true,
+    });
+    g.deployHero({ ...g.map.jeffStart });
+    const e = g.spawnEnemy('sludge', 0, 320);
+    e.lane = 0;
+    e.pos = { x: 340, y: 250 };
+    e.def = { ...e.def, dps: 0, speed: 0 };
+    e.hp = e.maxHp = 10000;
+    updateHero(g, 0.01);
+    updateHero(g, g.heroDef.swingTime * 0.2);
+    updateHero(g, g.heroDef.swingTime * 0.3);
+    expect(g.heroMissiles).toHaveLength(1);
+    expect(g.heroMissiles[0]?.stun).toBe(0.4);
+    updateHeroMissiles(g, 2);
+    expect(e.stun).toBeGreaterThanOrEqual(0.4);
   });
 });
 
