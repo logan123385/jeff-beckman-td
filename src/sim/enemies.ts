@@ -92,6 +92,10 @@ function tickTimers(game: Game, e: Enemy, dt: number): void {
     if (e.burn.left <= 0) e.burn = undefined;
   }
   if (e.exposed) { e.exposed.left -= dt; if (e.exposed.left <= 0) e.exposed = undefined; }
+  if (e.kitSlow) {
+    e.kitSlow.left -= dt;
+    if (e.kitSlow.left <= 0) e.kitSlow = undefined;
+  }
   if (e.dead) return;
   if (e.dotTime > 0 && e.dotDps > 0 && e.dotSource) {
     applyDamage(game, e, e.dotDps * dt, 'water', e.dotSource);

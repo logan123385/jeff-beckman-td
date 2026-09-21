@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { HEROES, HERO_ORDER } from '../src/data/heroes';
-import { HERO_PATHS, buildBudget, normalizeHeroBuild, heroForBuild } from '../src/data/heroBuilds';
+import { HERO_ORDER } from '../src/data/heroes';
+import { defaultCards } from '../src/data/kitCards';
 import { TOWER_ORDER } from '../src/data/towers';
 import { TOWER_PRICES, WELCOME_POINTS, STARTER_TOWERS, servicePointsForRun } from '../src/data/store';
 import { availableTowers } from '../src/data/loadout';
@@ -11,6 +11,7 @@ import { neutralModifiers } from '../src/data/skills';
 import { grantRunRewards } from '../src/data/progress';
 import { serviceRewardCopy } from '../src/ui/play/results';
 import { SaveStore, normalizeSave } from '../src/save/save';
+import { defaultFamily } from '../src/data/weapons';
 import { Game } from '../src/sim/game';
 
 function storage() {
@@ -48,17 +49,17 @@ describe('Permanent tower store', () => {
     expect(save.data.ownedTowers).not.toContain('zoneValve');
   });
   it('preserves tools from previously unlocked maps when migrating an old save', () => {
-    const old = normalizeSave({ version: 1, stars: { crawlspace: { apprentice: 3 } }, jeffXp: 120, talents: [], skills: [] });
+    const old = normalizeSave({ version: 1, stars: { crawlspace: { apprentice: 3 } }, jeffXp: 120 } as never);
     for (const map of MAPS.slice(0, 2)) for (const id of map.allowedTowers) expect(old.ownedTowers).toContain(id);
     expect(old.jeffXp).toBe(120);
     expect(old.servicePoints).toBe(WELCOME_POINTS);
-    const existing = normalizeSave({ ...old, ownedTowers: STARTER_TOWERS });
+    const existing = normalizeSave({ ...old, ownedTowers: STARTER_TOWERS } as never);
     expect(existing.ownedTowers).toEqual(STARTER_TOWERS);
   });
   it('sanitizes bad currency and licenses without removing starter tools', () => {
     const value = normalizeSave({ servicePoints: Infinity, ownedTowers: ['bogus', 'vent', 'vent'] } as never);
     expect(value.servicePoints).toBe(WELCOME_POINTS); expect(value.ownedTowers).toEqual([...STARTER_TOWERS, 'vent']);
-    expect(normalizeSave({ servicePoints: -100 }).servicePoints).toBe(0);
+    expect(normalizeSave({ servicePoints: -100 } as never).servicePoints).toBe(0);
   });
   it('pays wins, reduced losses, and partial combat but does not pay an idle exit', () => {
     const g = game();
@@ -96,38 +97,41 @@ describe('Permanent tower store', () => {
   });
 });
 
-describe('Independent hero careers', () => {
-  it.each(HERO_ORDER)('%s supports three branches, hybrid investment and a selected alternate C', hero => {
-    const disk = storage(), save = new SaveStore(disk); save.addXp(100_000);
-    const paths = HERO_PATHS[hero]; expect(new Set(paths.map(p => p.style)).size).toBe(3);
-    for (const path of paths.slice(0, 2)) for (const tier of [1, 2, 3, 4]) expect(save.unlockBuildNode(hero, `${path.style}:${tier}`)).toBe(true);
-    expect(save.unlockBuildNode(hero, `${paths[2]!.style}:1`)).toBe(false);
-    save.equipTechnique(hero, paths[0]!.style);
-    const restored = new SaveStore(disk), build = restored.heroBuild(hero);
-    expect(build.nodes).toHaveLength(8); expect(build.technique).toBe(paths[0]!.style);
-    expect(heroForBuild(hero, build).abilities[4].name).toBe(paths[0]!.technique);
-    expect(heroForBuild(hero, build).abilities.slice(0, 4)).toEqual(HEROES[hero].abilities.slice(0, 4));
-    expect(HEROES[hero].abilities[4].name).not.toBe(paths[0]!.technique);
-    const other = HERO_ORDER.find(id => id !== hero)!; expect(restored.heroBuild(other).nodes).toHaveLength(0);
-    const xp = restored.data.jeffXp; restored.resetBuild(hero);
-    expect(restored.data.jeffXp).toBe(xp); expect(restored.heroBuild(hero)).toEqual({ nodes: [], technique: 'signature' });
-  });
-  it('grants a first point immediately and enforces ordered prerequisites and earned budgets', () => {
+describe('Kit loadouts', () => {
+  it.each(HERO_ORDER)('%s starts with default family and starter cards', hero => {
     const save = new SaveStore(null);
-    expect(buildBudget(0)).toBe(1);
-    expect(save.unlockBuildNode('jeff', 'venom:2')).toBe(false);
-    expect(save.unlockBuildNode('jeff', 'venom:1')).toBe(true);
-    expect(save.unlockBuildNode('jeff', 'venom:1')).toBe(false);
-    expect(save.unlockBuildNode('jeff', 'venom:2')).toBe(false);
-    save.equipTechnique('jeff', 'venom'); expect(save.heroBuild().technique).toBe('signature');
-    save.addXp(72); expect(save.unlockBuildNode('jeff', 'venom:2')).toBe(true);
-    expect(save.unlockBuildNode('mike', 'engineer:1')).toBe(true);
-    save.resetBuild('jeff'); expect(save.heroBuild('mike').nodes).toEqual(['engineer:1']);
+    const kit = save.heroKit(hero);
+    expect(kit.family).toBe(defaultFamily(hero));
+    expect(kit.cards).toEqual(defaultCards(hero));
+    expect(kit.weaponId).toBeNull();
   });
-  it('rejects foreign branches, overbudget nodes, duplicates, and unearned active skills on import', () => {
-    const raw = { nodes: ['blast:1', 'venom:3', 'venom:1', 'venom:1', 'venom:2', 'venom:3', 'venom:4'], technique: 'venom' };
-    expect(normalizeHeroBuild('jeff', raw, 2)).toEqual({ nodes: ['venom:1', 'venom:2'], technique: 'signature' });
-    const data = normalizeSave({ jeffXp: 0, heroBuilds: { jeff: raw } } as never);
-    expect(data.heroBuilds.jeff?.nodes).toEqual(['venom:1']);
+  it('tracks hero jobs and unlocks cards by job count', () => {
+    const save = new SaveStore(null);
+    expect(save.equipCard('jeff', 0, 'jeff_crew')).toBe(false);
+    save.recordHeroJob('jeff');
+    expect(save.equipCard('jeff', 0, 'jeff_crew')).toBe(true);
+    expect(save.equipCard('jeff', 1, 'jeff_sweep')).toBe(false);
+    save.recordHeroJob('jeff');
+    save.recordHeroJob('jeff');
+    expect(save.equipCard('jeff', 1, 'jeff_sweep')).toBe(true);
+  });
+  it('clears wrong-stance cards when changing family', () => {
+    const save = new SaveStore(null);
+    save.recordHeroJob('jeff');
+    save.recordHeroJob('jeff');
+    save.recordHeroJob('jeff');
+    save.equipCard('jeff', 0, 'jeff_sweep');
+    save.setFamily('jeff', 'jeff_ranged');
+    expect(save.heroKit('jeff').cards).toEqual([null, null]);
+  });
+  it('migrates v1 hero builds into heroJobs and default kits', () => {
+    const data = normalizeSave({
+      version: 1,
+      heroBuilds: { jeff: { nodes: ['venom:1', 'venom:2', 'venom:3', 'venom:4'], technique: 'venom' }, mike: { nodes: ['engineer:1'], technique: 'signature' } },
+    } as never);
+    expect(data.heroJobs.jeff).toBeGreaterThanOrEqual(3);
+    expect(data.heroJobs.mike).toBeGreaterThanOrEqual(1);
+    expect(data.kits.jeff?.family).toBe('jeff_melee');
+    expect(data.kits.mike?.family).toBe('mike_ranged');
   });
 });

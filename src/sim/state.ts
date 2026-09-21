@@ -68,6 +68,8 @@ export interface Enemy {
   burnTimer: number;
   burn?: { dps: number; left: number; source: TowerId };
   exposed?: { left: number; strength: number };
+  /** Stance-card basic slow; ticked in enemies.update. */
+  kitSlow?: { amount: number; left: number };
   ventCast?: { pos: Vec; left: number; duration: number };
 }
 
@@ -172,7 +174,7 @@ export interface Projectile {
 
 export interface Hero {
   id?: HeroId;
-  cast?: { slot: AbilitySlot; buildTechnique?: boolean; left: number; duration: number; fired: boolean; target: Vec; targetId?: number; hits: number };
+  cast?: { slot: AbilitySlot; left: number; duration: number; fired: boolean; target: Vec; targetId?: number; hits: number };
   swingDuration?: number;
   overdrive?: number;
   shield?: number;
@@ -219,9 +221,9 @@ export interface Hero {
 }
 
 export interface HeroMissile {
-  id: number; kind: 'plunger' | 'golf' | 'tater' | 'hook'; from: Vec; pos: Vec; prev: Vec; goal: Vec; targetId?: number;
+  id: number; kind: 'plunger' | 'golf' | 'tater' | 'hook' | 'hose' | 'rebar' | 'bell'; from: Vec; pos: Vec; prev: Vec; goal: Vec; targetId?: number;
   age: number; duration: number; damage: number; splash: number; bounces: number; hitIds: number[];
-  pull?: number; stun?: number; basic?: boolean;
+  pull?: number; stun?: number; basic?: boolean; pierce?: number; damageType?: DamageType;
 }
 export interface HeroZone {
   id: number; kind: 'supply' | 'gas' | 'rain' | 'review' | 'sand' | 'net' | 'taterRain'; pos: Vec; radius: number;

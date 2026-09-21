@@ -8,9 +8,9 @@ import type { DamageType, EnemyId, LeakProperty, TargetMode, TowerId } from '../
 import type { Game } from './game';
 import type { AimPriority, DamageSource, Enemy, Tower } from './state';
 
-/** Shared by aiming UI and cast validation, including unlocked precision techniques. */
-export function heroAbilityHitsAir(game: Game, slot: AbilitySlot): boolean {
-  return !['becbec', 'jayjay'].includes(game.heroDef.id) || (slot === 4 && game.heroBuild.technique === 'hunter');
+/** Shared by aiming UI and cast validation. */
+export function heroAbilityHitsAir(game: Game, _slot: AbilitySlot): boolean {
+  return !['becbec', 'jayjay'].includes(game.heroDef.id);
 }
 
 export function hasProp(enemy: Enemy, prop: LeakProperty): boolean {
@@ -110,6 +110,9 @@ export function damageMultiplier(
   if (hasProp(enemy, 'cast') && (source === 'hammerDrill' || source === 'torch')) mult *= 1.25;
   const vulnerability = Math.max(enemy.marked ? (enemy.markBonus || MARKED_DAMAGE - 1) : 0, enemy.exposed?.strength ?? 0);
   mult *= 1 + vulnerability;
+  if (source !== 'jeff' && source !== 'crew' && enemy.heldBy?.kind === 'hero' && game.kitTowerMark > 0) {
+    mult *= 1 + game.kitTowerMark;
+  }
   if (source === 'jeff') mult *= heroRank(game);
   return mult;
 }

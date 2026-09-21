@@ -4,14 +4,12 @@ import type { SaveStore } from '../save/save';
 import type { Game } from '../sim/game';
 import { applyAffix, rollChest } from './loot';
 import { campaignXp, nightXp } from './xp';
-import { buildModifiers } from './skills';
-import { applyTalents } from './talents';
-import type { ChestQuality, GearItem, Modifiers } from './types';
+import { neutralModifiers } from './skills';
+import type { ChestQuality, KitItem, Modifiers } from './types';
 
 export function buildRunModifiers(save: SaveStore): Modifiers {
-  const m = buildModifiers(save.data.skills);
-  applyTalents(m, save.data.talents);
-  for (const item of save.equippedItems()) {
+  const m = neutralModifiers();
+  for (const item of save.equippedArmor()) {
     for (const affix of item.affixes) applyAffix(m, affix);
   }
   return m;
@@ -21,7 +19,7 @@ export interface RunReward {
   xp: number;
   servicePoints: number;
   leveledTo: number | null;
-  items: GearItem[];
+  items: KitItem[];
   salvagedXp: number;
   chests: ChestQuality[];
 }
@@ -65,12 +63,12 @@ export function grantRunRewards(save: SaveStore, game: Game, earnedStars: number
   save.addServicePoints(servicePoints);
   const before = save.jeffLevel();
   save.addXp(xp);
-  const items: GearItem[] = [];
+  const items: KitItem[] = [];
   let salvagedXp = 0;
   const chests = chestsForRun(game, earnedStars, firstClear);
   const rng = new Rng(((save.data.jeffXp * 7919) ^ (game.waveIdx * 997) ^ (game.stats.kills * 13) ^ 0x9e3779b9) >>> 0);
   for (const quality of chests) {
-    const item = rollChest(rng, quality, save.nextGearId());
+    const item = rollChest(rng, quality, save.nextGearId(), game.heroDef.id);
     const added = save.addGear(item);
     if (added.kept) items.push(item);
     salvagedXp += added.salvagedXp;

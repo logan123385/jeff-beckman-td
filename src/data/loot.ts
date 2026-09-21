@@ -1,5 +1,19 @@
 import type { Rng } from '../core/rng';
-import type { AffixKey, ChestQuality, GearAffix, GearItem, GearSlot, Modifiers, Rarity } from './types';
+import type { HeroId } from './heroes';
+import type {
+  AffixKey,
+  ArmorItem,
+  ArmorSlot,
+  ChestQuality,
+  GearAffix,
+  GearItem,
+  GearSlot,
+  KitItem,
+  Modifiers,
+  Rarity,
+  WeaponStance,
+} from './types';
+import { allWeaponFamilies, familyStance, type WeaponFamilyId } from './weapons';
 
 export const GEAR_SLOTS: GearSlot[] = ['wrench', 'boots', 'belt', 'shirt', 'gauges'];
 
@@ -26,12 +40,39 @@ const NAMES: Record<GearSlot, readonly string[]> = {
   gauges: ['Steel Plugs', 'Jade Tunnels', 'Brass Flares', 'Silicone Skins'],
 };
 
-const SLOT_AFFIXES: Record<GearSlot, readonly AffixKey[]> = {
-  wrench: ['jeffDamage', 'stunDuration', 'jeffHolds', 'cooldown'],
-  boots: ['jeffSpeed', 'jeffHp', 'jeffReach', 'jeffRespawn'],
-  belt: ['jeffHolds', 'jeffRepair', 'startMoney', 'jeffReach'],
-  shirt: ['jeffHp', 'jeffRespawn', 'jeffSpeed', 'cooldown'],
-  gauges: ['cooldown', 'stunDuration', 'towerDamage', 'jeffDamage'],
+const ARMOR_NAMES: Record<ArmorSlot, readonly string[]> = {
+  chest: NAMES.shirt,
+  boots: NAMES.boots,
+};
+
+const WEAPON_NAMES: Record<WeaponFamilyId, readonly string[]> = {
+  jeff_melee: ['18-inch Crescent', 'Dead-Blow', 'Brass Soft-Face'],
+  jeff_ranged: ['Garden Hose Lance', 'Pressure Wand', 'Jet Stream Nozzle'],
+  mike_melee: ['Tire Iron', 'Lug Wrench', 'Heavy Iron'],
+  mike_ranged: ['Red Plunger', 'Industrial Plunger', 'Mega Plunger'],
+  bob_melee: ['Hot Prod', 'Shock Rod', 'Live Prod'],
+  bob_ranged: ['Cutting Torch', 'Flame Cannon', 'Blue Torch'],
+  chris_melee: ['Recip Saw', 'Cordless Sawzall', 'Heavy Sawzall'],
+  chris_ranged: ['7-Iron', 'Pitching Wedge', 'Sand Wedge'],
+  becbec_melee: ['Work Gloves', 'Duct Tape Wrap', 'Knuckle Fists'],
+  becbec_ranged: ['Rebar Dart', 'Steel Rebar Bolt', 'Iron Rebar Spike'],
+  cbj_melee: ['Tater Masher', 'Spud Masher', 'Heavy Masher'],
+  cbj_ranged: ['Tater Cannon', 'Spud Launcher', 'Potato Gun'],
+  doni_melee: ['Boathook Gaff', 'Steel Gaff', 'Heavy Gaff'],
+  doni_ranged: ['Casting Rig', 'Line Rig', 'Deep Cast Rig'],
+  jayjay_melee: ['Ring Fists', 'Brass Knuckles', 'Heavy Ring Fists'],
+  jayjay_ranged: ['Bell Plate', 'Brass Bell Plate', 'Service Bell Plate'],
+};
+
+const WEAPON_AFFIXES: readonly AffixKey[] = ['jeffDamage', 'heroRate', 'jeffReach', 'cooldown', 'onHitHeat'];
+
+const CHEST_AFFIXES: readonly AffixKey[] = ['jeffHp', 'jeffRespawn', 'cooldown', 'towerDamage', 'jeffRepair', 'bounty'];
+
+const BOOTS_AFFIXES: readonly AffixKey[] = ['jeffSpeed', 'jeffReach', 'startMoney', 'jeffHolds', 'sellRate', 'jeffRespawn'];
+
+const ARMOR_AFFIXES: Record<ArmorSlot, readonly AffixKey[]> = {
+  chest: CHEST_AFFIXES,
+  boots: BOOTS_AFFIXES,
 };
 
 const AFFIX_ROLL: Record<AffixKey, { min: number; max: number; label: (n: number) => string }> = {
@@ -46,6 +87,10 @@ const AFFIX_ROLL: Record<AffixKey, { min: number; max: number; label: (n: number
   jeffRespawn: { min: 0.08, max: 0.2, label: (n) => `−${pct(n)} downed time` },
   startMoney: { min: 20, max: 50, label: (n) => `+$${Math.round(n)} starting cash` },
   towerDamage: { min: 0.04, max: 0.1, label: (n) => `+${pct(n)} tower damage` },
+  heroRate: { min: 0.06, max: 0.14, label: (n) => `+${pct(n)} attack rate` },
+  onHitHeat: { min: 4, max: 10, label: (n) => `${n.toFixed(0)} heat/s on hit` },
+  bounty: { min: 0.08, max: 0.16, label: (n) => `+${pct(n)} bounty` },
+  sellRate: { min: 0.1, max: 0.2, label: (n) => `+${pct(n)} sell` },
 };
 
 function pct(n: number): string {
@@ -71,7 +116,12 @@ function affixScore(a: GearAffix): number {
     case 'jeffReach':
     case 'jeffRespawn':
     case 'towerDamage':
+    case 'heroRate':
+    case 'bounty':
+    case 'sellRate':
       return a.amount * 100;
+    case 'onHitHeat':
+      return a.amount * 3;
     default: {
       const _exhaustive: never = a.key;
       return _exhaustive;
@@ -82,8 +132,32 @@ function affixScore(a: GearAffix): number {
 const RARITY_SCORE: Record<Rarity, number> = { common: 0, uncommon: 18, rare: 36, relic: 54 };
 
 /** Higher is better. Used when the locker is full and something has to go. */
-export function gearScore(item: GearItem): number {
+export function gearScore(item: KitItem | GearItem): number {
   return RARITY_SCORE[item.rarity] + item.affixes.reduce((sum, a) => sum + affixScore(a), 0);
+}
+
+export function isKitItem(value: unknown): value is KitItem {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  if (row.kind === 'weapon') {
+    return (
+      typeof row.id === 'string'
+      && typeof row.family === 'string'
+      && typeof row.name === 'string'
+      && typeof row.rarity === 'string'
+      && Array.isArray(row.affixes)
+    );
+  }
+  if (row.kind === 'armor') {
+    return (
+      typeof row.id === 'string'
+      && (row.slot === 'chest' || row.slot === 'boots')
+      && typeof row.name === 'string'
+      && typeof row.rarity === 'string'
+      && Array.isArray(row.affixes)
+    );
+  }
+  return false;
 }
 
 export function applyAffix(m: Modifiers, a: GearAffix): void {
@@ -120,6 +194,18 @@ export function applyAffix(m: Modifiers, a: GearAffix): void {
       return;
     case 'towerDamage':
       m.towerDamage *= 1 + a.amount;
+      return;
+    case 'heroRate':
+      m.heroRate *= 1 + a.amount;
+      return;
+    case 'onHitHeat':
+      m.onHitHeat += a.amount;
+      return;
+    case 'bounty':
+      m.bounty *= 1 + a.amount;
+      return;
+    case 'sellRate':
+      m.sellRate = Math.min(1, m.sellRate + a.amount);
       return;
     default: {
       const _exhaustive: never = a.key;
@@ -176,19 +262,65 @@ function rollAffix(rng: Rng, key: AffixKey, rarity: Rarity): GearAffix {
   return { key, amount };
 }
 
-export function rollChest(rng: Rng, quality: ChestQuality, id: string): GearItem {
-  const rarity = pickWeighted(rng, RARITY_WEIGHTS[quality]);
-  const slot = rng.pick(GEAR_SLOTS);
-  const name = rng.pick(NAMES[slot]);
-  const pool = [...SLOT_AFFIXES[slot]];
+function rollAffixes(rng: Rng, pool: readonly AffixKey[], rarity: Rarity): GearAffix[] {
+  const scratch = [...pool];
   const count = affixCount(rarity, rng);
   const affixes: GearAffix[] = [];
-  for (let i = 0; i < count && pool.length > 0; i++) {
-    const idx = rng.int(0, pool.length - 1);
-    const key = pool.splice(idx, 1)[0]!;
+  for (let i = 0; i < count && scratch.length > 0; i++) {
+    const idx = rng.int(0, scratch.length - 1);
+    const key = scratch.splice(idx, 1)[0]!;
     affixes.push(rollAffix(rng, key, rarity));
   }
-  return { id, name, slot, rarity, affixes };
+  return affixes;
+}
+
+function isEndlessQuality(quality: ChestQuality): boolean {
+  return quality === 'night' || quality === 'deepNight';
+}
+
+function rollKind(rng: Rng, quality: ChestQuality): KitItem['kind'] {
+  const weaponChance = isEndlessQuality(quality) ? 0.7 : 0.35;
+  return rng.next() < weaponChance ? 'weapon' : 'armor';
+}
+
+function rollWeaponFamily(rng: Rng, playedHero?: HeroId): WeaponFamilyId {
+  if (playedHero && rng.next() < 0.8) {
+    const stance = rng.pick(['melee', 'ranged'] satisfies WeaponStance[]);
+    return `${playedHero}_${stance}`;
+  }
+  return rng.pick(allWeaponFamilies());
+}
+
+function weaponAffixPool(family: WeaponFamilyId): AffixKey[] {
+  const pool = [...WEAPON_AFFIXES];
+  if (familyStance(family) === 'melee') pool.push('jeffHolds');
+  return pool;
+}
+
+export function rollChest(rng: Rng, quality: ChestQuality, id: string, playedHero?: HeroId): KitItem {
+  const rarity = pickWeighted(rng, RARITY_WEIGHTS[quality]);
+  const kind = rollKind(rng, quality);
+  if (kind === 'weapon') {
+    const family = rollWeaponFamily(rng, playedHero);
+    return {
+      kind: 'weapon',
+      id,
+      family,
+      name: rng.pick(WEAPON_NAMES[family]),
+      rarity,
+      affixes: rollAffixes(rng, weaponAffixPool(family), rarity),
+    };
+  }
+  const slot = rng.pick(['chest', 'boots'] satisfies ArmorSlot[]);
+  const armor: ArmorItem = {
+    kind: 'armor',
+    id,
+    slot,
+    name: rng.pick(ARMOR_NAMES[slot]),
+    rarity,
+    affixes: rollAffixes(rng, ARMOR_AFFIXES[slot], rarity),
+  };
+  return armor;
 }
 
 export function chestBlurb(quality: ChestQuality): string {

@@ -1,6 +1,8 @@
-import { HERO_PATHS, buildRank, heroForBuild } from '../../data/heroBuilds';
 import { COMMENDATIONS, commendationKey } from '../../data/commendations';
+import { cardById } from '../../data/kitCards';
 import { ABILITY_KEYS, HEROES, HERO_ORDER } from '../../data/heroes';
+import { familyLabel, familyStance } from '../../data/weapons';
+import { resolveAttackProfile } from '../../sim/attackProfile';
 import { skillGlyph } from '../play/icons';
 import { availableTowers, loadoutCap, resolveLoadout } from '../../data/loadout';
 import { mapById } from '../../data/maps';
@@ -37,9 +39,21 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
   const el = h('div', { class: 'screen loadout' });
 
   const heroPicker = () => {
-    const build = app.save.heroBuild(), selected = heroForBuild(app.save.data.selectedHero, build);
-    const career = HERO_PATHS[selected.id].filter(path => buildRank(build, path.style) > 0)
-      .map(path => `${path.name} ${buildRank(build, path.style)}`).join(' · ');
+    const selected = HEROES[app.save.data.selectedHero];
+    const kit = app.save.heroKit(selected.id);
+    const weaponItem = kit.weaponId ? app.save.itemById(kit.weaponId) : undefined;
+    const weaponName = weaponItem?.kind === 'weapon' ? weaponItem.name : familyLabel(kit.family);
+    const weaponAffixes = weaponItem?.kind === 'weapon' ? weaponItem.affixes : [];
+    const profile = resolveAttackProfile(
+      kit.family,
+      weaponItem?.kind === 'weapon' ? weaponItem.rarity : 'common',
+      weaponAffixes,
+    );
+    const stanceLabel = familyStance(kit.family) === 'ranged' ? 'Ranged' : 'Melee';
+    const cardNames = kit.cards.map((id) => (id ? cardById(id)?.name : null)).filter(Boolean);
+    const kitLine = cardNames.length
+      ? `${weaponName} · ${cardNames.join(' · ')}`
+      : `${weaponName} · signature basics`;
     return h('section', { class: 'hero-roster sheet', attrs: { 'aria-label': 'Choose your hero' } },
       h('div', { class: 'hero-roster-heading' }, h('div', {}, h('span', { class: 'eyebrow', text: 'Eight legends. One service call.' }), h('h2', { text: 'Who’s taking the call?' })), h('span', { class: 'pill', text: 'All heroes available' })),
       h('div', { class: 'hero-roster-grid', attrs: { role: 'group', 'aria-label': 'Playable heroes' } }, ...HERO_ORDER.map(id => {
@@ -52,8 +66,8 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
       })),
       h('div', { class: 'hero-dossier', attrs: { style: `--hero-color: ${selected.color}`,  'aria-live': 'polite' } },
         h('div', { class: 'hero-dossier-intro' }, h('span', { class: 'eyebrow', text: selected.title }), h('p', { text: selected.description }),
-          h('p', { class: 'small', text: career ? `Career build: ${career}` : 'No career points invested yet. Open Hero builds to choose a path.' }),
-          h('div', { class: 'hero-statline', text: `${selected.hp} HP  ·  ${selected.ranged ? 'Ranged' : 'Melee'}  ·  ${selected.damage} damage  ·  ${selected.reach} reach` })),
+          h('p', { class: 'small', text: kitLine }),
+          h('div', { class: 'hero-statline', text: `${selected.hp} HP  ·  ${stanceLabel}  ·  ${Math.round(profile.damage)} damage  ·  ${Math.round(profile.reach)} reach` })),
         h('div', { class: 'hero-aura-card' }, h('span', { class: 'eyebrow', text: 'Always active aura' }), h('b', { text: selected.aura.name }), h('p', { text: selected.aura.description })),
         h('div', { class: 'hero-kit' }, ...selected.abilities.map((a, index) => h('div', { class: 'hero-kit-skill', title: a.description },
           h('span', { class: 'hero-kit-icon', html: skillGlyph(a.glyph) }), h('div', {}, h('b', { text: a.name }), h('span', { text: a.description })),
@@ -84,7 +98,7 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
           h('b', { text: `${app.save.data.commendations[commendationKey(map.id, app.save.data.difficulty, remaster)]?.includes(goal.id) ? '◆ Earned · ' : '◇ '}${goal.name}` }),
           h('span', { text: goal.description }))))] : []),
       heroPicker(),
-      h('div', { class: 'btn-row' }, h('button', { class: 'btn', text: 'Hero builds', onClick: () => app.go({ kind: 'talents' }) }), h('button', { class: 'btn', text: `Supply Store · ${app.save.data.servicePoints} points`, onClick: () => app.go({ kind: 'store' }) })),
+      h('div', { class: 'btn-row' }, h('button', { class: 'btn', text: 'Edit kit', onClick: () => app.go({ kind: 'kit' }) }), h('button', { class: 'btn', text: `Supply Store · ${app.save.data.servicePoints} points`, onClick: () => app.go({ kind: 'store' }) })),
       h('section', { class: 'sheet saved-crews', attrs: { 'aria-label': 'Saved crews' } }, h('h2', { text: 'Saved crews' }),
         h('p', { class: 'small muted', text: crewNotice, attrs: { role: 'status' } }),
         h('div', { class: 'crew-grid' }, ...[0, 1, 2].map(slot => {

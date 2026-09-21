@@ -1,20 +1,19 @@
-import { renderBuilds } from './screens/builds';
 import { renderStore } from './screens/store';
 import type { RemasterId, TowerId } from '../data/types';
 import { SaveStore } from '../save/save';
 import { clear } from './dom';
 import { renderEncyclopedia } from './screens/encyclopedia';
 import { renderHub } from './screens/hub';
+import { renderKit } from './screens/kit';
 import { renderLoadout } from './screens/loadout';
 import { renderLocker } from './screens/locker';
 import { renderPlay } from './screens/play';
-import { renderSkills } from './screens/skills';
-import { renderTalents } from './screens/talents';
 import { renderTitle } from './screens/title';
 
 export type Screen =
   | { kind: 'title' }
   | { kind: 'hub' }
+  | { kind: 'kit' }
   | { kind: 'skills' }
   | { kind: 'talents' }
   | { kind: 'crewTalents' }
@@ -46,18 +45,15 @@ export class App {
       case 'hub':
         view = renderHub(this);
         break;
+      case 'kit':
+        view = renderKit(this);
+        break;
       case 'skills':
-        if (!this.save.hasAnyProgress()) {
-          view = renderHub(this);
-          break;
-        }
-        view = renderSkills(this);
+      case 'talents':
+      case 'crewTalents':
+        view = renderKit(this);
         break;
       case 'store': view = renderStore(this); break;
-      case 'talents': view = renderBuilds(this); break;
-      case 'crewTalents':
-        view = renderTalents(this);
-        break;
       case 'locker':
         if (!this.save.hasAnyProgress()) {
           view = renderHub(this);

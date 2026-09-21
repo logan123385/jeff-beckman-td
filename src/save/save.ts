@@ -1,15 +1,15 @@
-import { buildBudget, normalizeHeroBuild, type HeroBuild } from '../data/heroBuilds';
+import { defaultCards } from '../data/kitCards';
 import { STARTER_TOWERS, TOWER_PRICES, WELCOME_POINTS } from '../data/store';
 import { COMMENDATIONS, commendationKey, type CommendationId } from '../data/commendations';
 import { HERO_ORDER, isHeroId, type HeroId } from '../data/heroes';
 import { CORE_MAPS, MAPS } from '../data/maps';
 import { ENEMY_ORDER } from '../data/enemies';
 import { gearScore } from '../data/loot';
-import { canUnlock, SKILLS, skillCost } from '../data/skills';
-import { canUnlockTalent, TALENTS } from '../data/talents';
 import { salvageXp, levelFromXp, talentPointsAvailable } from '../data/xp';
 import { TOWER_ORDER } from '../data/towers';
-import type { DifficultyId, EnemyId, GearItem, GearSlot, RemasterId, TowerId } from '../data/types';
+import { cardById, cardUnlocked } from '../data/kitCards';
+import { defaultFamily, familyHero, familyStance, isWeaponFamilyId, type WeaponFamilyId } from '../data/weapons';
+import type { ArmorItem, ArmorSlot, DifficultyId, EnemyId, GearSlot, KitItem, Rarity, RemasterId, TowerId } from '../data/types';
 
 export const INVENTORY_CAP = 24;
 export const SAVE_KEY = 'jbtd-save-v1';
@@ -17,12 +17,17 @@ export const SAVE_BAK_KEY = 'jbtd-save-v1.bak';
 
 export interface CrewPreset { hero: HeroId; towers: TowerId[] }
 
+export interface HeroKit {
+  family: WeaponFamilyId;
+  weaponId: string | null;
+  cards: [string | null, string | null];
+}
+
 export interface SaveData {
-  version: 1;
+  version: 2;
   selectedHero: HeroId;
   servicePoints: number;
   ownedTowers: TowerId[];
-  heroBuilds: Partial<Record<HeroId, HeroBuild>>;
   /** mapId -> difficulty -> best stars (0–3). */
   stars: Record<string, Partial<Record<DifficultyId, number>>>;
   /** First-clear remaster badges (1 star each). Never required. */
@@ -31,13 +36,14 @@ export interface SaveData {
   muted: boolean;
   sfxVolume: number;
   ambientVolume: number;
-  skills: string[];
   seen: EnemyId[];
   difficulty: DifficultyId;
   jeffXp: number;
-  talents: string[];
-  inventory: GearItem[];
-  equipped: Partial<Record<GearSlot, string>>;
+  inventory: KitItem[];
+  chestId: string | null;
+  bootsId: string | null;
+  kits: Partial<Record<HeroId, HeroKit>>;
+  heroJobs: Partial<Record<HeroId, number>>;
   gearSeq: number;
   lastLoadout: TowerId[];
   crews: (CrewPreset | null)[];
@@ -48,8 +54,8 @@ export interface SaveData {
 
 const DIFFICULTIES: readonly DifficultyId[] = ['apprentice', 'journeyman', 'master'];
 const REMASTERS: readonly Exclude<RemasterId, 'classic'>[] = ['codeInspection', 'frozenMain', 'cashJob', 'cleanHands'];
-const SLOTS: readonly GearSlot[] = ['wrench', 'boots', 'belt', 'shirt', 'gauges'];
-const RARITIES = ['common', 'uncommon', 'rare', 'relic'] as const;
+const V1_ARMOR_SLOTS: readonly GearSlot[] = ['shirt', 'belt', 'gauges', 'boots'];
+const RARITIES: readonly Rarity[] = ['common', 'uncommon', 'rare', 'relic'];
 const AFFIX_KEYS = [
   'jeffDamage',
   'jeffHp',
@@ -62,28 +68,38 @@ const AFFIX_KEYS = [
   'jeffRespawn',
   'startMoney',
   'towerDamage',
+  'heroRate',
+  'onHitHeat',
+  'bounty',
+  'sellRate',
 ] as const;
 
+function defaultHeroKit(hero: HeroId): HeroKit {
+  return { family: defaultFamily(hero), weaponId: null, cards: defaultCards(hero) };
+}
+
 function blank(): SaveData {
+  const kits: Partial<Record<HeroId, HeroKit>> = {};
+  for (const hero of HERO_ORDER) kits[hero] = defaultHeroKit(hero);
   return {
-    version: 1,
+    version: 2,
     selectedHero: 'jeff',
     servicePoints: WELCOME_POINTS,
     ownedTowers: [...STARTER_TOWERS],
-    heroBuilds: {},
     stars: {},
     remasters: {},
     serviceCallBest: 0,
     muted: false,
     sfxVolume: 0.85,
     ambientVolume: 0.55,
-    skills: [],
     seen: [],
     difficulty: 'journeyman',
     jeffXp: 0,
-    talents: [],
     inventory: [],
-    equipped: {},
+    chestId: null,
+    bootsId: null,
+    kits,
+    heroJobs: {},
     gearSeq: 1,
     lastLoadout: [],
     crews: [null, null, null],
@@ -108,57 +124,237 @@ function looksLikeV1(parsed: Record<string, unknown>): boolean {
   );
 }
 
-function sanitizeSkills(ids: unknown): string[] {
-  if (!Array.isArray(ids)) return [];
-  const wanted = new Set(ids.filter((id): id is string => typeof id === 'string'));
-  const owned = new Set<string>();
-  const kept: string[] = [];
-  for (const node of [...SKILLS].sort((a, b) => a.tier - b.tier)) {
-    if (!wanted.has(node.id)) continue;
-    if (canUnlock(node.id, owned)) {
-      kept.push(node.id);
-      owned.add(node.id);
-    }
-  }
-  return kept;
-}
-
-function sanitizeTalents(ids: unknown): string[] {
-  if (!Array.isArray(ids)) return [];
-  const wanted = new Set(ids.filter((id): id is string => typeof id === 'string'));
-  const owned = new Set<string>();
-  const kept: string[] = [];
-  for (const node of [...TALENTS].sort((a, b) => a.tier - b.tier)) {
-    if (!wanted.has(node.id)) continue;
-    if (canUnlockTalent(node.id, owned)) {
-      kept.push(node.id);
-      owned.add(node.id);
-    }
-  }
-  return kept;
-}
-
-function sanitizeGear(raw: unknown): GearItem[] {
+function sanitizeAffixes(raw: unknown): KitItem['affixes'] {
   if (!Array.isArray(raw)) return [];
-  const out: GearItem[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const row = item as Partial<GearItem>;
-    if (typeof row.id !== 'string' || !row.id) continue;
-    if (!SLOTS.includes(row.slot as GearSlot)) continue;
-    if (!RARITIES.includes(row.rarity as (typeof RARITIES)[number])) continue;
-    const affixes = Array.isArray(row.affixes)
-      ? row.affixes
-          .filter((a): a is GearItem['affixes'][number] => {
-            if (!a || typeof a !== 'object') return false;
-            return (AFFIX_KEYS as readonly string[]).includes((a as { key?: string }).key ?? '') && Number.isFinite(Number((a as { amount?: unknown }).amount));
-          })
-          .map((a) => ({ key: a.key, amount: Number(a.amount) }))
-      : [];
-    out.push({ id: row.id, name: typeof row.name === 'string' ? row.name : 'Unknown fitting', slot: row.slot as GearSlot, rarity: row.rarity as GearItem['rarity'], affixes });
-    if (out.length >= INVENTORY_CAP) break;
+  return raw
+    .filter((a): a is KitItem['affixes'][number] => {
+      if (!a || typeof a !== 'object') return false;
+      return (AFFIX_KEYS as readonly string[]).includes((a as { key?: string }).key ?? '') && Number.isFinite(Number((a as { amount?: unknown }).amount));
+    })
+    .map((a) => ({ key: a.key, amount: Number(a.amount) }));
+}
+
+function sanitizeKitItem(raw: unknown, wrenchSalvage: { xp: number }): KitItem | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const row = raw as Record<string, unknown>;
+  if (typeof row.id !== 'string' || !row.id) return null;
+  if (!RARITIES.includes(row.rarity as Rarity)) return null;
+
+  if (row.kind === 'weapon') {
+    const family = typeof row.family === 'string' ? row.family : '';
+    if (!isWeaponFamilyId(family)) return null;
+    return {
+      kind: 'weapon',
+      id: row.id,
+      family,
+      name: typeof row.name === 'string' ? row.name : 'Unknown weapon',
+      rarity: row.rarity as Rarity,
+      affixes: sanitizeAffixes(row.affixes),
+    };
   }
-  return out;
+
+  if (row.kind === 'armor') {
+    const slot = row.slot;
+    if (slot !== 'chest' && slot !== 'boots') return null;
+    return {
+      kind: 'armor',
+      id: row.id,
+      slot,
+      name: typeof row.name === 'string' ? row.name : 'Unknown armor',
+      rarity: row.rarity as Rarity,
+      affixes: sanitizeAffixes(row.affixes),
+    };
+  }
+
+  const slot = row.slot as GearSlot;
+  if (slot === 'wrench') {
+    wrenchSalvage.xp += salvageXp(row.rarity as Rarity);
+    return null;
+  }
+  if (!V1_ARMOR_SLOTS.includes(slot)) return null;
+  const armorSlot: ArmorSlot = slot === 'boots' ? 'boots' : 'chest';
+  return {
+    kind: 'armor',
+    id: row.id,
+    slot: armorSlot,
+    name: typeof row.name === 'string' ? row.name : 'Unknown fitting',
+    rarity: row.rarity as Rarity,
+    affixes: sanitizeAffixes(row.affixes),
+  };
+}
+
+function sanitizeInventory(raw: unknown): { inventory: KitItem[]; wrenchSalvage: number } {
+  if (!Array.isArray(raw)) return { inventory: [], wrenchSalvage: 0 };
+  const wrenchSalvage = { xp: 0 };
+  const out: KitItem[] = [];
+  for (const item of raw) {
+    const kept = sanitizeKitItem(item, wrenchSalvage);
+    if (kept) {
+      out.push(kept);
+      if (out.length >= INVENTORY_CAP) break;
+    }
+  }
+  return { inventory: out, wrenchSalvage: wrenchSalvage.xp };
+}
+
+function migrateHeroJobs(parsed: Record<string, unknown>): Partial<Record<HeroId, number>> {
+  const heroJobs: Partial<Record<HeroId, number>> = {};
+  const rawBuilds = parsed.heroBuilds;
+  if (!rawBuilds || typeof rawBuilds !== 'object') return heroJobs;
+  for (const hero of HERO_ORDER) {
+    const build = (rawBuilds as Record<string, unknown>)[hero];
+    if (!build || typeof build !== 'object') continue;
+    const nodes = Array.isArray((build as { nodes?: unknown }).nodes)
+      ? (build as { nodes: unknown[] }).nodes.filter((n): n is string => typeof n === 'string')
+      : [];
+    if (nodes.length === 0) continue;
+    heroJobs[hero] = Math.max(heroJobs[hero] ?? 0, 1);
+    if (nodes.some((n) => n.endsWith(':4'))) heroJobs[hero] = Math.max(heroJobs[hero] ?? 0, 3);
+  }
+  return heroJobs;
+}
+
+function sanitizeHeroJobs(
+  parsed: Record<string, unknown>,
+  migrated: Partial<Record<HeroId, number>>,
+): Partial<Record<HeroId, number>> {
+  const heroJobs: Partial<Record<HeroId, number>> = { ...migrated };
+  const raw = parsed.heroJobs;
+  if (!raw || typeof raw !== 'object') return heroJobs;
+  for (const hero of HERO_ORDER) {
+    const n = finiteNumber((raw as Record<string, unknown>)[hero], -1, 0, 1_000_000);
+    if (n >= 0) heroJobs[hero] = Math.max(heroJobs[hero] ?? 0, Math.round(n));
+  }
+  return heroJobs;
+}
+
+function sanitizeKits(
+  parsed: Record<string, unknown>,
+  inventory: KitItem[],
+  heroJobs: Partial<Record<HeroId, number>>,
+): Partial<Record<HeroId, HeroKit>> {
+  const kits = initKits();
+  const raw = parsed.kits;
+  if (!raw || typeof raw !== 'object') return kits;
+  const invById = new Map(inventory.map((item) => [item.id, item]));
+
+  for (const hero of HERO_ORDER) {
+    const row = (raw as Record<string, unknown>)[hero];
+    if (!row || typeof row !== 'object') continue;
+    const kitRow = row as Record<string, unknown>;
+    const family =
+      typeof kitRow.family === 'string' && isWeaponFamilyId(kitRow.family) && familyHero(kitRow.family) === hero
+        ? kitRow.family
+        : defaultFamily(hero);
+    const stance = familyStance(family);
+    const jobs = heroJobs[hero] ?? 0;
+
+    let weaponId: string | null = null;
+    if (typeof kitRow.weaponId === 'string') {
+      const weapon = invById.get(kitRow.weaponId);
+      if (
+        weapon?.kind === 'weapon' &&
+        isWeaponFamilyId(weapon.family) &&
+        familyHero(weapon.family) === hero &&
+        weapon.family === family
+      ) {
+        weaponId = kitRow.weaponId;
+      }
+    }
+
+    const cards: [string | null, string | null] =
+      stance === 'melee'
+        ? [`${hero}_anchor`, `${hero}_breaker`]
+        : [`${hero}_lane`, `${hero}_pin`];
+    if (Array.isArray(kitRow.cards)) {
+      for (let i = 0; i < 2; i++) {
+        const id = kitRow.cards[i];
+        if (typeof id !== 'string' || !id) {
+          cards[i] = null;
+          continue;
+        }
+        const card = cardById(id);
+        cards[i] = card && card.hero === hero && card.stance === stance && cardUnlocked(card, jobs) ? id : null;
+      }
+    }
+
+    kits[hero] = { family, weaponId, cards };
+  }
+  return kits;
+}
+
+function initKits(): Partial<Record<HeroId, HeroKit>> {
+  const kits: Partial<Record<HeroId, HeroKit>> = {};
+  for (const hero of HERO_ORDER) kits[hero] = defaultHeroKit(hero);
+  return kits;
+}
+
+function veteranArmor(): { chest: ArmorItem; boots: ArmorItem } {
+  return {
+    chest: {
+      kind: 'armor',
+      id: 'g-veteran-chest',
+      slot: 'chest',
+      name: 'Veteran Vest',
+      rarity: 'rare',
+      affixes: [
+        { key: 'startMoney', amount: 50 },
+        { key: 'cooldown', amount: 0.08 },
+        { key: 'jeffHp', amount: 0.12 },
+      ],
+    },
+    boots: {
+      kind: 'armor',
+      id: 'g-veteran-boots',
+      slot: 'boots',
+      name: 'Veteran Pacs',
+      rarity: 'rare',
+      affixes: [
+        { key: 'jeffSpeed', amount: 0.08 },
+        { key: 'jeffRespawn', amount: 0.1 },
+        { key: 'startMoney', amount: 20 },
+      ],
+    },
+  };
+}
+
+function trimInventoryToCap(inventory: KitItem[], preserveIds: ReadonlySet<string>): void {
+  while (inventory.length > INVENTORY_CAP) {
+    let junkIdx = -1;
+    let junkScore = Infinity;
+    for (let i = 0; i < inventory.length; i++) {
+      const item = inventory[i]!;
+      if (preserveIds.has(item.id)) continue;
+      const score = gearScore(item);
+      if (score < junkScore) {
+        junkScore = score;
+        junkIdx = i;
+      }
+    }
+    if (junkIdx < 0) break;
+    inventory.splice(junkIdx, 1);
+  }
+}
+
+function migrateEquippedArmor(
+  parsed: Record<string, unknown>,
+  inventory: KitItem[],
+): { chestId: string | null; bootsId: string | null } {
+  const invIds = new Set(inventory.map((i) => i.id));
+  let chestId: string | null = typeof parsed.chestId === 'string' && invIds.has(parsed.chestId) ? parsed.chestId : null;
+  let bootsId: string | null = typeof parsed.bootsId === 'string' && invIds.has(parsed.bootsId) ? parsed.bootsId : null;
+  const rawEq = parsed.equipped && typeof parsed.equipped === 'object' ? parsed.equipped : {};
+  for (const slot of ['shirt', 'belt', 'gauges'] as const) {
+    const id = (rawEq as Record<string, unknown>)[slot];
+    if (typeof id === 'string' && invIds.has(id) && !chestId) chestId = id;
+  }
+  const bootsEquipped = (rawEq as Record<string, unknown>).boots;
+  if (typeof bootsEquipped === 'string' && invIds.has(bootsEquipped) && !bootsId) bootsId = bootsEquipped;
+  return { chestId, bootsId };
+}
+
+function hadSkillTree(parsed: Record<string, unknown>): boolean {
+  return (Array.isArray(parsed.skills) && parsed.skills.length > 0) || (Array.isArray(parsed.talents) && parsed.talents.length > 0);
 }
 
 /** Coerce a versioned blob into a playable save. Never throws. */
@@ -167,14 +363,35 @@ export function normalizeSave(parsed: Partial<SaveData> & Record<string, unknown
   const difficulty = DIFFICULTIES.includes(parsed.difficulty as DifficultyId)
     ? (parsed.difficulty as DifficultyId)
     : 'journeyman';
-  const inventory = sanitizeGear(parsed.inventory);
-  const invIds = new Set(inventory.map((g) => g.id));
-  const equipped: Partial<Record<GearSlot, string>> = {};
-  const rawEq = parsed.equipped && typeof parsed.equipped === 'object' ? parsed.equipped : {};
-  for (const slot of SLOTS) {
-    const id = (rawEq as Record<string, unknown>)[slot];
-    if (typeof id === 'string' && invIds.has(id)) equipped[slot] = id;
+  const { inventory, wrenchSalvage } = sanitizeInventory(parsed.inventory);
+  let jeffXp = Math.round(finiteNumber(parsed.jeffXp, 0, 0, 5_000_000)) + wrenchSalvage;
+  const heroJobs = sanitizeHeroJobs(parsed, migrateHeroJobs(parsed));
+  const kits = sanitizeKits(parsed, inventory, heroJobs);
+  const { chestId: migratedChest, bootsId: migratedBoots } = migrateEquippedArmor(parsed, inventory);
+  let chestId = migratedChest;
+  let bootsId = migratedBoots;
+
+  if (hadSkillTree(parsed)) {
+    const veteran = veteranArmor();
+    if (!inventory.some((i) => i.id === veteran.chest.id)) inventory.push(veteran.chest);
+    if (!inventory.some((i) => i.id === veteran.boots.id)) inventory.push(veteran.boots);
+    const preserve = new Set<string>([veteran.chest.id, veteran.boots.id]);
+    if (chestId) preserve.add(chestId);
+    if (bootsId) preserve.add(bootsId);
+    trimInventoryToCap(inventory, preserve);
+    if (!chestId && inventory.some((i) => i.id === veteran.chest.id)) chestId = veteran.chest.id;
+    if (!bootsId && inventory.some((i) => i.id === veteran.boots.id)) bootsId = veteran.boots.id;
+  } else {
+    const preserve = new Set<string>();
+    if (chestId) preserve.add(chestId);
+    if (bootsId) preserve.add(bootsId);
+    trimInventoryToCap(inventory, preserve);
   }
+
+  const invIds = new Set(inventory.map((i) => i.id));
+  if (chestId && !invIds.has(chestId)) chestId = null;
+  if (bootsId && !invIds.has(bootsId)) bootsId = null;
+
   const stars: SaveData['stars'] = {};
   if (parsed.stars && typeof parsed.stars === 'object') {
     for (const [mapId, row] of Object.entries(parsed.stars as Record<string, unknown>)) {
@@ -217,31 +434,29 @@ export function normalizeSave(parsed: Partial<SaveData> & Record<string, unknown
     const value = parsed.commendations && typeof parsed.commendations === 'object' ? parsed.commendations[key] : null;
     if (Array.isArray(value)) commendations[key] = COMMENDATIONS.filter(goal => value.includes(goal.id)).map(goal => goal.id);
   }
-  // Grandfather tools from previously unlocked maps when migrating a pre-shop save.
   const legacy = MAPS.filter((_, i) => i === 0 || Object.values(stars[MAPS[i - 1]!.id] ?? {}).some(n => (n ?? 0) > 0)).flatMap(map => map.allowedTowers);
   const purchased = Array.isArray(parsed.ownedTowers) ? parsed.ownedTowers : legacy;
   const ownedTowers = TOWER_ORDER.filter(id => STARTER_TOWERS.includes(id) || purchased.includes(id));
-  const heroBuilds: Partial<Record<HeroId, HeroBuild>> = {};
-  for (const hero of HERO_ORDER) heroBuilds[hero] = normalizeHeroBuild(hero, parsed.heroBuilds?.[hero], buildBudget(finiteNumber(parsed.jeffXp, 0, 0, 5_000_000)));
+
   const data: SaveData = {
     ...base,
     selectedHero: isHeroId(parsed.selectedHero) ? parsed.selectedHero : 'jeff',
     servicePoints: Math.round(finiteNumber(parsed.servicePoints, WELCOME_POINTS, 0, 1_000_000)),
     ownedTowers,
-    heroBuilds,
     stars,
     remasters,
     serviceCallBest: Math.round(finiteNumber(parsed.serviceCallBest ?? parsed.nightShiftBest, 0, 0, 10_000)),
     muted: parsed.muted === true,
     sfxVolume: finiteNumber(parsed.sfxVolume, 0.85, 0, 1),
     ambientVolume: finiteNumber(parsed.ambientVolume, 0.55, 0, 1),
-    skills: sanitizeSkills(parsed.skills),
     seen,
     difficulty,
-    jeffXp: Math.round(finiteNumber(parsed.jeffXp, 0, 0, 5_000_000)),
-    talents: sanitizeTalents(parsed.talents),
+    jeffXp,
     inventory,
-    equipped,
+    chestId,
+    bootsId,
+    kits,
+    heroJobs,
     gearSeq: Math.max(1, Math.round(finiteNumber(parsed.gearSeq, 1, 1, 1_000_000))),
     lastLoadout,
     crews,
@@ -287,9 +502,9 @@ export class SaveStore {
         if (!looksLikeV1(parsed)) return null;
         return normalizeSave(parsed);
       }
-      if (version !== 1) {
+      if (version !== 1 && version !== 2) {
         if (!looksLikeV1(parsed)) return null;
-        return normalizeSave({ ...parsed, version: 1 });
+        return normalizeSave(parsed);
       }
       return normalizeSave(parsed);
     } catch {
@@ -314,6 +529,16 @@ export class SaveStore {
       }
     }
     return blank();
+  }
+
+  private occupiedIds(): Set<string> {
+    const ids = new Set<string>();
+    if (this.data.chestId) ids.add(this.data.chestId);
+    if (this.data.bootsId) ids.add(this.data.bootsId);
+    for (const kit of Object.values(this.data.kits)) {
+      if (kit?.weaponId) ids.add(kit.weaponId);
+    }
+    return ids;
   }
 
   backup(): boolean {
@@ -343,7 +568,6 @@ export class SaveStore {
     return JSON.stringify(this.data, null, 2);
   }
 
-  /** Best stars for a map across all difficulties (forward-earn only). */
   starsFor(mapId: string): number {
     const byDiff = this.data.stars[mapId];
     if (!byDiff) return 0;
@@ -365,7 +589,6 @@ export class SaveStore {
     this.save();
   }
 
-  /** First remaster clear of a type on a map earns one Journeyman Star. */
   recordRemaster(mapId: string, remaster: Exclude<RemasterId, 'classic'>): boolean {
     if (this.remasterCleared(mapId, remaster)) return false;
     const entry = this.data.remasters[mapId] ?? {};
@@ -381,16 +604,14 @@ export class SaveStore {
     this.save();
   }
 
-  /** Every campaign map has a star. Used for vanity, not the The Neverending Service Call gate. */
   hasAnyProgress(): boolean {
     return (
       this.totalStars() > 0 ||
       this.data.jeffXp > 0 ||
-      this.data.talents.length > 0 ||
-      this.data.skills.length > 0 ||
       this.data.inventory.length > 0 ||
       this.data.seen.length > 0 ||
-      this.data.serviceCallBest > 0
+      this.data.serviceCallBest > 0 ||
+      Object.values(this.data.heroJobs).some((j) => (j ?? 0) > 0)
     );
   }
 
@@ -398,7 +619,6 @@ export class SaveStore {
     return MAPS.every((m) => this.starsFor(m.id) > 0);
   }
 
-  /** The Neverending Service Call opens after the original four service calls so old saves stay valid. */
   serviceCallUnlocked(): boolean {
     return CORE_MAPS.every((m) => this.starsFor(m.id) > 0);
   }
@@ -420,24 +640,11 @@ export class SaveStore {
   }
 
   spentStars(): number {
-    return [...new Set(this.data.skills)].filter(id => SKILLS.some(s => s.id === id)).reduce((sum, id) => sum + skillCost(id), 0);
+    return 0;
   }
 
   availableStars(): number {
-    return this.totalStars() - this.spentStars();
-  }
-
-  unlockSkill(id: string): boolean {
-    if (this.availableStars() < skillCost(id)) return false;
-    if (!canUnlock(id, new Set(this.data.skills))) return false;
-    this.data.skills.push(id);
-    this.save();
-    return true;
-  }
-
-  respec(): void {
-    this.data.skills = [];
-    this.save();
+    return this.totalStars();
   }
 
   jeffLevel(): number {
@@ -445,25 +652,12 @@ export class SaveStore {
   }
 
   talentPoints(): number {
-    return talentPointsAvailable(this.data.jeffXp, this.data.talents.length);
+    return talentPointsAvailable(this.data.jeffXp, 0);
   }
 
   addXp(amount: number): void {
     if (amount <= 0) return;
     this.data.jeffXp += amount;
-    this.save();
-  }
-
-  unlockTalent(id: string): boolean {
-    if (this.talentPoints() <= 0) return false;
-    if (!canUnlockTalent(id, new Set(this.data.talents))) return false;
-    this.data.talents.push(id);
-    this.save();
-    return true;
-  }
-
-  respecTalents(): void {
-    this.data.talents = [];
     this.save();
   }
 
@@ -474,25 +668,113 @@ export class SaveStore {
     return id;
   }
 
-  equippedItems(): GearItem[] {
-    const ids = Object.values(this.data.equipped).filter((id): id is string => Boolean(id));
-    return ids
-      .map((id) => this.data.inventory.find((g) => g.id === id))
-      .filter((g): g is GearItem => Boolean(g));
+  equippedArmor(): ArmorItem[] {
+    const out: ArmorItem[] = [];
+    if (this.data.chestId) {
+      const chest = this.itemById(this.data.chestId);
+      if (chest?.kind === 'armor' && chest.slot === 'chest') out.push(chest);
+    }
+    if (this.data.bootsId) {
+      const boots = this.itemById(this.data.bootsId);
+      if (boots?.kind === 'armor' && boots.slot === 'boots') out.push(boots);
+    }
+    return out;
   }
 
-  itemById(id: string): GearItem | undefined {
+  /** @deprecated Use equippedArmor() — kept for transitional call sites. */
+  equippedItems(): ArmorItem[] {
+    return this.equippedArmor();
+  }
+
+  itemById(id: string): KitItem | undefined {
     return this.data.inventory.find((g) => g.id === id);
   }
 
-  addGear(item: GearItem): { kept: boolean; salvagedXp: number } {
+  heroKit(hero: HeroId): HeroKit {
+    return this.data.kits[hero] ?? defaultHeroKit(hero);
+  }
+
+  setFamily(hero: HeroId, family: WeaponFamilyId): boolean {
+    if (!isWeaponFamilyId(family) || familyHero(family) !== hero) return false;
+    const kit = this.heroKit(hero);
+    const stance = familyStance(family);
+    const cards: [string | null, string | null] = [...kit.cards];
+    for (let i = 0; i < 2; i++) {
+      const id = cards[i];
+      if (!id) continue;
+      const card = cardById(id);
+      if (card && card.stance !== stance) cards[i] = null;
+    }
+    this.data.kits[hero] = { ...kit, family, weaponId: null, cards };
+    this.save();
+    return true;
+  }
+
+  equipWeapon(hero: HeroId, id: string | null): boolean {
+    const kit = this.heroKit(hero);
+    if (id === null) {
+      this.data.kits[hero] = { ...kit, weaponId: null };
+      this.save();
+      return true;
+    }
+    const item = this.itemById(id);
+    if (!item || item.kind !== 'weapon') return false;
+    if (!isWeaponFamilyId(item.family) || familyHero(item.family) !== hero) return false;
+    if (item.family !== kit.family) return false;
+    this.data.kits[hero] = { ...kit, weaponId: id };
+    this.save();
+    return true;
+  }
+
+  equipCard(hero: HeroId, slot: 0 | 1, id: string | null): boolean {
+    const kit = this.heroKit(hero);
+    if (id === null) {
+      const cards = [...kit.cards] as [string | null, string | null];
+      cards[slot] = null;
+      this.data.kits[hero] = { ...kit, cards };
+      this.save();
+      return true;
+    }
+    const card = cardById(id);
+    if (!card || card.hero !== hero) return false;
+    if (card.stance !== familyStance(kit.family)) return false;
+    if (!cardUnlocked(card, this.data.heroJobs[hero] ?? 0)) return false;
+    const cards = [...kit.cards] as [string | null, string | null];
+    cards[slot] = id;
+    this.data.kits[hero] = { ...kit, cards };
+    this.save();
+    return true;
+  }
+
+  equipArmor(id: string): boolean {
+    const item = this.itemById(id);
+    if (!item || item.kind !== 'armor') return false;
+    if (item.slot === 'chest') this.data.chestId = item.id;
+    else this.data.bootsId = item.id;
+    this.save();
+    return true;
+  }
+
+  unequipArmor(slot: ArmorSlot): void {
+    if (slot === 'chest') this.data.chestId = null;
+    else this.data.bootsId = null;
+    this.save();
+  }
+
+  recordHeroJob(hero: HeroId): void {
+    this.data.heroJobs[hero] = (this.data.heroJobs[hero] ?? 0) + 1;
+    this.save();
+  }
+
+  addGear(item: KitItem): { kept: boolean; salvagedXp: number } {
     if (this.data.inventory.length < INVENTORY_CAP) {
       this.data.inventory.push(item);
       this.save();
       return { kept: true, salvagedXp: 0 };
     }
+    const occupied = this.occupiedIds();
     const junk = this.data.inventory
-      .filter((g) => !Object.values(this.data.equipped).includes(g.id))
+      .filter((g) => !occupied.has(g.id))
       .sort((a, b) => gearScore(a) - gearScore(b))[0];
     if (!junk) {
       this.addXp(salvageXp(item.rarity));
@@ -508,23 +790,26 @@ export class SaveStore {
     return { kept: true, salvagedXp: gained };
   }
 
+  /** @deprecated Use equipArmor() — kept for transitional call sites. */
   equip(id: string): boolean {
-    const item = this.itemById(id);
-    if (!item) return false;
-    this.data.equipped[item.slot] = item.id;
-    this.save();
-    return true;
+    return this.equipArmor(id);
   }
 
-  unequip(slot: GearSlot): void {
-    delete this.data.equipped[slot];
-    this.save();
+  /** @deprecated Use unequipArmor() — kept for transitional call sites. */
+  unequip(_slot: GearSlot): void {
+    if (_slot === 'boots') this.unequipArmor('boots');
+    else this.unequipArmor('chest');
   }
 
   salvage(id: string): number {
     const item = this.itemById(id);
     if (!item) return 0;
-    if (this.data.equipped[item.slot] === id) delete this.data.equipped[item.slot];
+    if (this.data.chestId === id) this.data.chestId = null;
+    if (this.data.bootsId === id) this.data.bootsId = null;
+    for (const hero of HERO_ORDER) {
+      const kit = this.data.kits[hero];
+      if (kit?.weaponId === id) this.data.kits[hero] = { ...kit, weaponId: null };
+    }
     this.data.inventory = this.data.inventory.filter((g) => g.id !== id);
     const xp = salvageXp(item.rarity);
     this.data.jeffXp += xp;
@@ -573,41 +858,28 @@ export class SaveStore {
     this.save();
   }
 
-  /** Coach runs only for brand-new saves on Crawlspace Classic. */
   needsTutorial(): boolean {
     return !this.data.tutorialDone && !this.hasAnyProgress();
   }
 
   setHero(id: HeroId): void {
     if (!isHeroId(id)) return;
-    this.data.selectedHero = id; this.save();
+    this.data.selectedHero = id;
+    this.save();
   }
-
-  heroBuild(hero: HeroId = this.data.selectedHero): HeroBuild {
-    return normalizeHeroBuild(hero, this.data.heroBuilds[hero], buildBudget(this.data.jeffXp));
-  }
-
-  unlockBuildNode(hero: HeroId, id: string): boolean {
-    const before = this.heroBuild(hero);
-    const after = normalizeHeroBuild(hero, { ...before, nodes: [...before.nodes, id] }, buildBudget(this.data.jeffXp));
-    if (after.nodes.length !== before.nodes.length + 1) return false;
-    this.data.heroBuilds[hero] = after; this.save(); return true;
-  }
-
-  equipTechnique(hero: HeroId, technique: HeroBuild['technique']): void {
-    this.data.heroBuilds[hero] = normalizeHeroBuild(hero, { ...this.heroBuild(hero), technique }, buildBudget(this.data.jeffXp)); this.save();
-  }
-
-  resetBuild(hero: HeroId): void { this.data.heroBuilds[hero] = { nodes: [], technique: 'signature' }; this.save(); }
 
   buyTower(id: TowerId): boolean {
     if (!TOWER_ORDER.includes(id) || this.data.ownedTowers.includes(id) || this.data.servicePoints < TOWER_PRICES[id]) return false;
-    this.data.servicePoints -= TOWER_PRICES[id]; this.data.ownedTowers.push(id); this.save(); return true;
+    this.data.servicePoints -= TOWER_PRICES[id];
+    this.data.ownedTowers.push(id);
+    this.save();
+    return true;
   }
 
   addServicePoints(points: number): void {
     if (!Number.isFinite(points) || points <= 0) return;
-    this.data.servicePoints = Math.min(1_000_000, this.data.servicePoints + Math.floor(points)); this.save();
+    this.data.servicePoints = Math.min(1_000_000, this.data.servicePoints + Math.floor(points));
+    this.save();
   }
 
   saveCrew(slot: number, towers: readonly TowerId[]): void {

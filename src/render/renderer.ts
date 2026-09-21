@@ -685,7 +685,7 @@ if(opponent)dir={x:opponent.x-vis.x,y:opponent.y-vis.y};
       const vis = slide(game.hero.pos, game.hero.prev);
       items.push({ y: vis.y, z: 3, draw: () => {
         const h = game.hero;
-        drawJeff(ctx, { ...h, pos: vis, walkPhase: (h.walkPhase ?? 0) - dist(h.prev, h.pos) * (1 - a) * .1, swing: countdown(h.swing, h.swingDuration ?? JEFF.swingTime), castTimer: countdown(h.castTimer ?? 0, .72), cast: h.cast ? { ...h.cast, left: countdown(h.cast.left, h.cast.duration) } : undefined }, this.fxTime);
+        drawJeff(ctx, { ...h, pos: vis, walkPhase: (h.walkPhase ?? 0) - dist(h.prev, h.pos) * (1 - a) * .1, swing: countdown(h.swing, h.swingDuration ?? JEFF.swingTime), castTimer: countdown(h.castTimer ?? 0, .72), cast: h.cast ? { ...h.cast, left: countdown(h.cast.left, h.cast.duration) } : undefined }, this.fxTime, true, 1.72, game.attackProfile.family);
       } });
     }
     items.sort((a, b) => a.y - b.y || a.z - b.z);
@@ -757,7 +757,7 @@ if(opponent)dir={x:opponent.x-vis.x,y:opponent.y-vis.y};
     const keepPrev = game.hero.prev;
     game.hero.pos = p;
     game.hero.prev = p;
-    drawJeff(ctx, game.hero, game.time);
+    drawJeff(ctx, game.hero, game.time, true, 1.72, game.attackProfile.family);
     game.hero.pos = keep;
     game.hero.prev = keepPrev;
     ctx.globalAlpha = 1;
@@ -924,7 +924,7 @@ if(opponent)dir={x:opponent.x-vis.x,y:opponent.y-vis.y};
       noGlow(ctx);
       ctx.restore();
     }
-    if (h.swing > 0 && game.heroDef.id === 'jeff') {
+    if (h.swing > 0 && game.heroDef.id === 'jeff' && game.attackProfile.stance === 'melee') {
       const k = Math.min(1, h.swing / JEFF.swingTime);
       const slam = 1 - k;
       ctx.save();

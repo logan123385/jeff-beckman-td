@@ -48,7 +48,8 @@ describe('Playable hero selection and legacy saves', () => {
   it('old saves and corrupt hero ids safely default to Jeff without erasing progression', () => {
     for (const selectedHero of [undefined, 'missing', null]) {
       const storage = { length: 0, clear() {}, key() { return null; }, getItem() { return JSON.stringify({ version: 1, selectedHero, skills: ['sharpTools'], serviceCallBest: 42 }); }, setItem() {}, removeItem() {} };
-      const save = new SaveStore(storage); expect(save.data.selectedHero).toBe('jeff'); expect(save.data.skills).toEqual(['sharpTools']); expect(save.data.serviceCallBest).toBe(42);
+      const save = new SaveStore(storage); expect(save.data.selectedHero).toBe('jeff'); expect(save.data.serviceCallBest).toBe(42);
+      expect(save.data.inventory.some(i => i.kind === 'armor' && i.name === 'Veteran Vest')).toBe(true);
     }
   });
 });
@@ -185,7 +186,7 @@ describe('Distinct active abilities', () => {
     const g = field('becbec'); for (let i = 0; i < 5; i++) enemy(g, 322 + i * 3); g.hero.attackTimer = 100;
     cast(g, 2); step(g, .1); expect(g.enemies.filter(e => e.heldBy?.kind === 'hero')).toHaveLength(5);
     g.hero.hp = 100; cast(g, 3); expect(g.hero.hp).toBe(260); expect(g.hero.shield).toBeGreaterThan(0);
-    step(g, 7); expect(g.enemies.filter(e => e.heldBy?.kind === 'hero')).toHaveLength(3);
+    step(g, 7); expect(g.enemies.filter(e => e.heldBy?.kind === 'hero')).toHaveLength(4);
   });
 });
 

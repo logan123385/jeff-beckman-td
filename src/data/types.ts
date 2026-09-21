@@ -126,6 +126,9 @@ export type GearSlot = 'wrench' | 'boots' | 'belt' | 'shirt' | 'gauges';
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'relic';
 export type TalentBranch = 'combat' | 'field' | 'foreman';
 export type ChestQuality = 'job' | 'clean' | 'remaster' | 'night' | 'deepNight';
+export type WeaponStance = 'melee' | 'ranged';
+export type ArmorSlot = 'chest' | 'boots';
+
 export type AffixKey =
   | 'jeffDamage'
   | 'jeffHp'
@@ -137,7 +140,11 @@ export type AffixKey =
   | 'jeffReach'
   | 'jeffRespawn'
   | 'startMoney'
-  | 'towerDamage';
+  | 'towerDamage'
+  | 'heroRate'
+  | 'onHitHeat'
+  | 'bounty'
+  | 'sellRate';
 
 export interface GearAffix {
   key: AffixKey;
@@ -151,6 +158,26 @@ export interface GearItem {
   rarity: Rarity;
   affixes: GearAffix[];
 }
+
+export interface WeaponItem {
+  kind: 'weapon';
+  id: string;
+  family: string;
+  name: string;
+  rarity: Rarity;
+  affixes: GearAffix[];
+}
+
+export interface ArmorItem {
+  kind: 'armor';
+  id: string;
+  slot: ArmorSlot;
+  name: string;
+  rarity: Rarity;
+  affixes: GearAffix[];
+}
+
+export type KitItem = WeaponItem | ArmorItem;
 
 export interface EnemyDef {
   id: EnemyId;
@@ -242,6 +269,8 @@ export interface Modifiers {
   jeffReach: number;
   jeffRespawn: number;
   jeffTapEvery: number;
+  heroRate: number;
+  onHitHeat: number;
   crewHp: number;
   crewDamage: number;
   crewRespawn: number;

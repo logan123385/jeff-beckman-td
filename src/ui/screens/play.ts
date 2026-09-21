@@ -51,8 +51,16 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   const map = found;
   const difficulty = DIFFICULTIES[app.save.data.difficulty];
   const mods = buildRunModifiers(app.save);
-  const kit = resolveLoadout(loadout ?? app.save.data.lastLoadout, availableTowers(app.save, map, remaster));
-  const game = new Game(map, { heroId: app.save.data.selectedHero, heroBuild: app.save.heroBuild(), difficulty, mods, seed: (Date.now() & 0xffff) + 1, remaster, loadout: kit, manualStart: true });
+  const towerLoadout = resolveLoadout(loadout ?? app.save.data.lastLoadout, availableTowers(app.save, map, remaster));
+  const heroId = app.save.data.selectedHero;
+  const heroKitState = app.save.heroKit(heroId);
+  const equippedWeapon = heroKitState.weaponId ? app.save.itemById(heroKitState.weaponId) : null;
+  const heroKit = {
+    family: heroKitState.family,
+    weapon: equippedWeapon?.kind === 'weapon' ? equippedWeapon : null,
+    cards: heroKitState.cards,
+  };
+  const game = new Game(map, { heroId, difficulty, mods, seed: (Date.now() & 0xffff) + 1, remaster, loadout: towerLoadout, kit: heroKit, manualStart: true });
   const audio = new AudioBus({
     muted: app.save.data.muted,
     sfxGain: app.save.data.sfxVolume,
@@ -805,7 +813,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       return;
     }
     if (game.useAbility(slot)) {
-      if (game.heroDef.id === 'jeff' && !(slot === 4 && game.heroBuild.technique !== 'signature')) audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
+      if (game.heroDef.id === 'jeff') audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
       else audio.heroImpact('cast');
       hud.setHint(`${ability.name} — ${ability.description}`);
     } else if (game.hero.downed > 0) hud.setHint(`${game.heroDef.name} is recovering.`);
@@ -857,7 +865,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         return;
       }
       if (game.useAbility(slot, { pos: prey.pos, enemyId })) {
-        if (game.heroDef.id === 'jeff' && !(slot === 4 && game.heroBuild.technique !== 'signature')) audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
+        if (game.heroDef.id === 'jeff') audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
         else audio.heroImpact('cast');
         cancelAim();
         hud.setHint(`${ability.name} — ${ability.description}`);
@@ -869,7 +877,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       return;
     }
     if (game.useAbility(slot, { pos: p })) {
-      if (game.heroDef.id === 'jeff' && !(slot === 4 && game.heroBuild.technique !== 'signature')) audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
+      if (game.heroDef.id === 'jeff') audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
       else audio.heroImpact('cast');
       cancelAim();
       hud.setHint(`${ability.name} — ${ability.description}`);
@@ -1264,6 +1272,9 @@ cancelAim();
     } else if (game.status === 'lost') {
       if (game.endless) app.save.recordServiceCall(game.completedWaves);
       audio.lose();
+    }
+    if (['won', 'lost', 'retired'].includes(game.status)) {
+      app.save.recordHeroJob(game.heroDef.id);
     }
     const reward = grantRunRewards(app.save, game, earned, firstClear);
     const idx = MAPS.findIndex((m) => m.id === map.id);

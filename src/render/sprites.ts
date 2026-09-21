@@ -1,6 +1,7 @@
 import { JEFF } from '../data/jeff';
 import { ENEMIES } from '../data/enemies';
 import { leakRbe, splitCount, splitOf } from '../data/splits';
+import { defaultFamily, familyStance, type WeaponFamilyId } from '../data/weapons';
 import type { Enemy, Hero, Tower } from '../sim/state';
 import { leakMax, leakRemaining } from '../sim/combat';
 import { paintedEnemy, paintedJeff, paintedTower } from './paintedActors';
@@ -68,8 +69,9 @@ function jeffBox(ctx: Ctx, x: number, y: number, w: number, h: number, r: number
   jeffPaint(ctx, fill, lw);
 }
 
-export function drawJeff(ctx: Ctx, hero: Hero, time: number, showBar = true, scale = 1.72): void {
-  if (paintedJeff(ctx, hero, time, showBar, scale)) return;
+export function drawJeff(ctx: Ctx, hero: Hero, time: number, showBar = true, scale = 1.72, family?: WeaponFamilyId): void {
+  if (paintedJeff(ctx, hero, time, showBar, scale, family)) return;
+  const kit = family ?? defaultFamily(hero.id ?? 'jeff');
   const { x, y } = hero.pos;
   ctx.save();
   ctx.translate(x, y);
@@ -79,7 +81,7 @@ export function drawJeff(ctx: Ctx, hero: Hero, time: number, showBar = true, sca
     ctx.globalAlpha = 0.55;
     ctx.scale(scale, scale);
     ctx.rotate(Math.PI / 2);
-    drawJeffBody(ctx, 1, 0, 0, 0, false, false, 0, true);
+    drawJeffBody(ctx, 1, 0, 0, 0, false, false, 0, true, kit);
     ctx.restore();
     stampText(ctx, `${Math.ceil(hero.downed)}s`, x, y - 38, { size: 14, color: '#ffccbc' });
     return;
@@ -115,13 +117,13 @@ export function drawJeff(ctx: Ctx, hero: Hero, time: number, showBar = true, sca
       ctx.translate(-hero.facing * (10 + i * 8) * (0.35 + k * 0.4), -i * 2.4);
       ctx.rotate(lean * (1 + i * 0.15));
       ctx.scale(scale * (1 + breath * 0.6), scale * (1 - breath));
-      drawJeffBody(ctx, hero.facing, bob, hero.swing + i * 0.05, walk, hero.sleeveTimer > 0, hero.coffeeTimer > 0, time, blink);
+      drawJeffBody(ctx, hero.facing, bob, hero.swing + i * 0.05, walk, hero.sleeveTimer > 0, hero.coffeeTimer > 0, time, blink, kit);
       ctx.restore();
     }
   }
   ctx.rotate(lean);
   ctx.scale(scale * (1 + breath * 0.6), scale * (1 - breath));
-  drawJeffBody(ctx, hero.facing, bob, hero.swing, walk, hero.sleeveTimer > 0, hero.coffeeTimer > 0, time, blink);
+  drawJeffBody(ctx, hero.facing, bob, hero.swing, walk, hero.sleeveTimer > 0, hero.coffeeTimer > 0, time, blink, kit);
   ctx.restore();
 
   if (showBar) hpBar(ctx, x, y - 78, 52, hero.hp / hero.maxHp, '#66bb6a');
@@ -243,7 +245,9 @@ function drawJeffBody(
   coffee: boolean,
   time: number,
   blink = false,
+  family: WeaponFamilyId = 'jeff_melee',
 ): void {
+  const melee = familyStance(family) === 'melee';
   ctx.save();
   ctx.scale(facing, 1);
   ctx.translate(0, bob);
@@ -315,8 +319,8 @@ function drawJeffBody(
   jeffBox(ctx, -11.6, 3.4, 5.6, 4.2, 1, '#8d6e63', 1.6);
 
   const swingK = swing > 0 ? 1 - swing / JEFF.swingTime : 0;
-  const swingAngle = swing > 0 ? -1.62 + easeSlam(swingK) * 2.15 : walk ? 0.22 + left * 0.45 : 0.3;
-  if (swing > 0) {
+  const swingAngle = melee && swing > 0 ? -1.62 + easeSlam(swingK) * 2.15 : walk ? 0.22 + left * 0.45 : 0.3;
+  if (melee && swing > 0) {
     // motion smear: fan from the raised pose to the current arm angle
     const k = Math.min(1, swingK * 1.35 + (swing > JEFF.swingTime * 0.55 ? 0.35 : 0));
     ctx.save();
@@ -345,7 +349,15 @@ function drawJeffBody(
   ctx.fillStyle = '#6d86d4';
   ctx.fillRect(-1.4, 1, 2.2, 10);
   jeffBox(ctx, -2.9, 12.4, 5.8, 4.4, 1.8, '#e0c9a6', 1.8);
-  drawJeffWrench(ctx, swing);
+  if (melee) drawJeffWrench(ctx, swing);
+  else {
+    // Pressure wand held in the procedural arm (ranged stance).
+    ctx.fillStyle = '#455a64';
+    ctx.fillRect(-2, 14, 4, 18);
+    ctx.fillStyle = '#4fc3f7';
+    ctx.fillRect(-3, 10, 6, 6);
+    radial(ctx, 0, 12, 1, 7 + Math.sin(time * 8) * 2, '#b3e5fc', 0.5);
+  }
   ctx.restore();
 
   jeffBox(ctx, -3.6, -21, 7.2, 6.4, 2, '#d4b896', 1.8);

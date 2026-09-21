@@ -36,7 +36,7 @@ export function renderTitle(app: App): ScreenView {
 h('li', { html: '<b>Q</b> <b>E</b> <b>R</b> <b>T</b> <b>C</b> are your selected hero’s five abilities. Select a tool and press <b>V</b> to fire its active (costs spare parts from pops). <b>X</b> torch rain · <b>D</b> Summon Logan · <b>Space</b> call the wave · <b>F</b> 1×/2×/3× · <b>P</b> pause.' }),
         h('li', { html: '<b>D</b> summons <b>Logan</b> onto a route for 18 seconds — every hero shares him. <b>X</b> drops three fire dumps on a point you pick. Select a barricade and press <b>G</b> to move its hold / rally point. Level-three towers can choose one of two <b>elite specializations</b>.' }),
         h('li', { html: 'Lose a job? Retry it. You still bank a little XP. Nothing is lost for good — you just owe the customer a callback. <b>Big leaks split</b> when they pop (Scale Crab → drips, boulder → lime → crabs). Splash the children. Letting a parent walk off costs the whole family. <b>RUSH</b> waves pack parents tight — the washer earns its keep.' }),
-        h('li', { html: 'The <b>first</b> win on a job (and The Neverending Service Call mileposts) drops a <b>chest</b> of shared hero gear. The crew levels up and spends points on a <b>talent tree</b>. Towers never grind XP.' }),
+        h('li', { html: 'The <b>first</b> win on a job (and The Neverending Service Call mileposts) drops a <b>chest</b> of shared hero gear. Open <b>Kit</b> to slot weapons, armor, and stance cards before each call. Towers never grind XP.' }),
         h('li', { html: 'After a Classic clear: opt-in <b>Code Inspection</b>, <b>Frozen Main</b>, <b>Cash Job</b> (no selling, truck money only, one leak), and <b>Clean Hands</b> (CHIMPS — no selling, no actives, no Logan, no torch rain, one leak). After the first four service calls: <b>The Neverending Service Call</b> — the true endgame. Later jobs drop more gear. Clock out anytime.' }),
       ),
     ),
@@ -72,7 +72,7 @@ h('li', { html: '<b>Q</b> <b>E</b> <b>R</b> <b>T</b> <b>C</b> are your selected 
             class: 'btn link danger',
             text: 'Reset all progress',
             onClick: () => {
-              if (confirm('Wipe 90’s, talents, locker, skills and encyclopedia? A backup copy stays on this device. Download your save first if you might want it back.')) {
+              if (confirm('Wipe kit, locker, and save progress? A backup copy stays on this device. Download your save first if you might want it back.')) {
                 app.save.reset();
                 app.go({ kind: 'title' });
               }

@@ -1,6 +1,7 @@
 import { towerMechanisms } from './towerMotion';
 import { drawNewHero } from './heroActors';
 import { JEFF } from '../data/jeff';
+import { defaultFamily, familyStance, type WeaponFamilyId } from '../data/weapons';
 import type { Enemy, Hero, Tower, Friendly } from '../sim/state';
 import { humanoid, monster } from './animation';
 import { FRIENDLY_SWING } from '../sim/friendlies';
@@ -39,19 +40,21 @@ function health(ctx: Ctx, x: number, y: number, w: number, ratio: number, color:
   ctx.fillStyle = '#ffffff55'; ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, ratio)), 1);
 }
 
-export function paintedJeff(ctx: Ctx, hero: Hero, time: number, showBar: boolean, scale: number): boolean {
-  if (hero.id && hero.id !== 'jeff') return drawNewHero(ctx, hero, time, showBar);
+export function paintedJeff(ctx: Ctx, hero: Hero, time: number, showBar: boolean, scale: number, family?: WeaponFamilyId): boolean {
+  if (hero.id && hero.id !== 'jeff') return drawNewHero(ctx, hero, time, showBar, family);
+  const kit = family ?? defaultFamily(hero.id ?? 'jeff');
+  // The units atlas bakes the pipe wrench into Jeff. Ranged stance uses the procedural body.
+  if (familyStance(kit) !== 'melee') return false;
   if (!artReady('units')) return false;
   const { x, y } = hero.pos;
   const size = 68 * scale / 1.72;
   const moving = !!hero.moving || (hero.moveBlend ?? 0) > 0;
-  const technique = hero.cast?.buildTechnique ? hero.cast : undefined;
-  const phase = technique ? 1 - technique.left / technique.duration : hero.swing > 0 ? 1 - hero.swing / JEFF.swingTime : 0;
+  const phase = hero.swing > 0 ? 1 - hero.swing / JEFF.swingTime : 0;
   castShadow(ctx, x, y + 14, size * 0.26, size * 0.08, 0.32);
   ctx.save(); ctx.translate(x, y + 18);
   if (hero.downed > 0) { ctx.globalAlpha = 0.48; ctx.rotate(-1.15); }
   ctx.scale(hero.facing, 1);
-  humanoid(ctx, 'units', 0, size, { time, walk: hero.walkPhase ?? 0, walkWeight: hero.moveBlend ?? 0, moving, phase, attacking: hero.swing > 0 || !!technique, cast: technique ? 0 : Math.sin(Math.PI * (hero.castTimer ?? 0) / .72) });
+  humanoid(ctx, 'units', 0, size, { time, walk: hero.walkPhase ?? 0, walkWeight: hero.moveBlend ?? 0, moving, phase, attacking: hero.swing > 0 || !!hero.cast, cast: hero.cast ? 0 : Math.sin(Math.PI * (hero.castTimer ?? 0) / .72) });
   ctx.restore();
   if (hero.swing > 0) {
     ctx.save(); ctx.translate(x + hero.facing * 8, y - 22); ctx.scale(hero.facing, 1);

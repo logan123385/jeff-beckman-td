@@ -1,4 +1,4 @@
-import { updateBuildEffects } from './heroBuilds';
+import { updateKitCards } from './kitCards';
 import { updateHeroAura, updateHeroZones } from './heroPowers';
 import { dist, turnToward } from '../core/vec';
 import { PHASE_VISIBLE_SECONDS } from '../data/enemies';
@@ -55,7 +55,8 @@ export function updateAuras(game: Game, dt: number): void {
 
   updateHeroAura(game, dt);
   updateHeroZones(game, dt);
-  updateBuildEffects(game, dt);
+  updateKitCards(game, dt);
+  for (const e of game.enemies) if (e.kitSlow) e.slow = Math.max(e.slow, e.kitSlow.amount);
 
   // Buff pads first so zone tools and Jeff haste read this frame's auras.
   for (const t of game.towers) {
