@@ -9,6 +9,7 @@ import { MAPS } from '../src/data/maps';
 import { DIFFICULTIES } from '../src/data/difficulty';
 import { neutralModifiers } from '../src/data/skills';
 import { grantRunRewards } from '../src/data/progress';
+import { serviceRewardCopy } from '../src/ui/play/results';
 import { SaveStore, normalizeSave } from '../src/save/save';
 import { Game } from '../src/sim/game';
 
@@ -77,6 +78,21 @@ describe('Permanent tower store', () => {
     const replay = game(); replay.status = 'lost'; replay.stats.kills = 12; replay.completedWaves = 2;
     expect(grantRunRewards(save, replay, 0).servicePoints).toBe(first.servicePoints);
     expect(save.data.servicePoints).toBe(WELCOME_POINTS + first.servicePoints * 2);
+  });
+  it('does not present a zero payout as completed work', () => {
+    const idle = serviceRewardCopy(0, false);
+    expect(idle.paid).toBe(false);
+    if (idle.paid) return;
+    expect(idle.text).not.toMatch(/work completed/i);
+    expect(idle.text).toMatch(/no service points/i);
+    const paid = serviceRewardCopy(20, false);
+    expect(paid.paid).toBe(true);
+    if (!paid.paid) return;
+    expect(paid.title).toBe('+20 service points');
+    expect(paid.detail).toMatch(/work completed/i);
+    const win = serviceRewardCopy(85, true);
+    if (!win.paid) return;
+    expect(win.detail).toMatch(/full job payment/i);
   });
 });
 
