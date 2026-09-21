@@ -373,7 +373,7 @@ export class Renderer {
 
   private drawRangePreview(game: Game, view: RenderView): void {
     const ctx = this.ctx;
-    const drawRange = (pos: Vec, r: number, color: string) => {
+    const drawRange = (pos: Vec, r: number, color: string, routeCoverage = false) => {
       ctx.save();
       const g = ctx.createRadialGradient(pos.x, pos.y, r * 0.15, pos.x, pos.y, r);
       g.addColorStop(0, color.replace('ALPHA', '0.16'));
@@ -387,15 +387,34 @@ export class Renderer {
       ctx.setLineDash([7, 6]);
       ctx.lineDashOffset = -game.time * 28;
       ctx.stroke();
+      if (routeCoverage) {
+        // Clip the actual smoothed routes to range, so placement reveals time on target.
+        ctx.clip();
+        ctx.setLineDash([]);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        for (const path of game.paths) {
+          const first = path.points[0]!;
+          ctx.moveTo(first.x, first.y);
+          for (let i = 1; i < path.points.length; i++) ctx.lineTo(path.points[i]!.x, path.points[i]!.y);
+        }
+        ctx.lineWidth = 11;
+        ctx.strokeStyle = color.replace('ALPHA', '0.16');
+        ctx.stroke();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = color.replace('ALPHA', '0.65');
+        ctx.stroke();
+      }
       ctx.restore();
     };
     if (view.selectedTowerId !== null) {
       const t = game.towerById(view.selectedTowerId);
       if (t) {
         const center = t.def.kind === 'barricade' ? t.rally : t.pos;
-        drawRange(center, t.def.kind === 'barricade' ? t.def.levels[t.level]!.range : game.effectiveRange(t), 'rgba(255,255,255,ALPHA)');
+        drawRange(center, t.def.kind === 'barricade' ? t.def.levels[t.level]!.range : game.effectiveRange(t), 'rgba(255,255,255,ALPHA)', t.def.id !== 'pipeSnake' && t.def.levels[t.level]!.damage > 0);
         if (t.def.kind === 'shooter') {
-          stampText(ctx, AIM_LABEL[t.aim], center.x, center.y - 28, { size: 13, color: '#ffe082' });
+          stampText(ctx, t.focusTargetId !== undefined ? 'FOCUS' : AIM_LABEL[t.aim], center.x, center.y - 28, { size: 13, color: '#ffe082' });
           const prey = t.lastTargetId ? game.enemies.find((e) => e.id === t.lastTargetId && !e.dead && !e.escaped) : null;
           if (prey) {
             ctx.save();
@@ -421,7 +440,7 @@ export class Renderer {
       const def = TOWERS[view.previewTower];
       const pos = game.map.slots[view.selectedSlot]!;
       const center = def.kind === 'barricade' ? game.nearestPathPoint(pos) : pos;
-      drawRange(center, def.levels[0].range * game.mods.towerRange, 'rgba(255,224,130,ALPHA)');
+      drawRange(center, def.levels[0].range * game.mods.towerRange, 'rgba(255,224,130,ALPHA)', def.id !== 'pipeSnake' && def.levels[0].damage > 0);
       ctx.save();
       ctx.globalAlpha = 0.5;
       drawTowerBase(ctx, pos.x, pos.y, def.color);
@@ -432,7 +451,7 @@ export class Renderer {
       const def = TOWERS[view.armed!];
       const pos = game.map.slots[ghostSlot]!;
       const center = def.kind === 'barricade' ? game.nearestPathPoint(pos) : pos;
-      drawRange(center, def.levels[0].range * game.mods.towerRange, 'rgba(156,204,138,ALPHA)');
+      drawRange(center, def.levels[0].range * game.mods.towerRange, 'rgba(156,204,138,ALPHA)', def.id !== 'pipeSnake' && def.levels[0].damage > 0);
       ctx.save();
       ctx.globalAlpha = 0.45;
       drawTowerBase(ctx, pos.x, pos.y, def.color);
@@ -454,7 +473,7 @@ export class Renderer {
       if (hover) {
         const center = hover.def.kind === 'barricade' ? hover.rally : hover.pos;
         const range = hover.def.kind === 'barricade' ? hover.def.levels[hover.level]!.range : game.effectiveRange(hover);
-        drawRange(center, range, 'rgba(255,236,200,ALPHA)');
+        drawRange(center, range, 'rgba(255,236,200,ALPHA)', hover.def.id !== 'pipeSnake' && hover.def.levels[hover.level]!.damage > 0);
       }
     }
   }

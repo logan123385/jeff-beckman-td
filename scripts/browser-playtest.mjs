@@ -122,11 +122,12 @@ try {
   // CBJ concentrates upgrades around his tower-damage aura.
   const plan = heroName === 'CBJ' ? [] : [['torch', 320, 340, 'Soldering Torch'], ['washer', 320, 465, 'Pressure Washer'], ['torch',420,280,'Soldering Torch']];
   async function rankUp() {
+    if (await read(`!!document.querySelector('.rank-call.ready:not(:disabled)')`) && !await read(`!!document.querySelector('.rank-overlay:not(.hidden)')`)) await press('l');
     while (await read(`!!document.querySelector('.rank-overlay:not(.hidden) .rank-skill:not(:disabled)')`)) {
       await click('.rank-overlay:not(.hidden) .rank-skill:not(:disabled)'); ranksPicked++;
     }
-    // A combat hotkey can also legitimately choose a rank when that panel opens mid-input.
-    ranksPicked = Math.max(ranksPicked, await read(`document.querySelectorAll('.ability .rank-pips > i.on').length`));
+    // Ranks open only on the player's explicit command; combat hotkeys retain their role.
+    ranksPicked = Math.max(ranksPicked, await read(`document.querySelectorAll('.ability .rank-pips > .on').length`));
   };
   async function selectTower(x,y,name) {
     for(let retry=0;retry<4;retry++) {

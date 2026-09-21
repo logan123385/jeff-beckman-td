@@ -8,6 +8,8 @@ export type DamageSource = 'jeff' | 'crew' | TowerId;
 
 export interface Enemy {
   id: number;
+  /** Originating wave, retained by split children and boss reinforcements. */
+  waveId?: number;
   def: EnemyDef;
   hp: number;
   maxHp: number;
@@ -128,6 +130,8 @@ export interface Tower {
   build?: number;
   /** Last aimed enemy, for the selected-tower aim line. */
   lastTargetId?: number;
+  /** Player focus; ordinary aim resumes when this target is no longer eligible. */
+  focusTargetId?: number;
   /** Seconds until the activated tool can fire again. */
   abilityCd: number;
   /** Temporary fire-rate surge from Circulator / Thermostat actives. */
@@ -208,6 +212,9 @@ export interface Hero {
   moving?: boolean;
   walkPhase?: number;
   castTimer?: number;
+  queuedOrder?: { kind: 'move'; pos: Vec } | { kind: 'attack'; enemyId: number };
+  combatIdle?: number;
+  recovering?: boolean;
 }
 
 export interface HeroMissile {
@@ -255,12 +262,24 @@ export type Effect =
   | { kind: 'skill'; pos: Vec; skill: JeffSkillId; ttl: number; max: number };
 
 export interface ActiveSpawn {
+  waveId?: number;
   enemy: EnemyId;
   remaining: number;
   interval: number;
   timer: number;
   path: number;
   properties: LeakProperty[];
+}
+
+export interface WaveReport {
+  wave: number;
+  kills: number;
+  leaks: number;
+  livesLost: number;
+  bounty: number;
+  bonus: number;
+  seconds: number;
+  clean: boolean;
 }
 
 export interface RunStats {

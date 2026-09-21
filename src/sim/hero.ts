@@ -19,6 +19,7 @@ export function updateHero(game: Game, dt: number): void {
   const def = game.heroDef;
   h.moveBlend = Math.max(0, Math.min(1, (h.moveBlend ?? 0) + (h.moving ? 1 : -1) * dt * 4.5));
   h.moving = false;
+  h.recovering = false;
   h.castTimer = Math.max(0, (h.castTimer ?? 0) - dt);
   if (h.clampCooldown > 0) h.clampCooldown -= dt;
   if (h.shutoffCooldown > 0) h.shutoffCooldown -= dt;
@@ -59,17 +60,22 @@ export function updateHero(game: Game, dt: number): void {
   }
   if (!h.deployed) return;
 
-  if (advanceHeroCast(game, dt)) { holdNearby(game); return; }
+  if (advanceHeroCast(game, dt)) { h.combatIdle = 0; holdNearby(game); return; }
+  if (h.queuedOrder) {
+    const order = h.queuedOrder; h.queuedOrder = undefined;
+    if (order.kind === 'move') game.commandHero(order.pos);
+    else game.commandHeroAttack(order.enemyId);
+  }
 
   const coffee = h.coffeeTimer > 0 ? JEFF.coffee.speed * (1 + abilityRank(game, 4) * 0.08) : 1;
   const ramp = h.moveBlend ?? 0;
   const ease = ramp * ramp * (3 - 2 * ramp);
-  const speed = def.speed * game.mods.jeffSpeed * game.jeffSpeedAura * coffee * ((h.overdrive ?? 0) > 0 ? def.id === 'mike' ? 1.65 : def.id === 'cbj' ? 1.22 : 1 : 1) * (0.48 + 0.52 * ease);
+  const speed = def.speed * game.mods.jeffSpeed * game.jeffSpeedAura * coffee * ((h.overdrive ?? 0) > 0 ? def.id === 'mike' ? 1.65 : def.id === 'cbj' ? 1.22 : 1 : 1) * (0.78 + 0.22 * ease);
 
   if (h.pendingStrike !== undefined && h.swing <= (h.swingDuration ?? def.swingTime) * 0.52) {
     const target = game.enemies.find(e => e.id === h.pendingStrike && isTargetable(e));
     h.pendingStrike = undefined;
-    if (target && !h.dest && dist(h.pos, target.pos) <= game.heroDef.reach * game.mods.jeffReach + target.def.radius + 10) { if (def.id === 'jeff') strike(game, target); else strikeNewHero(game, target); }
+    if (target && (def.ranged || !target.def.flying) && !h.dest && dist(h.pos, target.pos) <= game.heroDef.reach * game.mods.jeffReach + target.def.radius + 10) { h.combatIdle = 0; if (def.id === 'jeff') strike(game, target); else strikeNewHero(game, target); }
   }
 
   if (h.swing > 0 && !h.dest) { holdNearby(game); repairNearby(game, dt); return; }
@@ -77,7 +83,7 @@ export function updateHero(game: Game, dt: number): void {
   // Pure move order — no swinging while jogging to a point.
   if (h.dest) {
     const remaining = dist(h.pos, h.dest);
-    const ease = remaining < 28 ? Math.max(0.35, remaining / 28) : 1;
+    const ease = remaining < 18 ? Math.max(0.6, remaining / 18) : 1;
     const r = moveToward(h.pos, h.dest, speed * dt * ease);
     h.facing = h.dest.x >= h.pos.x ? 1 : -1;
     h.walkPhase = (h.walkPhase ?? 0) + dist(h.pos, r.pos) * 0.1;
@@ -85,6 +91,7 @@ export function updateHero(game: Game, dt: number): void {
     h.pos = r.pos;
     if (r.arrived) h.dest = null;
     h.targetId = null;
+    recover(game, dt);
     repairNearby(game, dt);
     return;
   }
@@ -92,6 +99,7 @@ export function updateHero(game: Game, dt: number): void {
   const target = resolveOrderTarget(game);
   h.targetId = target?.id ?? null;
   if (target) {
+    h.combatIdle = 0;
     if (h.engaged) h.anchor = { ...target.pos };
     const reach = game.heroDef.reach * game.mods.jeffReach + target.def.radius;
     if (dist(h.pos, target.pos) > reach) {
@@ -106,6 +114,7 @@ export function updateHero(game: Game, dt: number): void {
       h.facing = target.pos.x >= h.pos.x ? 1 : -1; h.pendingStrike = target.id;
     }
   }
+  else recover(game, dt);
   holdNearby(game);
   repairNearby(game, dt);
   } finally {
@@ -121,14 +130,14 @@ function resolveOrderTarget(game: Game): Enemy | null {
     let guard: Enemy | null = null;
     let nearest = Infinity;
     for (const e of game.enemies) {
-      if (!isTargetable(e)) continue;
+      if (!isTargetable(e) || (!game.heroDef.ranged && e.def.flying)) continue;
       const distance = dist(h.pos, e.pos);
       if (distance <= game.heroDef.reach * game.mods.jeffReach + e.def.radius && distance < nearest) { guard = e; nearest = distance; }
     }
     return guard;
   }
   const current = h.orderTargetId === null ? undefined : game.enemies.find((e) => e.id === h.orderTargetId);
-  if (current && !current.dead && !current.escaped) {
+  if (current && !current.dead && !current.escaped && (game.heroDef.ranged || !current.def.flying)) {
     if (!isTargetable(current)) return null;
     return current;
   }
@@ -151,6 +160,7 @@ function nearestPrey(game: Game, includePhased: boolean): Enemy | null {
   const reach = game.heroDef.reach * game.mods.jeffReach;
   for (const e of game.enemies) {
     if (e.dead || e.escaped) continue;
+    if (!game.heroDef.ranged && e.def.flying) continue;
     if (!includePhased && !isTargetable(e)) continue;
     const d = dist(origin, e.pos);
     if (d > HUNT_RADIUS + reach + e.def.radius) continue;
@@ -160,6 +170,15 @@ function nearestPrey(game: Game, includePhased: boolean): Enemy | null {
     }
   }
   return best;
+}
+
+/** Retreat is a tactical choice: three quiet seconds, then steady recovery. */
+function recover(game: Game, dt: number): void {
+  const h = game.hero;
+  h.combatIdle = (h.combatIdle ?? 0) + dt;
+  if (h.combatIdle < 3 || h.hp >= h.maxHp || h.hp <= 0) return;
+  h.recovering = true;
+  h.hp = Math.min(h.maxHp, h.hp + h.maxHp * .04 * dt);
 }
 
 function strike(game: Game, target: Enemy): void {

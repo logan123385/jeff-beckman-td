@@ -6,7 +6,7 @@ import { DIFFICULTIES } from '../../data/difficulty';
 import { enemyForMap } from '../../data/bosses';
 import { MAPS, WORLD_H, WORLD_W, mapById } from '../../data/maps';
 import { availableTowers, resolveLoadout } from '../../data/loadout';
-import { TOWERS, TOWER_ORDER } from '../../data/towers';
+import { TOWERS } from '../../data/towers';
 import { NIGHT_MUTATORS } from '../../data/night';
 import { remasterTitle, isOneLife, isNoPowers, isNoSell } from '../../data/remasters';
 import { PROPERTY_LABEL } from '../../data/leakProperties';
@@ -23,6 +23,7 @@ import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
 import { Hud } from '../play/hud';
 import { BattleIntel } from '../play/intel';
+import { BattleFlow } from '../play/flow';
 import { createPausePanel, pauseSoundLabel } from '../play/pause';
 import { createRankPanel } from '../play/ranks';
 import { Popover } from '../play/popover';
@@ -68,6 +69,9 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   const banner = h('div', { class: 'banner hidden' });
   const stage = h('div', { class: 'stage' }, canvas, banner);
   const overlayHost = h('div', { class: 'play-overlays' });
+  const flow = new BattleFlow(game);
+  stage.append(flow.el);
+  const rankCall = h('button', { class: 'rank-call', text: 'Hero ranks (L)', disabled: true, onClick: () => openRanks() });
   const el = h('div', { class: 'screen play' });
 
   const renderer = new Renderer(canvas);
@@ -177,18 +181,18 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         audio.order();
       }
       wasDowned = game.hero.downed > 0;
-      if (game.pendingRankUps > 0 && game.status === 'playing' && !rankPanel.isOpen()) {
-        rankPanel.show();
-        syncPause();
-        audio.upgrade();
-        hud.setHint(`${game.heroDef.name} leveled up — pick a skill to rank.`);
-      }
+
     },
     render() {
       view.interp = loop.alpha;
       view.armed = stickyTower;
       renderer.draw(game, view);
       hud.update();
+      flow.update();
+      rankCall.disabled = game.pendingRankUps <= 0;
+      const rankText = game.pendingRankUps > 0 ? `★ ${game.pendingRankUps} hero rank${game.pendingRankUps > 1 ? 's' : ''} (L)` : 'Hero ranks (L)';
+      if (rankCall.textContent !== rankText) rankCall.textContent = rankText;
+      rankCall.classList.toggle('ready', game.pendingRankUps > 0);
       popover.update(stage, canvas);
       intel.update(view.hoverEnemyId);
     },
@@ -274,14 +278,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   const hud = new Hud(
     game,
     {
-      onCallWave: () => {
-        if (!live()) return;
-        const bonus = game.callNextWave();
-        if (!game.hero.deployed && game.heroEnabled) {
-          hud.setHint(`Wave inbound. ${game.heroDef.name} is still in the truck — tap the portrait, then the yard.`);
-        } else if (bonus > 0) hud.setHint(`Called early for +$${bonus}.`);
-        if (game.waveIdx > 0 || game.waveActive) coach?.onWaveStarted();
-      },
+      onCallWave: () => callWave(),
       onToggleSpeed: () => {
         loop.speed = loop.speed >= 2.5 ? 1 : loop.speed >= 1.5 ? 3 : 2;
         hud.syncTransport();
@@ -319,7 +316,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   const intel = new BattleIntel(game, {
     onOpen: () => { clearSelection(); banner.classList.add('hidden'); el.classList.add('scouting'); syncPause(); },
     onClose: () => { el.classList.remove('scouting'); syncPause(); },
-    onCall: () => { if (live()) { const bonus = game.callNextWave(); hud.setHint(`Wave called. +$${bonus}.`); } },
+    onCall: () => callWave(),
     onRoute: route => { view.scoutedRoute = route; },
   });
   stage.append(intel.entries, intel.el, intel.inspection);
@@ -363,6 +360,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   });
   rankPanel = createRankPanel(game, {
     onPick: (slot) => pickRank(slot),
+    onClose: () => closeRanks(),
   });
   el.append(pausePanel.el, rankPanel.el);
 
@@ -389,6 +387,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     { class: 'job-strip' },
     h('span', { class: 'eyebrow', text: game.endless ? 'After hours' : map.subtitle }),
     h('b', { text: map.name }),
+    rankCall,
     h('span', { class: 'pill', text: remasterTitle(remaster) }),
     h('span', { class: 'pill', text: difficulty.name }),
     game.endless ? h('span', { class: 'small muted', text: 'Clock out anytime' }) : h('span', { class: 'small muted', text: `${map.waves.length} waves` }),
@@ -485,37 +484,49 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     return true;
   }
 
+  function callWave(): void {
+    if (!live()) return;
+    if (!game.canCallWave) { hud.setHint(game.callBlockReason); return; }
+    const recovery = game.callCooldownRecovery;
+    const bonus = game.callNextWave();
+    hud.setHint(!game.hero.deployed && game.heroEnabled
+      ? `Wave inbound. Deploy ${game.heroDef.name} from the portrait.`
+      : `Wave called · +$${bonus}${recovery > 0 ? ` · skills recover ${recovery.toFixed(1)}s` : ''}.`);
+    coach?.onWaveStarted();
+  }
+
+  function openRanks(): void {
+    if (game.pendingRankUps <= 0 || game.status !== 'playing') return;
+    if (intel.isOpen) intel.close();
+    clearSelection();
+    rankPanel.show(); syncPause();
+    hud.setHint('Choose a hero rank, or continue fighting and decide later.');
+  }
+
+  function closeRanks(): void {
+    rankPanel.hide(); syncPause();
+    hud.setHint(userPaused ? 'Paused — press P to resume.' : game.pendingRankUps > 0 ? 'Ranks saved. Open Hero ranks (L) whenever you are ready.' : 'Back on the clock.');
+  }
+
   function live(): boolean {
     if (game.status !== 'playing') return false;
-    if (game.pendingRankUps > 0) {
-      hud.setHint('Level up — pick a skill to rank.');
-      rankPanel.show();
-      return false;
-    }
+    if (rankPanel.isOpen()) return false;
     if (!loop.paused) return true;
     hud.setHint('Paused — press P or Esc to resume.');
     return false;
   }
 
   function syncPause(): void {
-    const rankLock = game.pendingRankUps > 0 && game.status === 'playing';
+    const rankLock = rankPanel.isOpen() && game.status === 'playing';
     loop.paused = userPaused || rankLock || intel.isOpen;
     el.classList.toggle('paused', loop.paused);
     hud.syncTransport();
     if (userPaused && !rankLock && !intel.isOpen) pausePanel.show();
     else pausePanel.hide();
-    if (rankLock) rankPanel.show();
-    else rankPanel.hide();
+    if (!rankLock) rankPanel.hide();
   }
 
   function setPaused(on: boolean): void {
-    if (on && game.pendingRankUps > 0) {
-      userPaused = true;
-      hud.setHint('Pick a skill to rank first.');
-      rankPanel.show();
-      syncPause();
-      return;
-    }
     userPaused = on;
     syncPause();
     if (on) hud.setHint('Paused — the truck is waiting.');
@@ -547,11 +558,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
 
   function togglePause(): void {
     if (intel.isOpen) { intel.close(); return; }
-    if (game.pendingRankUps > 0) {
-      hud.setHint('Pick a skill to rank first.');
-      rankPanel.show();
-      return;
-    }
+    if (rankPanel.isOpen()) { closeRanks(); return; }
     setPaused(!userPaused);
   }
 
@@ -734,7 +741,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
 
   function orderAttack(enemyId: number): void {
     if (!live()) return;
-    if (!game.commandHeroAttack(enemyId)) return;
+    if (!game.commandHeroAttack(enemyId)) { hud.setHint(`${game.heroDef.name} needs a ground target. Use ranged towers against air.`); return; }
     view.heroSelected = true;
     hud.setHeroSelected(true);
     view.selectedSlot = null;
@@ -758,7 +765,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     popover.hide();
     audio.order();
     coach?.onJeffOrder();
-    hud.setHint(coach?.active && coach.step === 'jeff' ? coach.hint() : `${game.heroDef.name} is on the way.`);
+    hud.setHint(game.hero.queuedOrder ? 'Move queued — finishing the current skill.' : coach?.active && coach.step === 'jeff' ? coach.hint() : `${game.heroDef.name} is on the way. Retreat for 3 seconds to recover health.`);
   }
 
   function useHeroSkill(slot: AbilitySlot): void {
@@ -949,6 +956,13 @@ cancelAim();
       return;
     }
     const enemyId = enemyAtPoint(p, pad);
+    if (enemyId !== null && view.selectedTowerId !== null) {
+      if (game.focusTower(view.selectedTowerId, enemyId)) {
+        audio.order(); popover.hide();
+        hud.setHint('Tower focused. Its normal aim resumes when that target leaves reach. A changes priority.');
+      } else hud.setHint('Choose a target this tower can hit inside its range.');
+      return;
+    }
     if (enemyId !== null && game.heroEnabled && game.hero.deployed && game.hero.downed <= 0) {
       orderAttack(enemyId);
       return;
@@ -1010,24 +1024,28 @@ cancelAim();
       return;
     }
     const key = ev.key.toLowerCase();
-    if (' ivqertcdgjufpsanx123456789'.includes(key) || ev.key === ' ' || key === 'escape') ev.preventDefault();
-    if (game.pendingRankUps > 0 && game.status === 'playing') {
+    if (rankPanel.isOpen() && game.status === 'playing') {
       const rankKeys: Record<string, AbilitySlot> = { q: 0, e: 1, r: 2, t: 3, c: 4 };
       if (key in rankKeys) {
+        ev.preventDefault();
         pickRank(rankKeys[key]!);
         return;
       }
       if (key === '1' || key === '2' || key === '3' || key === '4' || key === '5') {
+        ev.preventDefault();
         pickRank((Number(key) - 1) as AbilitySlot);
         return;
       }
       if (key === 'escape' || key === 'p') {
-        hud.setHint('Pick a skill to rank first.');
-        rankPanel.show();
+        ev.preventDefault();
+        closeRanks();
         return;
       }
+      return;
     }
+    if (' ilvqertcdgjufpsanx123456789'.includes(key) || ev.key === ' ' || key === 'escape') ev.preventDefault();
     switch (key) {
+      case 'l': openRanks(); break;
       case 'i': intel.open(); break;
       case 'd': beginCrew(); break;
       case 'x': beginStrike(); break;
@@ -1048,16 +1066,7 @@ cancelAim();
         useCoffee();
         break;
       case ' ':
-      case 'n': {
-        ev.preventDefault();
-        if (!live()) break;
-        const bonus = game.callNextWave();
-        if (!game.hero.deployed && game.heroEnabled) {
-          hud.setHint(`Wave inbound. ${game.heroDef.name} is still in the truck — tap the portrait, then the yard.`);
-        } else if (bonus > 0) hud.setHint(`Called early for +$${bonus}.`);
-        if (game.waveIdx > 0 || game.waveActive) coach?.onWaveStarted();
-        break;
-      }
+      case 'n': ev.preventDefault(); callWave(); break;
       case 'f':
         loop.speed = loop.speed >= 2.5 ? 1 : loop.speed >= 1.5 ? 3 : 2;
         hud.syncTransport();
@@ -1117,7 +1126,7 @@ cancelAim();
       case '8':
       case '9': {
         if (!live()) break;
-        const kit = TOWER_ORDER.filter((id) => game.allowedTowers.includes(id));
+        const kit = game.allowedTowers;
         const id = kit[Number(ev.key) - 1];
         if (!id) break;
         arm(id);

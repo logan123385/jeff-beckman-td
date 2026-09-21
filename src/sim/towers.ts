@@ -3,7 +3,7 @@ import { dist, turnToward } from '../core/vec';
 import { PHASE_VISIBLE_SECONDS } from '../data/enemies';
 import { BARRICADE_REBUILD_SECONDS, BARRICADE_REGEN_PER_SEC, MINERAL_ENEMIES } from '../data/towers';
 import type { EnemyId } from '../data/types';
-import { applyDamage, estimateDamage, heroOnYard, isTargetable, matchesTargetMode, pickTarget, predictedPos } from './combat';
+import { applyDamage, canTowerDamage, estimateDamage, heroOnYard, isTargetable, matchesTargetMode, pickTarget, predictedPos } from './combat';
 import type { Game } from './game';
 import type { Enemy, Tower } from './state';
 import { updateSpecialistAbilities } from './specialistAbilities';
@@ -354,6 +354,12 @@ function applyPrv(game: Game, t: Tower, dt: number): void {
 
 export function updateTowers(game: Game, dt: number): void {
   for (const t of game.towers) {
+    if (t.focusTargetId !== undefined) {
+      const focus = game.enemies.find(e => e.id === t.focusTargetId);
+      if (!focus || !isTargetable(focus) || !matchesTargetMode(t.def.targets, focus)
+        || !canTowerDamage(game, t, focus) || dist(focus.pos, t.pos) > game.effectiveRange(t) + focus.def.radius) t.focusTargetId = undefined;
+    }
+
     if ((t.build ?? 0) > 0) {
       t.build = Math.max(0, (t.build ?? 0) - dt);
       if (t.build > 0) {

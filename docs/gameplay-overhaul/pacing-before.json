@@ -1,0 +1,281 @@
+{
+  "method": "Greedy builder, legal capped kits, seed 7, no gear/perks/injected money. Measures regressions and pacing, not human balance.",
+  "impact": {
+    "inputSeconds": 10,
+    "simulationSeconds": 3.567,
+    "frozenUpdates": 386,
+    "kills": 100
+  },
+  "campaign": [
+    {
+      "map": "crawlspace",
+      "difficulty": "apprentice",
+      "status": "won",
+      "lives": 3,
+      "seconds": 332,
+      "waves": 10,
+      "kills": 150,
+      "towers": 6
+    },
+    {
+      "map": "crawlspace",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 267,
+      "waves": 10,
+      "kills": 125,
+      "towers": 4
+    },
+    {
+      "map": "crawlspace",
+      "difficulty": "master",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 222,
+      "waves": 9,
+      "kills": 104,
+      "towers": 4
+    },
+    {
+      "map": "boilerRoom",
+      "difficulty": "apprentice",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 341,
+      "waves": 12,
+      "kills": 254,
+      "towers": 9
+    },
+    {
+      "map": "boilerRoom",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 227,
+      "waves": 9,
+      "kills": 120,
+      "towers": 3
+    },
+    {
+      "map": "boilerRoom",
+      "difficulty": "master",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 152,
+      "waves": 7,
+      "kills": 63,
+      "towers": 3
+    },
+    {
+      "map": "radiantFloor",
+      "difficulty": "apprentice",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 257,
+      "waves": 10,
+      "kills": 89,
+      "towers": 4
+    },
+    {
+      "map": "radiantFloor",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 254,
+      "waves": 10,
+      "kills": 81,
+      "towers": 4
+    },
+    {
+      "map": "radiantFloor",
+      "difficulty": "master",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 174,
+      "waves": 7,
+      "kills": 43,
+      "towers": 3
+    },
+    {
+      "map": "municipalMain",
+      "difficulty": "apprentice",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 199,
+      "waves": 8,
+      "kills": 107,
+      "towers": 5
+    },
+    {
+      "map": "municipalMain",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 293,
+      "waves": 12,
+      "kills": 193,
+      "towers": 8
+    },
+    {
+      "map": "municipalMain",
+      "difficulty": "master",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 125,
+      "waves": 5,
+      "kills": 45,
+      "towers": 3
+    },
+    {
+      "map": "snowmelt",
+      "difficulty": "apprentice",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 173,
+      "waves": 8,
+      "kills": 66,
+      "towers": 3
+    },
+    {
+      "map": "snowmelt",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 160,
+      "waves": 7,
+      "kills": 61,
+      "towers": 3
+    },
+    {
+      "map": "snowmelt",
+      "difficulty": "master",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 147,
+      "waves": 7,
+      "kills": 53,
+      "towers": 3
+    },
+    {
+      "map": "attic",
+      "difficulty": "apprentice",
+      "status": "won",
+      "lives": 14,
+      "seconds": 350,
+      "waves": 12,
+      "kills": 205,
+      "towers": 9
+    },
+    {
+      "map": "attic",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 357,
+      "waves": 12,
+      "kills": 191,
+      "towers": 8
+    },
+    {
+      "map": "attic",
+      "difficulty": "master",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 241,
+      "waves": 11,
+      "kills": 127,
+      "towers": 6
+    },
+    {
+      "map": "liftStation",
+      "difficulty": "apprentice",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 122,
+      "waves": 5,
+      "kills": 48,
+      "towers": 3
+    },
+    {
+      "map": "liftStation",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 113,
+      "waves": 5,
+      "kills": 41,
+      "towers": 3
+    },
+    {
+      "map": "liftStation",
+      "difficulty": "master",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 92,
+      "waves": 4,
+      "kills": 30,
+      "towers": 3
+    },
+    {
+      "map": "mechanicalRoom",
+      "difficulty": "apprentice",
+      "status": "won",
+      "lives": 3,
+      "seconds": 258,
+      "waves": 10,
+      "kills": 172,
+      "towers": 9
+    },
+    {
+      "map": "mechanicalRoom",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 259,
+      "waves": 10,
+      "kills": 156,
+      "towers": 8
+    },
+    {
+      "map": "mechanicalRoom",
+      "difficulty": "master",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 173,
+      "waves": 8,
+      "kills": 66,
+      "towers": 4
+    },
+    {
+      "map": "heatPlant",
+      "difficulty": "apprentice",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 257,
+      "waves": 12,
+      "kills": 118,
+      "towers": 6
+    },
+    {
+      "map": "heatPlant",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 254,
+      "waves": 11,
+      "kills": 103,
+      "towers": 6
+    },
+    {
+      "map": "heatPlant",
+      "difficulty": "master",
+      "status": "lost",
+      "lives": 0,
+      "seconds": 119,
+      "waves": 6,
+      "kills": 40,
+      "towers": 5
+    }
+  ]
+}

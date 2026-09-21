@@ -145,3 +145,30 @@ body { -webkit-font-smoothing:antialiased; }
   *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
   .scene-motes { display:none; }
 }
+
+/* The yard keeps moving. Tactical choices open only when the player asks. */
+.rank-call { margin-left:auto; padding:5px 10px; border:1px solid #b5ae7970; border-radius:4px; color:#b7c3b7; background:#18323f; font-family:inherit; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; }
+.rank-call.ready { color:#ffe8a8; border-color:#e5c481; background:linear-gradient(120deg,#5a5140,#263d44); box-shadow:inset 0 1px #ffecc340; }
+.rank-call:disabled { opacity:.55; cursor:default; }
+.rank-later { margin-top:8px; min-height:38px; }
+.jeff-card.recovering .bar.hp .fill { background:linear-gradient(90deg,#51ae92,#c1e49b); box-shadow:0 0 9px #7ccbad55; }
+.jeff-card.recovering .jeff-status { color:#b7e8b0; }
+.battle-flow { position:absolute; inset:0; pointer-events:none; z-index:5; font-family:inherit; }
+.flow-state { position:absolute; top:10px; left:50%; transform:translateX(-50%); min-width:220px; max-width:55%; display:flex; flex-direction:column; gap:3px; align-items:center; padding:6px 14px 7px; background:linear-gradient(180deg,#0d273deb,#173b46bc); border:1px solid #d2bc793d; border-radius:0 0 8px 8px; box-shadow:0 4px 18px #0a203840; }
+.flow-phase { font-size:10px; letter-spacing:.15em; color:#e7c995; }.flow-detail { font-size:10px; color:#bfd3cd; }
+.wave-track { display:flex; gap:3px; width:100%; height:3px; margin-top:3px; }.wave-step { flex:1; border-radius:3px; background:#829b9e35; }.wave-step.active { background:#efc887; box-shadow:0 0 4px #efc88760; }.wave-step.clean { background:#90caa1; }.wave-step.cleared { background:#c08c76; }
+.flow-reward { white-space:pre-line; position:absolute; bottom:14px; left:50%; transform:translateX(-50%); max-width:85%; width:max-content; padding:8px 15px; color:#ecdfb3; background:#183841ee; border:1px solid #c9b66c80; border-radius:5px; font-size:11px; text-align:center; box-shadow:0 5px 16px #06182766; }
+.flow-warning { position:absolute; top:78px; right:10px; max-width:45%; padding:7px 10px; background:#512c2ae8; color:#ffe0c9; border:1px solid #f3997680; border-left:3px solid #f5b277; border-radius:3px; font-size:10px; box-shadow:0 3px 12px #15283980; }
+.play .banner { top:80px; max-width:70%; pointer-events:none; }.play .banner .banner-title { font-size:17px; }.play .banner .counter { font-size:10px; }
+.kr-investment { position:absolute; top:100%; left:50%; transform:translateX(-50%); width:220px; max-width:80vw; padding:7px 10px; border:1px solid #bda77180; border-radius:5px; background:#15323af2; color:#d1dece; font-size:10px; text-align:center; pointer-events:none; box-shadow:0 4px 12px #08203070; }
+.kr-investment b { display:block; color:#ebce93; margin-bottom:3px; }.kr-investment span { display:block; }
+.kr-wheel > .kr-investment { pointer-events:none; }
+/* A short yard needs reachable commands instead of a clipped radial wheel. */
+.kr-wheel.kr-compact:not(.kr-specialists) { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; width:340px; max-width:calc(100% - 12px); height:auto; padding:7px; overflow-y:auto; overscroll-behavior:contain; pointer-events:auto; background:#18343ef5; border:1px solid #c9b477; border-radius:7px; box-shadow:0 7px 24px #081d30a0; animation:none; }
+.kr-compact .kr-hub { position:relative; inset:auto; grid-column:1/-1; transform:none; width:auto; min-height:38px; padding:3px 42px 3px 6px; flex-direction:row; gap:8px; border:0; border-radius:4px; box-shadow:none; text-align:left; }
+.kr-compact .kr-hub-name { max-width:none; font-size:11px; }.kr-compact .kr-hub .swatch { margin:0; flex-shrink:0; }.kr-compact .kr-x { top:0; right:0; width:36px; height:36px; border-radius:4px; }
+.kr-compact .kr-spoke,.kr-compact .kr-spoke:hover:not(.poor) { position:relative; inset:auto; transform:none; width:auto; min-height:44px; padding:5px 3px; border-radius:5px; box-shadow:none; }
+.kr-compact .kr-spoke canvas { width:26px; height:26px; }.kr-compact .kr-spoke-sub { max-width:100%; }.kr-compact .kr-spoke-label { font-size:10px; }
+.kr-compact .kr-investment { position:static; grid-column:1/-1; transform:none; width:auto; max-width:none; margin-top:1px; padding:5px; border:0; border-top:1px solid #bda77155; border-radius:0; box-shadow:none; font-size:9px; }
+.kr-compact .kr-hp { position:static; grid-column:1/-1; transform:none; }
+@media (max-width:760px) { .rank-call { font-size:9px; padding:4px 6px; }.flow-state { top:3px; min-width:160px; max-width:62%; padding:3px 7px 4px; gap:1px; }.flow-phase { font-size:8px; }.flow-detail { font-size:8px; }.flow-reward { bottom:5px; font-size:8px; padding:4px 7px; }.flow-warning { top:45px; right:4px; font-size:8px; padding:4px 6px; }.play .banner { top:45px; }.play .banner .banner-title { font-size:12px; }.kr-investment { font-size:9px; width:190px; } }
