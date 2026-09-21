@@ -8,6 +8,7 @@ import { DIFFICULTIES } from '../src/data/difficulty';
 import { neutralModifiers } from '../src/data/skills';
 import { defaultFamily, familyHero, familyStance, implicitFor } from '../src/data/weapons';
 import { SAVE_KEY, normalizeSave, SaveStore } from '../src/save/save';
+import { kitSummary } from '../src/ui/screens/kit';
 import { resolveAttackProfile as resolve } from '../src/sim/attackProfile';
 import { Game } from '../src/sim/game';
 import { updateHero } from '../src/sim/hero';
@@ -17,6 +18,26 @@ import { updateAuras } from '../src/sim/towers';
 function playJeff(family: 'jeff_melee' | 'jeff_ranged') {
   return new Game(CRAWLSPACE, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), hero: 'jeff', kit: { family, weapon: null, cards: [null, null] } });
 }
+
+describe('kitSummary', () => {
+  it('describes Jeff default kit with Pipe Wrench and starter verbs', () => {
+    const save = new SaveStore(null);
+    const kit = save.heroKit('jeff');
+    const summary = kitSummary('jeff', kit, save.data.heroJobs.jeff ?? 0);
+    expect(summary).toContain('Pipe Wrench');
+    expect(summary).toContain('Hold');
+    expect(summary).toContain('Tap');
+  });
+
+  it('describes Jeff ranged with Pressure Wand and signature basics when cards empty', () => {
+    const save = new SaveStore(null);
+    save.setFamily('jeff', 'jeff_ranged');
+    const kit = { ...save.heroKit('jeff'), cards: [null, null] as [null, null] };
+    const summary = kitSummary('jeff', kit, save.data.heroJobs.jeff ?? 0);
+    expect(summary).toContain('Pressure Wand');
+    expect(summary).toContain('signature basics');
+  });
+});
 
 describe('profile basics', () => {
   it('lets a wand Jeff hit air and a wrench Jeff hold ground', () => {

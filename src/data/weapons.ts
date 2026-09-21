@@ -181,6 +181,29 @@ function parseFamily(family: WeaponFamilyId): { hero: HeroId; stance: WeaponStan
   return { hero, stance };
 }
 
+const FAMILY_LABEL: Record<WeaponFamilyId, string> = {
+  jeff_melee: 'Pipe Wrench',
+  jeff_ranged: 'Pressure Wand',
+  mike_melee: 'Tire Iron',
+  mike_ranged: 'Plunger Javelin',
+  bob_melee: 'Shock Prod',
+  bob_ranged: 'Hand Cannon',
+  chris_melee: 'Recip Saw',
+  chris_ranged: 'Golf Iron',
+  becbec_melee: 'Work Gloves',
+  becbec_ranged: 'Rebar Darts',
+  cbj_melee: 'Spud Masher',
+  cbj_ranged: 'Tater Cannon',
+  doni_melee: 'Gaff',
+  doni_ranged: 'Casting Rig',
+  jayjay_melee: 'Ring Fists',
+  jayjay_ranged: 'Bell Plate',
+};
+
+export function familyLabel(family: WeaponFamilyId): string {
+  return FAMILY_LABEL[family];
+}
+
 export function defaultFamily(hero: HeroId): WeaponFamilyId {
   return DEFAULT_FAMILY[hero];
 }

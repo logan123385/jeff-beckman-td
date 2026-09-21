@@ -38,7 +38,7 @@ export function renderHub(app: App): ScreenView {
             {
               class: 'lede',
               text: metaLocked
-                ? 'First call is Crawlspace Chaos — take the job below. Choose a hero build and browse the Supply Store now. The locker and 90’s open after a clear.'
+                ? 'First call is Crawlspace Chaos — take the job below. Browse the Supply Store now. The locker and Kit open after a clear.'
                 : `Lv ${xp.level} · pack five tools before each job. Every job earns XP and service points. First clears also drop chests. The Neverending Service Call opens after the first four calls — buy permanent tower licenses in the Supply Store.`,
             },
           ),
@@ -46,10 +46,9 @@ export function renderHub(app: App): ScreenView {
         h(
           'div',
           { class: 'hub-actions' },
-          metaBtn(app, 'talents', 'Hero builds', '8 heroes', false, ''),
+          metaBtn(app, 'kit', 'Kit', '8 heroes', metaLocked, metaTip),
           h('button', { class: 'btn supply-link', text: `Supply Store · ${save.data.servicePoints} points`, onClick: () => app.go({ kind: 'store' }) }),
           metaBtn(app, 'locker', 'Locker', `${save.data.inventory.length}`, metaLocked, metaTip),
-          metaBtn(app, 'skills', '90’s Perks', `${save.availableStars()} to spend`, metaLocked, metaTip),
           h('button', { class: 'btn', text: 'Encyclopedia', onClick: () => app.go({ kind: 'encyclopedia' }) }),
           h('button', { class: 'btn link', text: 'Title', onClick: () => app.go({ kind: 'title' }) }),
         ),
@@ -84,7 +83,7 @@ export function renderHub(app: App): ScreenView {
 
 function metaBtn(
   app: App,
-  kind: 'talents' | 'locker' | 'skills',
+  kind: 'kit' | 'locker',
   label: string,
   pill: string,
   locked: boolean,
