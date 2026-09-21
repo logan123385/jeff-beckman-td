@@ -51,3 +51,18 @@ export function moveToward(from: Vec, to: Vec, maxStep: number): { pos: Vec; arr
 export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
+
+/** Shortest signed delta from one angle to another, in (-π, π]. */
+export function angleDelta(from: number, to: number): number {
+  let d = to - from;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d <= -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
+/** Rotate `current` toward `target` by at most `maxStep` radians. */
+export function turnToward(current: number, target: number, maxStep: number): number {
+  const d = angleDelta(current, target);
+  if (Math.abs(d) <= maxStep) return target;
+  return current + Math.sign(d) * maxStep;
+}

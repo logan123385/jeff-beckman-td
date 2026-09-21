@@ -22,6 +22,7 @@ export function updateHeroAura(game: Game, dt: number): void {
     case 'jeff':
       for (const f of game.friendlies) if (f.hp > 0 && f.respawn <= 0 && nearby(f.pos)) f.hp = Math.min(f.maxHp, f.hp + f.maxHp * .02 * dt);
       for (const c of game.crew) if (c.hp > 0 && nearby(c.pos)) c.hp = Math.min(c.maxHp, c.hp + c.maxHp * .02 * dt);
+      for (const s of game.heroSummons) if (s.hp > 0 && nearby(s.pos)) s.hp = Math.min(s.maxHp, s.hp + s.maxHp * .02 * dt);
       break;
     case 'mike':
       for (const t of game.towers) if (nearby(t.pos)) {
@@ -211,15 +212,10 @@ function resolveAbility(game: Game, slot: AbilitySlot, point: Vec, targetId?: nu
     case 4: break;
   }
   if (def.id === 'chris') switch (slot) {
-    case 0: {
-      // A second summon replaces the previous one cleanly, including its enemy hold.
-      for (const old of game.heroSummons) releaseSummon(game, old.id);
-      const hp = Math.round(230 * pwr);
-      const life = 18 * pwr;
-      game.heroSummons = [{ id: game.nextEntityId(), pos: { x: h.pos.x + h.facing * 22, y: h.pos.y + 8 }, prev: { x: h.pos.x + h.facing * 22, y: h.pos.y + 8 }, hp, maxHp: hp,
-        left: life, duration: life, facing: h.facing, walkPhase: 0, moving: false, moveBlend: 0, swing: 0, attackTimer: 0 }];
-      visual(game, 'summon', h.pos, h.pos, 45, '#d4e599', .8); break;
-    }
+    case 0:
+      zone(game, 'sand', h.pos, 100 * rng, 6.5 * pwr);
+      visual(game, 'buff', h.pos, h.pos, 55, '#d2b48c', .7);
+      break;
     case 1: fireHeroMissile(game, 'golf', prey?.pos ?? point, 70 * pwr, prey?.id, 0, 2);
       visual(game, 'golf', h.pos, point, 45, '#fff4c7', .45); break;
     case 2: break; // Timed three-hit combo is resolved by advanceHeroCast.
@@ -266,6 +262,10 @@ export function updateHeroZones(game: Game, dt: number): void {
       for (const e of targets(game, z.radius, z.pos).filter(e => !e.def.flying)) {
         e.slow = Math.max(e.slow, .4); applyDamage(game, e, 12 * abilityPower(game, 3) * game.mods.jeffDamage * elapsed, 'heat', 'jeff');
       }
+    } else if (z.kind === 'sand') {
+      for (const e of targets(game, z.radius, z.pos).filter(e => !e.def.flying)) {
+        e.slow = Math.max(e.slow, .55); applyDamage(game, e, 10 * game.mods.jeffDamage * elapsed, 'physical', 'jeff');
+      }
     } else if (z.kind === 'rain') {
       z.tick -= elapsed;
       const rainPwr = abilityPower(game, 4);
@@ -310,6 +310,31 @@ export function updateHeroMissiles(game: Game, dt: number): void {
 export function releaseSummon(game: Game, id: number): void {
   for (const e of game.enemies) if (e.heldBy?.kind === 'summon' && e.heldBy.id === id) { e.heldBy = null; e.attackSwing = 0; }
 }
+
+/** Shared companion — available to every hero via the D reinforcement slot. */
+export function summonLogan(game: Game, pos: Vec): void {
+  for (const old of game.heroSummons) releaseSummon(game, old.id);
+  const facing = game.heroEnabled ? game.hero.facing : 1;
+  const start = { x: pos.x, y: pos.y };
+  game.heroSummons = [{
+    id: game.nextEntityId(),
+    anchor: { ...start },
+    pos: { ...start },
+    prev: { ...start },
+    hp: 230,
+    maxHp: 230,
+    left: 18,
+    duration: 18,
+    facing,
+    walkPhase: 0,
+    moving: false,
+    moveBlend: 0,
+    swing: 0,
+    attackTimer: 0,
+  }];
+  visual(game, 'summon', pos, pos, 45, '#d4e599', .8);
+}
+
 export function updateHeroSummons(game: Game, dt: number): void {
   for (const s of game.heroSummons) {
     s.left -= dt; s.attackTimer -= dt; s.moveBlend = Math.max(0, Math.min(1, s.moveBlend + (s.moving ? 1 : -1) * dt * 12)); s.moving = false;
@@ -319,16 +344,16 @@ export function updateHeroSummons(game: Game, dt: number): void {
       if (s.pendingTarget !== undefined && s.swing <= .46 * .52) {
         const e = game.enemies.find(e => e.id === s.pendingTarget && isTargetable(e)); s.pendingTarget = undefined;
         if (e && dist(e.pos, s.pos) <= 30 + e.def.radius) {
-          applyDamage(game, e, 14 * game.mods.jeffDamage * friendlyDamageBuff(game, s.pos), 'physical', 'jeff');
+          applyDamage(game, e, 14 * game.mods.jeffDamage * friendlyDamageBuff(game, s.pos), 'physical', 'crew');
           game.addEffect({ kind: 'hit', pos: { x: e.pos.x, y: e.pos.y - 8 }, color: '#d2e397', ttl: .16, max: .16 });
         }
       }
       continue;
     }
     const held = game.enemies.find(e => isTargetable(e) && e.heldBy?.kind === 'summon' && e.heldBy.id === s.id);
-    const prey = held ?? targets(game, 205).filter(e => !e.def.flying).sort((a, b) => dist(a.pos, s.pos) - dist(b.pos, s.pos))[0];
+    const prey = held ?? targets(game, 205, s.anchor).filter(e => !e.def.flying).sort((a, b) => dist(a.pos, s.pos) - dist(b.pos, s.pos))[0];
     s.targetId = prey?.id;
-    const goal = prey?.pos ?? { x: game.hero.pos.x - game.hero.facing * 25, y: game.hero.pos.y + 14 };
+    const goal = prey?.pos ?? s.anchor;
     if (dist(s.pos, goal) > (prey ? 23 + prey.def.radius : 6)) {
       const step = moveToward(s.pos, goal, 215 * dt);
       s.facing = goal.x >= s.pos.x ? 1 : -1; s.walkPhase += dist(s.pos, step.pos) * .22;

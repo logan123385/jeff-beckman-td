@@ -4,6 +4,8 @@ import { remasterTitle, isOneLife } from '../../data/remasters';
 import { TOWERS, TOWER_ORDER } from '../../data/towers';
 import type { Game } from '../../sim/game';
 import { h, stars } from '../dom';
+import { enemyForMap } from '../../data/bosses';
+import type { EnemyId } from '../../data/types';
 
 export interface ResultsHandlers {
   onRetry(): void;
@@ -15,6 +17,9 @@ export interface ResultsHandlers {
 export function renderResults(game: Game, earnedStars: number, handlers: ResultsHandlers, reward?: RunReward): HTMLElement {
   const won = game.status === 'won';
   const retired = game.status === 'retired';
+  const leaks = Object.entries(game.stats.escapedByType).sort((a, b) => b[1] - a[1]);
+  const biggestLeak = leaks.find(([id]) => enemyForMap(id as EnemyId, game.map.id).traits.includes('boss')) ?? leaks[0];
+  const leakDef = biggestLeak ? enemyForMap(biggestLeak[0] as EnemyId, game.map.id) : null;
   const towerTotal = TOWER_ORDER.reduce((s, id) => s + game.stats.towerDamage[id], 0);
   const total = towerTotal + game.stats.jeffDamage + game.stats.crewDamage;
   const jeffPct = total > 0 ? (game.stats.jeffDamage / total) * 100 : 0;
@@ -56,6 +61,9 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
       h('div', { class: 'eyebrow', text: eyebrow }),
       h('h2', { text: headline }),
       h('p', { class: 'muted', text: blurb }),
+      leakDef && biggestLeak ? h('aside', { class: 'result-advice' },
+        h('b', { text: `Field note: ${leakDef.name}` }),
+        h('p', { text: `${biggestLeak[1]} escaped. ${leakDef.counters}` })) : null,
       won && game.remaster === 'classic' && earnedStars > 0 ? h('div', { class: 'result-stars' }, stars(earnedStars)) : null,
       won && game.remaster !== 'classic' && earnedStars > 0
         ? h('p', { class: 'small', text: 'First remaster clear — +1 90’s.' })
@@ -108,7 +116,7 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
           h('span', { class: 'share-pct', text: `${jeffPct.toFixed(0)}%` }),
         ),
         ...towerRows,
-        game.stats.crewDamage > 0 ? h('div', { class: 'share-row' }, h('span', { class: 'share-name', text: 'Support crew' }), h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${game.stats.crewDamage / total * 100}%`, background: '#dfc273' } })), h('span', { class: 'share-pct', text: `${(game.stats.crewDamage / total * 100).toFixed(0)}%` })) : null,
+        game.stats.crewDamage > 0 ? h('div', { class: 'share-row' }, h('span', { class: 'share-name', text: 'Logan' }), h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${game.stats.crewDamage / total * 100}%`, background: '#dfc273' } })), h('span', { class: 'share-pct', text: `${(game.stats.crewDamage / total * 100).toFixed(0)}%` })) : null,
         h('p', { class: 'small muted', text: jeffPct > 50 ? `${game.heroDef.name} led the damage. Invest in towers to spread the workload.` : `Towers held the line with ${game.heroDef.name} and the crew.` }),
       ),
       h(

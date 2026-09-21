@@ -2,6 +2,7 @@ import { App } from './ui/app';
 import { warmMotion } from './render/animation';
 import { preloadArt } from './render/art';
 import './remaster.css';
+import './tactics.css';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing');

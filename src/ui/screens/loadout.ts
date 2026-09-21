@@ -8,6 +8,9 @@ import type { RemasterId, TowerId } from '../../data/types';
 import type { App, ScreenView } from '../app';
 import { h } from '../dom';
 import { heroPortrait, towerPortrait } from '../portraits';
+import { CAMPAIGN_LOCATIONS } from '../../data/campaign';
+import { enemyForMap } from '../../data/bosses';
+import { enemyTraits, loadoutWarnings } from '../../data/intel';
 
 export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'classic'): ScreenView {
   const map = mapById(mapId);
@@ -61,6 +64,14 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
         h('button', { class: 'btn link', text: '← Van', onClick: () => app.go({ kind: 'hub' }) }),
         h('div', {}, h('div', { class: 'eyebrow', text: map.endless ? 'After hours' : map.subtitle }), h('h1', { text: 'Pack the truck' })),
       ),
+      h('section', { class: 'loadout-brief sheet', attrs: { 'aria-label': 'Mission intelligence' } },
+        h('div', {}, h('span', { class: 'eyebrow', text: 'Mission intelligence' }), h('h2', { text: map.name }),
+          h('p', { text: CAMPAIGN_LOCATIONS[map.id]?.tactic ?? map.blurb })),
+        h('div', { class: 'loadout-threats' }, h('b', { text: `${map.endless ? 'Endless waves' : `${map.waves.length} waves`} · ${map.paths.length} ${map.paths.length === 1 ? 'route' : 'routes'} · $${map.startMoney} base budget` }),
+          ...[...new Set(map.waves.flatMap(w => w.groups.map(g => g.enemy)))].map(id => {
+            const enemy = enemyForMap(id, map.id);
+            return h('span', { class: 'pill', text: enemy.name, title: `${enemyTraits(enemy).join(' · ')}. ${enemy.counters}` });
+          }))),
       heroPicker(),
       h(
         'p',
@@ -113,6 +124,7 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
           ),
         ),
       ),
+      ...loadoutWarnings(map, picked).map(text => h('p', { class: 'loadout-warning', text: `⚑ ${text}`, attrs: { role: 'status' } })),
       h(
         'div',
         { class: 'btn-row loadout-actions' },

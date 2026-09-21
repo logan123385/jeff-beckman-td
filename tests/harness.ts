@@ -21,6 +21,8 @@ export interface HarnessOptions {
   /** Move Jeff to the busiest barricade every few seconds. */
   microJeff?: boolean;
   maxSeconds?: number;
+  /** Test exactly the same five-tool restriction as a player, rather than the entire catalogue. */
+  loadout?: TowerId[];
 }
 
 export interface HarnessResult {
@@ -80,9 +82,9 @@ export function coverage(map: MapDef, game: Game, slot: number, range: number): 
 export function runHeadless(map: MapDef, opts: HarnessOptions = {}): HarnessResult {
   const difficulty = DIFFICULTIES[opts.difficulty ?? 'apprentice'];
   const mods = buildModifiers(opts.skills ?? []);
-  const game = new Game(map, { heroId: opts.heroId, difficulty, mods, seed: opts.seed ?? 7, heroEnabled: opts.heroEnabled ?? true });
+  const game = new Game(map, { heroId: opts.heroId, difficulty, mods, seed: opts.seed ?? 7, heroEnabled: opts.heroEnabled ?? true, loadout: opts.loadout });
   if (game.heroEnabled) game.deployHero({ ...map.jeffStart });
-  const order = (opts.buildOrder ?? DEFAULT_ORDER).filter((id) => map.allowedTowers.includes(id));
+  const order = (opts.buildOrder ?? DEFAULT_ORDER).filter((id) => game.allowedTowers.includes(id));
   const hasFliers = map.waves.some((w) => w.groups.some((g) => ENEMIES[g.enemy].flying));
   const plan = order.filter((id) => id !== 'vent' || hasFliers);
   let planIdx = 0;
@@ -91,6 +93,10 @@ export function runHeadless(map: MapDef, opts: HarnessOptions = {}): HarnessResu
   const maxSeconds = opts.maxSeconds ?? 1800;
 
   while (game.status === 'playing' && game.time < maxSeconds) {
+    while (game.pendingRankUps > 0) {
+      const slot = game.abilityRanks.findIndex(rank => rank < 3);
+      if (slot < 0 || !game.rankAbility(slot as 0 | 1 | 2 | 3 | 4)) break;
+    }
     decideTimer -= FIXED_DT;
     if (decideTimer <= 0) {
       decideTimer = 0.5;

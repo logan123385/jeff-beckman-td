@@ -5,11 +5,19 @@ import { applyDamage, abilityRank, isTargetable } from './combat';
 import type { Game } from './game';
 import type { Enemy } from './state';
 
+function softenFacing(current: number | undefined, want: number, dt: number, rate = 7): number {
+  const cur = current ?? want;
+  const d = want - cur;
+  const step = rate * dt;
+  if (Math.abs(d) <= step) return want;
+  return cur + Math.sign(d) * step;
+}
+
 export function updateHero(game: Game, dt: number): void {
   if (!game.heroEnabled) return;
   const h = game.hero;
   const def = game.heroDef;
-  h.moveBlend = Math.max(0,Math.min(1,(h.moveBlend??0)+(h.moving?1:-1)*dt*10));
+  h.moveBlend = Math.max(0, Math.min(1, (h.moveBlend ?? 0) + (h.moving ? 1 : -1) * dt * 4.5));
   h.moving = false;
   h.castTimer = Math.max(0, (h.castTimer ?? 0) - dt);
   if (h.clampCooldown > 0) h.clampCooldown -= dt;
@@ -23,6 +31,7 @@ export function updateHero(game: Game, dt: number): void {
   if (h.attackTimer > 0) h.attackTimer -= dt;
   if (h.swing > 0) h.swing -= dt;
 
+  try {
   if (h.downed > 0) {
     h.pendingStrike = undefined;
     h.swing = 0;
@@ -67,7 +76,9 @@ export function updateHero(game: Game, dt: number): void {
 
   // Pure move order — no swinging while jogging to a point.
   if (h.dest) {
-    const r = moveToward(h.pos, h.dest, speed * dt);
+    const remaining = dist(h.pos, h.dest);
+    const ease = remaining < 28 ? Math.max(0.35, remaining / 28) : 1;
+    const r = moveToward(h.pos, h.dest, speed * dt * ease);
     h.facing = h.dest.x >= h.pos.x ? 1 : -1;
     h.walkPhase = (h.walkPhase ?? 0) + dist(h.pos, r.pos) * 0.1;
     h.moving = true;
@@ -86,8 +97,8 @@ export function updateHero(game: Game, dt: number): void {
     if (dist(h.pos, target.pos) > reach) {
       const r = moveToward(h.pos, target.pos, speed * dt);
       h.walkPhase = (h.walkPhase ?? 0) + dist(h.pos, r.pos) * 0.1;
-    h.moving = true;
-    h.pos = r.pos;
+      h.moving = true;
+      h.pos = r.pos;
       h.facing = target.pos.x >= h.pos.x ? 1 : -1;
     } else if (h.attackTimer <= 0) {
       const haste = heroAttackSpeed(game);
@@ -97,6 +108,9 @@ export function updateHero(game: Game, dt: number): void {
   }
   holdNearby(game);
   repairNearby(game, dt);
+  } finally {
+    h.faceVisual = softenFacing(h.faceVisual, h.facing, dt);
+  }
 }
 
 /** Hunt started by one wrench click. The locked leak is waited out if it phases; once it dies, the nearest leak is next. A move order is the only off switch. */

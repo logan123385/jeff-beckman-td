@@ -3,6 +3,7 @@ import { PROPERTY_LABEL } from '../../data/leakProperties';
 import { previewRbe, splitPreview } from '../../data/splits';
 import { isOneLife, isNoPowers } from '../../data/remasters';
 import { ABILITY_KEYS, COOLDOWN_FIELDS, type AbilitySlot } from '../../data/heroes';
+import { enemyForMap } from '../../data/bosses';
 import { NIGHT_MUTATORS, proceduralMutator } from '../../data/night';
 import type { TowerId } from '../../data/types';
 import { TOWERS } from '../../data/towers';
@@ -31,6 +32,7 @@ export interface HudHandlers {
   onCrew(): void;
   onStrike(): void;
   onArm(id: TowerId): void;
+  onScout(): void;
 }
 
 /** Top and bottom bars. `update()` runs every frame and only touches text that changed. */
@@ -147,6 +149,7 @@ export class Hud {
       this.stickyChip,
       h('div', { class: 'medal wave' }, h('span', { class: 'label', text: 'Wave' }), this.wave),
       h('div', { class: 'hud-group grow' }, this.next, this.mutator),
+      h('button', { class: 'btn small-btn scout-button', text: 'Scout (I)', title: 'Pause and inspect incoming routes, enemies and counters', onClick: handlers.onScout }),
       this.callBtn,
       this.clockBtn,
       this.speedBtn,
@@ -189,10 +192,10 @@ export class Hud {
       this.rankPips[i] = dots;
     });
 
-    ability(this.crewBtn, this.crewCd, 'D', 'Support crew', '2 helpers · 18 seconds', handlers.onCrew);
+ability(this.crewBtn, this.crewCd, 'D', 'Summon Logan', 'Tiny gremlin · 18s', handlers.onCrew);
     ability(this.strikeBtn, this.strikeCd, 'X', 'Torch rain', '3 fire dumps on a point', handlers.onStrike);
     if (isNoPowers(game.remaster)) {
-      this.crewBtn.title = 'Clean Hands — no support crew.';
+      this.crewBtn.title = 'Clean Hands — no Summon Logan.';
       this.strikeBtn.title = 'Clean Hands — no torch rain.';
     }
 
@@ -340,6 +343,8 @@ export class Hud {
 
   update(): void {
     const g = this.game;
+    const scoutButton = this.top.querySelector<HTMLButtonElement>('.scout-button');
+    if (scoutButton) scoutButton.disabled = g.allWavesStarted;
     if (this.set(this.lives, String(g.lives)) && this.prevLives !== -1) {
       this.replay(this.lives.parentElement ?? this.lives, g.lives < this.prevLives ? 'hurt' : 'bump');
     }
@@ -396,11 +401,11 @@ export class Hud {
             const tags = p.properties.length ? ` · ${p.properties.map((x) => PROPERTY_LABEL[x]).join(', ')}` : '';
             const kids = splitPreview(p.enemy, p.count, p.properties.includes('pressurized'));
             const split = kids ? ` → ${kids.count} ${ENEMIES[kids.child].name}` : '';
-            return `${p.count} × ${ENEMIES[p.enemy].name}${split}${tags} · route ${p.path + 1}\n${ENEMIES[p.enemy].counters}`;
+            return `${p.count} × ${enemyForMap(p.enemy, g.map.id).name}${split}${tags} · route ${p.path + 1}\n${enemyForMap(p.enemy, g.map.id).counters}`;
           }),
         ].filter(Boolean).join('\n\n');
         for (const p of preview) {
-          const def = ENEMIES[p.enemy];
+          const def = enemyForMap(p.enemy, g.map.id);
           const tags = p.properties.map((x) => PROPERTY_LABEL[x]).join(', ');
           const kids = splitPreview(p.enemy, p.count, p.properties.includes('pressurized'));
           const split = kids ? ` → ${kids.count} ${ENEMIES[kids.child].name}` : '';
@@ -414,7 +419,7 @@ export class Hud {
         }
         this.next.append(h('span', { class: 'next-names', text: preview.map((p) => {
           const kids = splitPreview(p.enemy, p.count, p.properties.includes('pressurized'));
-          return kids ? `${p.count} ${ENEMIES[p.enemy].name} → ${kids.count} ${ENEMIES[kids.child].name}` : `${p.count} ${ENEMIES[p.enemy].name}`;
+          return kids ? `${p.count} ${enemyForMap(p.enemy, g.map.id).name} → ${kids.count} ${ENEMIES[kids.child].name}` : `${p.count} ${enemyForMap(p.enemy, g.map.id).name}`;
         }).join(' · ') }));
       }
       const bonus = Math.floor(Math.max(0, g.waveCountdown) * EARLY_CALL_BONUS_PER_SECOND);

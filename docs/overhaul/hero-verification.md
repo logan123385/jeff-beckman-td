@@ -1,5 +1,7 @@
 # Playable hero expansion verification
 
+> Historical evidence from September 19, before the Cursor hero-rank and VFX updates. The original captures below retain the old Support crew and Unleash Logan labels. For the current Summon Logan and Sand Trap controls, see [combined-version verification](tactical-verification.md) and [current mobile hero-kit observations](combined-mobile-report.json).
+
 Local verification performed September 19, 2026. The game has five selectable heroes: Jeff Beckman, Big Mike, Robo Bob, Mr. Chris, and Becbec. Each has five active abilities and a distinct passive aura. New heroes are available immediately from **Pack the truck**; the selected hero persists, and existing saves default to Jeff.
 
 ## Implemented behavior

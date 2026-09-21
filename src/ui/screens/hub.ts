@@ -1,5 +1,5 @@
 import { DIFFICULTIES, DIFFICULTY_ORDER } from '../../data/difficulty';
-import { MAPS, SERVICE_CALL } from '../../data/maps';
+import { SERVICE_CALL } from '../../data/maps';
 import { REMASTER_ORDER, REMASTERS } from '../../data/remasters';
 import { TOWERS } from '../../data/towers';
 import { levelFromXp } from '../../data/xp';
@@ -9,6 +9,7 @@ import type { App, ScreenView } from '../app';
 import { clear, h, stars } from '../dom';
 import { persistRow } from '../persist';
 import { jeffPortrait } from '../portraits';
+import { campaignMap } from './campaignMap';
 
 export function renderHub(app: App): ScreenView {
   const save = app.save;
@@ -31,7 +32,7 @@ export function renderHub(app: App): ScreenView {
           'div',
           { class: 'hub-copy' },
           h('div', { class: 'eyebrow', text: 'The truck' }),
-          h('h1', { text: 'Jeff’s Van' }),
+          h('h1', { text: 'The service trail' }),
           h(
             'p',
             {
@@ -72,13 +73,8 @@ export function renderHub(app: App): ScreenView {
         ),
         h('span', { class: 'muted small', text: diff.blurb }),
       ),
-      ...(nightOpen ? [nightCard(app, true, true)] : []),
-      h(
-        'section',
-        { class: 'map-grid' },
-        ...MAPS.map((map, i) => campaignCard(app, map, i, save.isUnlocked(i), metaLocked && map.id === 'crawlspace')),
-        nightOpen ? false : nightCard(app, false, false),
-      ),
+      campaignMap(app, (map, i, unlocked) => campaignCard(app, map, i, unlocked, metaLocked && i === 0)),
+      nightCard(app, nightOpen, nightOpen),
     );
   };
   render();
@@ -179,6 +175,7 @@ function remasterBtn(app: App, map: MapDef, id: Exclude<RemasterId, 'classic'>):
 }
 
 function toolLabel(name: string): string {
+  if (name.startsWith('CBJ &')) return 'CBJ & Doni';
   const parts = name.split(' ');
   return parts.length <= 2 ? name : parts.slice(0, 2).join(' ');
 }

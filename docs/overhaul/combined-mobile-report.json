@@ -1,0 +1,63 @@
+{
+  "pass": true,
+  "viewport": [
+    390,
+    844
+  ],
+  "heroKits": [
+    {
+      "hero": "Jeff Beckman",
+      "abilities": [
+        "Pipe Clamp",
+        "Emergency Shutoff",
+        "Manometer Pulse",
+        "Isolation Sleeve",
+        "Coffee"
+      ]
+    },
+    {
+      "hero": "Big Mike",
+      "abilities": [
+        "Plunger Volley",
+        "Make Way!",
+        "Tailgate Supply",
+        "Full Throttle",
+        "Plunger Rain"
+      ]
+    },
+    {
+      "hero": "Robo Bob",
+      "abilities": [
+        "You're Fired",
+        "System Reboot",
+        "EMP Notice",
+        "Overclock",
+        "Performance Review"
+      ]
+    },
+    {
+      "hero": "Becbec",
+      "abilities": [
+        "Haymaker",
+        "Seismic Slam",
+        "Bring It On",
+        "Iron Will",
+        "Knuckle Storm"
+      ]
+    },
+    {
+      "hero": "Mr. Chris",
+      "abilities": [
+        "Sand Trap",
+        "FORE!",
+        "Reciprocating Rampage",
+        "Clear the Room",
+        "Second Wind"
+      ]
+    }
+  ],
+  "sandTrapCast": true,
+  "independentLogan": true,
+  "pauseRestored": true,
+  "errors": []
+}

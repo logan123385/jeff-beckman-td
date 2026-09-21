@@ -1,4 +1,6 @@
-/** Soft AV — oscillator beds + short blips, no samples, no FOMO stingers. */
+/** Soft AV — oscillator beds, quiet looping music, short blips. No FOMO stingers. */
+
+import musicUrl from '../../assets/audio/rain-on-glass.mp3';
 
 export type SkillCue = 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee';
 
@@ -20,6 +22,9 @@ export type AmbientMood = 'warm' | 'plant' | 'cold' | 'night' | 'default';
 
 /** Soft / Full / Off presets for the HUD cycle. */
 export type SoundPreset = 'off' | 'soft' | 'full';
+
+/** Quiet bed under the oscillator drones — fills space without competing with SFX. */
+const MUSIC_BED_GAIN = 0.16;
 
 export function moodForMap(mapId: string): AmbientMood {
   switch (mapId) {
@@ -57,11 +62,17 @@ export class AudioBus {
   private ambientBus: GainNode | null = null;
   private ambientNodes: AudioNode[] = [];
   private ambientMood: AmbientMood | null = null;
+  private musicBuffer: AudioBuffer | null = null;
+  private musicSource: AudioBufferSourceNode | null = null;
+  private musicGain: GainNode | null = null;
+  private musicLoad: Promise<AudioBuffer | null> | null = null;
   private lastKillAt = 0;
   private killsThisBurst = 0;
   private lastHitAt = 0;
   private lastShotAt = 0;
   private lastDripAt = 0;
+  private disposed = false;
+  private noiseBuffer: AudioBuffer | null = null;
 
   constructor(opts: { muted?: boolean; sfxGain?: number; ambientGain?: number } = {}) {
     this.muted = opts.muted ?? false;
@@ -78,12 +89,14 @@ export class AudioBus {
   setMuted(muted: boolean): void {
     this.muted = muted;
     this.applyGains();
+    this.syncAmbient();
   }
 
   setVolumes(sfx: number, ambient: number): void {
     this.sfxGain = clamp01(sfx);
     this.ambientGain = clamp01(ambient);
     this.applyGains();
+    this.syncAmbient();
   }
 
   /** Apply Soft / Full / Off preset. */
@@ -108,6 +121,7 @@ export class AudioBus {
       }
     }
     this.applyGains();
+    this.syncAmbient();
   }
 
   /** Infer preset from current mute/volumes (for HUD label). */
@@ -185,13 +199,38 @@ export class AudioBus {
   }
 
   /** Tower shot / aura pulse. */
-  shot(): void {
+  shot(family: 'fire' | 'water' | 'heat' | 'physical' = 'physical'): void {
     const ctx = this.ensure();
     if (!ctx || this.muted) return;
     if (ctx.currentTime - this.lastShotAt < 0.055) return;
     this.lastShotAt = ctx.currentTime;
+    if (family === 'fire') {
+      this.play({ freq: 135, slide: 70, dur: .1, type: 'sawtooth', gain: .018, click: .012, filter: { type: 'lowpass', freq: 650 } });
+      return;
+    }
+    if (family === 'water') {
+      this.play({ freq: 420, slide: 95, dur: .13, type: 'sine', gain: .035, click: .025, filter: { type: 'bandpass', freq: 1200, q: .4 } });
+      return;
+    }
+    if (family === 'heat') {
+      this.play({ freq: 700, slide: 330, dur: .08, type: 'triangle', gain: .024, harmonic: .009 });
+      return;
+    }
     this.play({ freq: 310, dur: 0.045, type: 'triangle', gain: 0.028, slide: 190, click: 0.022, filter: { type: 'lowpass', freq: 1200 } });
     this.play({ freq: 640, dur: 0.03, type: 'sine', gain: 0.016, slide: 420 });
+  }
+
+  bossWarning(): void {
+    this.play({ freq: 110, slide: 165, dur: .55, type: 'triangle', gain: .06, harmonic: .015, filter: { type: 'lowpass', freq: 650 } });
+    this.play({ freq: 220, slide: 247, dur: .4, type: 'sine', gain: .035 });
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.stopAmbient();
+    this.musicBuffer = null;
+    if (this.ctx) void this.ctx.close().catch(() => {});
+    this.ctx = null; this.master = null; this.sfxBus = null; this.ambientBus = null; this.noiseBuffer = null;
   }
 
   skill(cue: SkillCue): void {
@@ -281,11 +320,27 @@ export class AudioBus {
     this.play({ freq: 420, dur: 0.06, type: 'triangle', gain: 0.01, slide: 260 });
   }
 
+  private syncAmbient(): void {
+    const mood = this.ambientMood;
+    if (mood === null || this.disposed) return;
+    if (this.muted || this.ambientGain === 0) {
+      this.stopAmbient();
+      this.ambientMood = mood;
+    } else this.startAmbient(mood);
+  }
+
   startAmbient(mood: AmbientMood): void {
+    if (this.disposed) return;
+    if (this.muted || this.ambientGain === 0) {
+      this.stopAmbient();
+      this.ambientMood = mood;
+      return;
+    }
     const ctx = this.ensure();
     if (!ctx) return;
     if (this.ambientMood === mood && this.ambientNodes.length > 0) {
       this.applyGains();
+      void this.ensureMusicBed();
       return;
     }
     this.stopAmbient();
@@ -305,7 +360,8 @@ export class AudioBus {
       lfo.frequency.setValueAtTime(0.08, now);
       lfoGain.gain.setValueAtTime(freq * 0.012, now);
       g.gain.setValueAtTime(0.0001, now);
-      g.gain.exponentialRampToValueAtTime(gain, now + 1.4);
+      // Quieter drones so Rain on Glass can fill the bed.
+      g.gain.exponentialRampToValueAtTime(gain * 0.45, now + 1.4);
       lfo.connect(lfoGain);
       lfoGain.connect(osc.frequency);
       osc.connect(g);
@@ -330,7 +386,7 @@ export class AudioBus {
       filter.Q.setValueAtTime(0.7, now);
       const ng = ctx.createGain();
       ng.gain.setValueAtTime(0.0001, now);
-      ng.gain.exponentialRampToValueAtTime(mood === 'night' ? 0.012 : 0.018, now + 1.6);
+      ng.gain.exponentialRampToValueAtTime((mood === 'night' ? 0.012 : 0.018) * 0.55, now + 1.6);
       src.connect(filter);
       filter.connect(ng);
       ng.connect(bus);
@@ -339,9 +395,11 @@ export class AudioBus {
     }
 
     this.applyGains();
+    void this.ensureMusicBed();
   }
 
   stopAmbient(): void {
+    this.stopMusicBed();
     for (const node of this.ambientNodes) {
       try {
         if (node instanceof OscillatorNode || node instanceof AudioBufferSourceNode) {
@@ -360,12 +418,87 @@ export class AudioBus {
     this.ambientMood = null;
   }
 
+  /** Decode and start the looping music bed if ambient is active. */
+  private async ensureMusicBed(): Promise<void> {
+    if (this.disposed || this.muted || this.ambientGain === 0) return;
+    const ctx = this.ensure();
+    if (!ctx || !this.ambientBus || this.ambientMood === null) return;
+    if (this.musicSource) {
+      this.applyGains();
+      return;
+    }
+    const buffer = await this.loadMusic();
+    if (!buffer || this.disposed || this.muted || this.ambientGain === 0 || this.ctx !== ctx || this.ambientMood === null || !this.ambientBus) return;
+    if (this.musicSource) return;
+
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const g = ctx.createGain();
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(MUSIC_BED_GAIN, now + 2.2);
+    src.connect(g);
+    g.connect(this.ambientBus);
+    src.start();
+    this.musicSource = src;
+    this.musicGain = g;
+  }
+
+  private stopMusicBed(): void {
+    if (this.musicSource) {
+      try {
+        this.musicSource.stop();
+      } catch {
+        // already stopped
+      }
+      try {
+        this.musicSource.disconnect();
+      } catch {
+        // ignore
+      }
+      this.musicSource = null;
+    }
+    if (this.musicGain) {
+      try {
+        this.musicGain.disconnect();
+      } catch {
+        // ignore
+      }
+      this.musicGain = null;
+    }
+  }
+
+  private loadMusic(): Promise<AudioBuffer | null> {
+    if (this.musicBuffer) return Promise.resolve(this.musicBuffer);
+    if (!this.musicLoad) {
+      this.musicLoad = (async () => {
+        const ctx = this.ensure();
+        if (!ctx) return null;
+        try {
+          const res = await fetch(musicUrl);
+          if (!res.ok) return null;
+          const raw = await res.arrayBuffer();
+          const decoded = await ctx.decodeAudioData(raw.slice(0));
+          if (this.disposed || this.ctx !== ctx) return null;
+          this.musicBuffer = decoded;
+          return decoded;
+        } catch {
+          return null;
+        }
+      })().finally(() => { this.musicLoad = null; });
+    }
+    return this.musicLoad;
+  }
+
   private makeNoiseBuffer(ctx: AudioContext): AudioBuffer | null {
+    if (this.noiseBuffer) return this.noiseBuffer;
     try {
       const len = ctx.sampleRate * 2;
       const buf = ctx.createBuffer(1, len, ctx.sampleRate);
       const data = buf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * 0.35;
+      this.noiseBuffer = buf;
       return buf;
     } catch {
       return null;
@@ -373,7 +506,7 @@ export class AudioBus {
   }
 
   private ensure(): AudioContext | null {
-    if (typeof window === 'undefined') return null;
+    if (this.disposed || typeof window === 'undefined') return null;
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return null;
     if (!this.ctx) {

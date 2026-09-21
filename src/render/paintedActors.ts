@@ -7,7 +7,7 @@ import { artReady, ENEMY_ART, paintedSprite, TOWER_ART } from './art';
 import { PROPERTY_COLOR } from '../data/leakProperties';
 import { leakMax, leakRemaining } from '../sim/combat';
 import { BUILD_TIME } from '../sim/game';
-import { castShadow, disc, pulseRing, radial, rgba, stampText } from './ink';
+import { castShadow, celFill, disc, glow, metalFill, noGlow, pulseRing, radial, rgba, stampText } from './ink';
 
 type Ctx = CanvasRenderingContext2D;
 export function paintedCrew(ctx: Ctx, pos: { x: number; y: number }, time: number, swing: number, facing: number, hp: number, lifetime = 1): void {
@@ -132,6 +132,7 @@ export function paintedTower(ctx: Ctx, t: Tower, time: number): boolean {
   const { x, y } = t.pos;
   const elite = !!t.specialization;
   const height = 65 + t.level * 8 + (elite ? 10 : 0);
+  const gun = t.def.kind === 'shooter' && t.def.id !== 'pipeSnake';
   castShadow(ctx, x + 6, y + 6, 29 + t.level * 2, 9, 0.32);
   if (t.def.kind === 'aura' || elite) radial(ctx, x, y, 6, 39, t.def.color, 0.09 + Math.sin(time * 3) * 0.025);
   ctx.save(); ctx.translate(x, y + 13);
@@ -144,13 +145,20 @@ export function paintedTower(ctx: Ctx, t: Tower, time: number): boolean {
   if (t.frozen > 0) ctx.filter = 'saturate(0.25) brightness(1.35)';
   if (t.rebuild > 0) ctx.globalAlpha = 0.55;
   const recoil = Math.sin(Math.PI * Math.min(1, Math.max(0, t.recoil) / .28));
+  // Face left/right and lean toward the prey so painted buildings feel aimed.
+  if (gun) {
+    const side = Math.cos(t.facing) >= 0 ? 1 : -1;
+    ctx.scale(side, 1);
+    ctx.rotate(Math.sin(t.facing) * 0.12);
+  }
   ctx.scale(1 + recoil * 0.025, 1 - recoil * 0.05);
-  ctx.rotate(-Math.cos(t.facing) * recoil * 0.025);
+  ctx.rotate(-Math.cos(t.facing) * recoil * 0.04);
   const windup = (t.windup ?? 0) / .16;
   ctx.translate(0, -Math.sin(windup * Math.PI) * 1.5);
   towerArmor(ctx, t, height, false);
   paintedSprite(ctx, recruitRow >= 0 ? 'recruitTowers' : 'towers', index, 0, 0, height, height * 1.2);
   towerArmor(ctx, t, height, true);
+  if (gun) drawPaintedTurret(ctx, t, height, recoil);
   ctx.restore();
   // Physical brass level plates keep upgrades legible at game scale.
   ctx.fillStyle = '#2e3527'; ctx.beginPath(); ctx.roundRect(x - 24, y + 10, 48, 10, 3); ctx.fill();
@@ -176,6 +184,44 @@ export function paintedTower(ctx: Ctx, t: Tower, time: number): boolean {
     ctx.restore();
   }
   return true;
+}
+
+/** Rotating brass gun / nozzle drawn in local tower space (origin at feet). */
+function drawPaintedTurret(ctx: Ctx, t: Tower, height: number, recoil: number): void {
+  const side = Math.cos(t.facing) >= 0 ? 1 : -1;
+  // Undo the body flip so the barrel aims in world angle, not mirrored local space.
+  const aim = side > 0 ? t.facing : Math.PI - t.facing;
+  const pivotY = -height * 0.48;
+  const kick = recoil * 7;
+  ctx.save();
+  ctx.translate(0, pivotY);
+  ctx.rotate(aim);
+  // Hub / turret ring
+  ctx.beginPath();
+  ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
+  celFill(ctx, '#5d4037', 1.8);
+  disc(ctx, -1.2, -1.5, 2.4, rgba('#fff8e1', 0.35));
+  // Barrel
+  const barrelLen = 18 + t.level * 2;
+  ctx.fillStyle = metalFill(ctx, 4 - kick, -3.2, barrelLen, 6.4, '#90a4ae');
+  ctx.beginPath();
+  ctx.roundRect(4 - kick, -3.2, barrelLen, 6.4, 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1a1008';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  // Muzzle tip in tower color
+  glow(ctx, t.def.color, t.recoil > 0 ? 12 : 4);
+  ctx.beginPath();
+  ctx.roundRect(4 - kick + barrelLen - 3, -4.2, 7, 8.4, 2);
+  celFill(ctx, t.def.color, 1.4);
+  if (t.recoil > 0) {
+    ctx.globalCompositeOperation = 'lighter';
+    disc(ctx, 4 - kick + barrelLen + 4, 0, 5 + recoil * 6, t.def.color);
+    disc(ctx, 4 - kick + barrelLen + 2, 0, 2.5, '#fffde7');
+  }
+  noGlow(ctx);
+  ctx.restore();
 }
 
 export function paintedFriendly(ctx: Ctx, f: Friendly, time: number): void {

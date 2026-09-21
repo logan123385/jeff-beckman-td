@@ -1,11 +1,12 @@
 import { Rng } from '../core/rng';
 import { clamp, dist, type Vec } from '../core/vec';
-import { ENEMIES } from '../data/enemies';
+import { enemyForMap } from '../data/bosses';
 import { JEFF } from '../data/jeff';
 import { HEROES, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
-import { updateHeroMissiles, updateHeroSummons, useHeroAbility, fireJeffAbility } from './heroPowers';
+import { updateHeroMissiles, updateHeroSummons, summonLogan, useHeroAbility, fireJeffAbility } from './heroPowers';
 import type { HeroMissile, HeroSummon, HeroVisual, HeroZone } from './state';
 import { TOWERS, TOWER_ORDER } from '../data/towers';
+import { SPECIALIST_KITS, specialistAbilityCost, type SpecialistAbilityId } from '../data/specialistAbilities';
 import { specializeDef, specializationInfo, type Specialization } from '../data/specializations';
 import { generateEndlessWave, nightMutatorAt, proceduralIndex, type NightMutatorId } from '../data/night';
 import { propertiesFor } from '../data/leakProperties';
@@ -18,7 +19,7 @@ import { updateHero } from './hero';
 import { Path } from './path';
 import type { ActiveSpawn, AimPriority, Clamp, Crew, Friendly, Effect, Enemy, GameStatus, Hero, Projectile, RunStats, StrikeDrop, Tower } from './state';
 import { releaseFriendly, syncRecruits, updateFriendlies } from './friendlies';
-import { CREW_COOLDOWN, CREW_DURATION, updateCrew } from './crew';
+import { CREW_COOLDOWN, updateCrew } from './crew';
 import { applyDescaler, updateAuras, updateTowers } from './towers';
 import { useTowerAbility as fireTowerAbility } from './towerAbilities';
 
@@ -181,6 +182,7 @@ export class Game {
       wavesCalledEarly: 0,
       partsEarned: 0,
       partsSpent: 0,
+      escapedByType: {},
     };
   }
 
@@ -357,7 +359,7 @@ export class Game {
 
   // ---------------------------------------------------------------- commands
 
-  /** Call two temporary helpers onto a visible section of the route. */
+  /** Summon Logan onto a visible section of the route (shared D skill for every hero). */
   reinforce(pos: Vec): boolean {
     if (isNoPowers(this.remaster)) return false;
     if (this.status !== 'playing' || this.crewCooldown > 0 || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
@@ -365,18 +367,9 @@ export class Game {
     const rally = this.nearestPathPoint(pos);
     if (dist(pos, rally) > 55 || rally.x < 16 || rally.x > 944 || rally.y < 24 || rally.y > 576) return false;
     this.crewCooldown = CREW_COOLDOWN;
-    const path = this.paths[this.nearestPath(rally).pathIdx]!;
-    const dir = path.directionAt(Math.max(0, path.nearestPoint(rally).progress));
-    for (let i = 0; i < 2; i++) {
-      const home = { x: rally.x + (i === 0 ? -12 : 12), y: rally.y + (i === 0 ? -7 : 7) };
-      const start = { x: home.x - dir.x * 78, y: home.y - dir.y * 78 };
-      this.crew.push({
-        id: this.nextEntityId(), pos: start, prev: { ...start }, home,
-        hp: 110, maxHp: 110, timeLeft: CREW_DURATION, attackTimer: 0, swing: 0, facing: dir.x >= 0 ? 1 : -1,
-      });
-    }
-    this.addEffect({ kind: 'ring', pos: rally, radius: 44, color: '#a8df89', ttl: 0.65, max: 0.65 });
-    this.addEffect({ kind: 'text', pos: { x: rally.x, y: rally.y - 48 }, text: 'CREW ON SITE!', color: '#e5ffbb', ttl: 1.1, max: 1.1 });
+    summonLogan(this, rally);
+    this.addEffect({ kind: 'ring', pos: rally, radius: 44, color: '#d4e599', ttl: 0.65, max: 0.65 });
+    this.addEffect({ kind: 'text', pos: { x: rally.x, y: rally.y - 48 }, text: 'LOGAN!', color: '#e5ffbb', ttl: 1.1, max: 1.1 });
     return true;
   }
 
@@ -407,6 +400,20 @@ export class Game {
     syncRecruits(this, t);
     this.addEffect({ kind: 'splash', pos: { ...t.pos }, radius: 48, color: '#f5d68c', ttl: 0.7, max: 0.7 });
     this.addEffect({ kind: 'text', pos: { x: t.pos.x, y: t.pos.y - 90 }, text: t.def.name.toUpperCase(), color: '#fff0b0', ttl: 1.3, max: 1.3 });
+    return true;
+  }
+
+  buySpecialistAbility(towerId: number, abilityId: SpecialistAbilityId): boolean {
+    const t = this.towerById(towerId);
+    if (this.status !== 'playing' || !t?.specialization || t.level < 2 || !SPECIALIST_KITS[t.def.id].includes(abilityId)) return false;
+    const rank = t.abilities?.[abilityId]?.rank ?? 0;
+    if (rank >= 3) return false;
+    const cost = specialistAbilityCost(abilityId, rank, this.mods.towerCost);
+    if (this.money < cost) return false;
+    this.money -= cost; this.stats.moneySpent += cost; t.invested += cost;
+    t.abilities ??= {};
+    t.abilities[abilityId] = { rank: rank + 1, cooldown: t.abilities[abilityId]?.cooldown ?? 0 };
+    this.addEffect({ kind: 'ring', pos: { ...t.pos }, radius: 45, color: '#ffe8a0', ttl: .6, max: .6 });
     return true;
   }
 
@@ -685,7 +692,7 @@ export class Game {
   }
 
   spawnEnemy(id: EnemyId, pathIdx: number, progress = -SPAWN_LEAD, properties: readonly LeakProperty[] = []): Enemy {
-    const def = ENEMIES[id];
+    const def = enemyForMap(id, this.map.id);
     let hp = Math.round(def.hp * this.difficulty.hpMult * this.waveHpScale);
     if (properties.includes('pressurized')) hp = Math.round(hp * 1.45);
     const shell = properties.includes('cast') ? Math.round(hp * 0.85) : 0;

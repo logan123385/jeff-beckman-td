@@ -11,6 +11,7 @@ export function towerAbilityReady(game: Game, t: Tower): { ok: true } | { ok: fa
   if (!def) return { ok: false, reason: 'This tool has no active.' };
   if (isNoPowers(game.remaster)) return { ok: false, reason: 'Clean Hands — no actives.' };
   if ((t.build ?? 0) > 0) return { ok: false, reason: 'Still installing.' };
+  if ((t.overheated ?? 0) > 0) return { ok: false, reason: 'Overheated by the furnace.' };
   if (t.frozen > 0) return { ok: false, reason: 'Frozen solid.' };
   if (t.rebuild > 0) return { ok: false, reason: 'Rebuilding.' };
   if (t.level < def.minLevel) return { ok: false, reason: `Unlocks at ${def.minLevel === 1 ? 'Reinforced' : 'a higher tier'}.` };

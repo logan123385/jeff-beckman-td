@@ -11,6 +11,7 @@ export const heroGlyphs: Record<string, string> = {
   overclock: '<circle cx="20" cy="21" r="14" fill="#466776"/><path d="M20 8v13l9 5M15 3h10M9 5L5 9M5 29l-3 6h8"/>',
   crosshair: '<circle cx="20" cy="20" r="11"/><path d="M20 2v11m0 14v11M2 20h11m14 0h11"/><circle cx="20" cy="20" r="3" fill="#fc9176"/>',
   logan: '<path d="M8 17L3 8l12 4q5-6 11 0l11-4-5 12v8L20 37 8 28z" fill="#6e9562"/><path d="M12 22l4 1m8 0l4-1M15 29l5 3 5-3M10 12q-3-9 4-7 3-7 8-2 8-2 9 7"/>',
+  sand: '<path d="M4 30q8-10 16-4t16 4M6 36q9-8 14-2t14 2"/><ellipse cx="20" cy="22" rx="14" ry="7" fill="#c4a574"/><path d="M10 20q5-8 10-2t10 2M12 24h16"/>',
   golf: '<path d="M12 4l16 28h8l-2 5H23L8 7"/><circle cx="9" cy="31" r="4" fill="#fff8df"/><path d="M3 22l6-3m-3 8l-4-1"/>',
   saw: '<path d="M3 16h20v14H3zM8 16v-5h11v5" fill="#b94d43"/><path d="M23 19h14v5H23m3 0l2 3 2-3 2 3 2-3M7 20h9v6H7z"/>',
   gas: '<path d="M10 30a7 7 0 1 1-3-13 8 8 0 0 1 15-8 6 6 0 0 1 10 8 7 7 0 0 1-2 14z" fill="#809a56"/><path d="M9 23q5-6 10 0t12 0M14 34l-2 3m11-3l2 3"/>',

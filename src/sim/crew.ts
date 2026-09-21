@@ -3,8 +3,10 @@ import { dist, moveToward } from '../core/vec';
 import { applyDamage, isTargetable } from './combat';
 import type { Game } from './game';
 
-export const CREW_COOLDOWN = 30;
-export const CREW_DURATION = 18;
+export const CREW_COOLDOWN = 28;
+/** Shared Logan summon duration (replaces temporary support-crew helpers). */
+export const LOGAN_DURATION = 18;
+export const CREW_DURATION = LOGAN_DURATION;
 export const CREW_REACH = 35;
 
 export function updateCrew(game: Game, dt: number): void {
