@@ -1,4 +1,3 @@
-import { resolveBuildTechnique } from './heroBuilds';
 import { kitSummonDamageMult, onKitHit, prepareKitStrike } from './kitCards';
 import { dist, moveToward, type Vec } from '../core/vec';
 import { COOLDOWN_FIELDS, type AbilitySlot } from '../data/heroes';
@@ -93,7 +92,7 @@ export function useHeroAbility(game: Game, slot: AbilitySlot, aim?: { pos: Vec; 
   h.pendingStrike = undefined; h.swing = 0; h.dest = null;
   if (prey) h.facing = prey.pos.x >= h.pos.x ? 1 : -1;
   else if (aim) h.facing = aim.pos.x >= h.pos.x ? 1 : -1;
-  h.cast = { slot, buildTechnique: slot === 4 && game.heroBuild.technique !== 'signature', left: ability.cast, duration: ability.cast, fired: false, target: { ...point }, targetId: prey?.id, hits: 0 };
+  h.cast = { slot, left: ability.cast, duration: ability.cast, fired: false, target: { ...point }, targetId: prey?.id, hits: 0 };
   h.castTimer = ability.cast;
   game.heroNotice = { name: ability.name, detail: ability.short, color: game.heroDef.color, left: ability.cast + 1.6 };
   return true;
@@ -105,9 +104,7 @@ export function advanceHeroCast(game: Game, dt: number): boolean {
   cast.left = Math.max(0, cast.left - dt); h.castTimer = cast.left;
   const phase = 1 - cast.left / cast.duration;
   // The three saw contacts have their own visible swing; other casts release at frame five.
-  if (cast.slot === 4 && game.heroBuild.technique !== 'signature') {
-    if (!cast.fired && phase >= .48) { cast.fired = true; resolveBuildTechnique(game, cast.target, cast.targetId); }
-  } else if (game.heroDef.id === 'chris' && cast.slot === 2) {
+  if (game.heroDef.id === 'chris' && cast.slot === 2) {
     const contacts = [.16, .493333, .826667];
     while (cast.hits < contacts.length && phase >= contacts[cast.hits]!) {
       cast.hits++; cast.fired = true;
@@ -407,28 +404,6 @@ export function strikeFromProfile(game: Game, enemy: Enemy): void {
       return _exhaustive;
     }
   }
-}
-
-export function strikeNewHero(game: Game, enemy: Enemy): void {
-  const h = game.hero, def = game.heroDef;
-  if (def.id === 'mike') fireHeroMissile(game, 'plunger', enemy.pos, def.damage, enemy.id);
-  else if (def.id === 'cbj') fireHeroMissile(game, 'tater', enemy.pos, def.damage, enemy.id);
-  else if (def.id === 'doni') fireHeroMissile(game, 'hook', enemy.pos, def.damage, enemy.id);
-  else if (def.id === 'bob') {
-    applyDamage(game, enemy, def.damage * game.mods.jeffDamage, 'heat', 'jeff');
-    visual(game, 'laser', { x: h.pos.x + h.facing * 18, y: h.pos.y - 25 }, { x: enemy.pos.x, y: enemy.pos.y - 10 }, 4, def.color, .22);
-  } else if (def.id === 'becbec' || def.id === 'jayjay') {
-    h.tapCount++;
-    applyDamage(game, enemy, def.damage * game.mods.jeffDamage, 'physical', 'jeff');
-    if (h.tapCount % 3 === 0) enemy.stun = Math.max(enemy.stun, .35 * game.mods.stunDuration);
-    visual(game, 'punch', h.pos, enemy.pos, 30, def.color, .22);
-  } else if (def.id === 'chris') {
-    enemy.armorShred = Math.max(enemy.armorShred, .12); enemy.shredTimer = Math.max(enemy.shredTimer, 2);
-    const dealt = applyDamage(game, enemy, def.damage * game.mods.jeffDamage, 'physical', 'jeff');
-    if ((h.lifesteal ?? 0) > 0) h.hp = Math.min(h.maxHp, h.hp + dealt * .45);
-    visual(game, 'saw', h.pos, enemy.pos, 32, '#ffcc84', .2);
-  }
-  if (['mike', 'cbj', 'doni'].includes(def.id)) { const missile = game.heroMissiles.at(-1); if (missile) missile.basic = true; }
 }
 
 export function updateHeroZones(game: Game, dt: number): void {

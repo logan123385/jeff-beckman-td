@@ -45,13 +45,12 @@ export function paintedJeff(ctx: Ctx, hero: Hero, time: number, showBar: boolean
   const { x, y } = hero.pos;
   const size = 68 * scale / 1.72;
   const moving = !!hero.moving || (hero.moveBlend ?? 0) > 0;
-  const technique = hero.cast?.buildTechnique ? hero.cast : undefined;
-  const phase = technique ? 1 - technique.left / technique.duration : hero.swing > 0 ? 1 - hero.swing / JEFF.swingTime : 0;
+  const phase = hero.swing > 0 ? 1 - hero.swing / JEFF.swingTime : 0;
   castShadow(ctx, x, y + 14, size * 0.26, size * 0.08, 0.32);
   ctx.save(); ctx.translate(x, y + 18);
   if (hero.downed > 0) { ctx.globalAlpha = 0.48; ctx.rotate(-1.15); }
   ctx.scale(hero.facing, 1);
-  humanoid(ctx, 'units', 0, size, { time, walk: hero.walkPhase ?? 0, walkWeight: hero.moveBlend ?? 0, moving, phase, attacking: hero.swing > 0 || !!technique, cast: technique ? 0 : Math.sin(Math.PI * (hero.castTimer ?? 0) / .72) });
+  humanoid(ctx, 'units', 0, size, { time, walk: hero.walkPhase ?? 0, walkWeight: hero.moveBlend ?? 0, moving, phase, attacking: hero.swing > 0 || !!hero.cast, cast: hero.cast ? 0 : Math.sin(Math.PI * (hero.castTimer ?? 0) / .72) });
   ctx.restore();
   if (hero.swing > 0) {
     ctx.save(); ctx.translate(x + hero.facing * 8, y - 22); ctx.scale(hero.facing, 1);

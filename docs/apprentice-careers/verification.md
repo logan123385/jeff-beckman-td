@@ -1,5 +1,7 @@
 # Apprentice careers, permanent tower licenses, and the visual pass
 
+> **Historical note:** Hero Builds, Shared Crew Training, and 90's Workshop were replaced by the Kit system (weapons, armor, stance cards). See [Kit, weapons, and armor design](../superpowers/specs/2026-09-21-kit-weapons-armor-design.md) for the current model and save migration rules. The sections below describe the pre-kit apprentice careers pass.
+
 Built from `origin/main` at `9dc5a0f` (PR #9, including its review repair). GitHub was fetched again before delivery; no newer main commits were missing.
 
 ## Play it

@@ -1,10 +1,53 @@
-import { dist } from '../core/vec';
+import { dist, type Vec } from '../core/vec';
 import { cardById, type KitCard } from '../data/kitCards';
 import type { AttackProfile } from '../data/weapons';
 import { applyDamage, heroOnYard, isTargetable } from './combat';
 import type { Game } from './game';
-import { spawnBuildHelpers } from './heroBuilds';
 import type { Enemy } from './state';
+
+function ringHelper(game: Game, pos: Vec, radius: number, color: string): void {
+  game.addEffect({ kind: 'ring', pos: { ...pos }, radius, color, ttl: 0.55, max: 0.55 });
+}
+
+/** Kit crew cards spawn short-lived helpers that hold ground leaks. */
+export function spawnBuildHelpers(game: Game, count: number, duration?: number, replaceOldest = false): void {
+  for (let i = 0; i < count; i++) {
+    const helpers = game.heroSummons.filter((s) => s.buildHelper);
+    if (helpers.length >= 3) {
+      if (!replaceOldest) break;
+      const oldest = helpers.reduce((a, b) => (a.left <= b.left ? a : b));
+      for (const e of game.enemies) {
+        if (e.heldBy?.kind === 'summon' && e.heldBy.id === oldest.id) {
+          e.heldBy = null;
+          e.attackSwing = 0;
+        }
+      }
+      game.heroSummons = game.heroSummons.filter((s) => s.id !== oldest.id);
+    }
+    const pos = { x: game.hero.pos.x + (i ? 22 : -22), y: game.hero.pos.y + 10 };
+    const hp = 70;
+    const left = duration ?? 10;
+    game.heroSummons.push({
+      id: game.nextEntityId(),
+      buildHelper: true,
+      damage: 8,
+      anchor: { ...pos },
+      pos,
+      prev: { ...pos },
+      hp,
+      maxHp: hp,
+      left,
+      duration: left,
+      facing: game.hero.facing,
+      walkPhase: 0,
+      moving: false,
+      moveBlend: 0,
+      swing: 0,
+      attackTimer: 0,
+    });
+    ringHelper(game, pos, 30, '#a8d8ed');
+  }
+}
 
 export interface KitStrikePrep {
   damageMult: number;

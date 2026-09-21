@@ -1,9 +1,8 @@
-import { normalizeHeroBuild, heroForBuild, type HeroBuild } from '../data/heroBuilds';
 import { Rng } from '../core/rng';
 import { clamp, dist, type Vec } from '../core/vec';
 import { enemyForMap } from '../data/bosses';
 import { JEFF } from '../data/jeff';
-import { COOLDOWN_FIELDS, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
+import { COOLDOWN_FIELDS, HEROES, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
 import { defaultCards } from '../data/kitCards';
 import { defaultFamily, type AttackProfile, type WeaponFamilyId } from '../data/weapons';
 import { resolveAttackProfile } from './attackProfile';
@@ -35,7 +34,6 @@ export interface GameOptions {
   heroEnabled?: boolean;
   heroId?: HeroId;
   hero?: HeroId;
-  heroBuild?: HeroBuild;
   kit?: { family: WeaponFamilyId; weapon?: WeaponItem | null; cards: [string | null, string | null] };
   remaster?: RemasterId;
   /** If set, only these owned tools can be built; inspection bans are applied below. */
@@ -64,14 +62,11 @@ export class Game {
   readonly rng: Rng;
   readonly heroEnabled: boolean;
   readonly heroDef: HeroDef;
-  readonly heroBuild: HeroBuild;
   readonly attackProfile: AttackProfile;
   readonly baseAttackProfile: AttackProfile;
   readonly kitCards: [string | null, string | null];
   kitState = { focusId: null as number | null, focusHits: 0, helperTimer: 22, hitCounts: {} as Record<string, number> };
   kitTowerMark = 0;
-  buildState = { focusId: 0, focusHits: 0, helperTimer: 3, overtime: 0 };
-  buildZones: { pos: Vec; radius: number; left: number; duration: number; dps: number }[] = [];
   rewardsClaimed = false;
   readonly remaster: RemasterId;
   readonly endless: boolean;
@@ -161,8 +156,7 @@ export class Game {
     this.heroEnabled = opts.heroEnabled ?? true;
     const heroOpt = opts.heroId ?? opts.hero;
     const heroId = isHeroId(heroOpt) ? heroOpt : 'jeff';
-    this.heroBuild = normalizeHeroBuild(heroId, opts.heroBuild);
-    this.heroDef = heroForBuild(heroId, this.heroBuild);
+    this.heroDef = HEROES[heroId];
     const kitInput = opts.kit ?? { family: defaultFamily(heroId), weapon: null, cards: defaultCards(heroId) };
     const weapon = kitInput.weapon ?? null;
     this.kitCards = kitInput.cards;
@@ -703,7 +697,7 @@ export class Game {
 
   useAbility(slot: AbilitySlot, aim?: { pos: { x: number; y: number }; enemyId?: number }): boolean {
     if (![0, 1, 2, 3, 4].includes(slot)) return false;
-    if (this.heroDef.id === 'jeff' && !(slot === 4 && this.heroBuild.technique !== 'signature')) return fireJeffAbility(this, slot);
+    if (this.heroDef.id === 'jeff') return fireJeffAbility(this, slot);
     return useHeroAbility(this, slot, aim);
   }
 

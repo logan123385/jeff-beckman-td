@@ -174,7 +174,7 @@ export interface Projectile {
 
 export interface Hero {
   id?: HeroId;
-  cast?: { slot: AbilitySlot; buildTechnique?: boolean; left: number; duration: number; fired: boolean; target: Vec; targetId?: number; hits: number };
+  cast?: { slot: AbilitySlot; left: number; duration: number; fired: boolean; target: Vec; targetId?: number; hits: number };
   swingDuration?: number;
   overdrive?: number;
   shield?: number;

@@ -60,7 +60,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     weapon: equippedWeapon?.kind === 'weapon' ? equippedWeapon : null,
     cards: heroKitState.cards,
   };
-  const game = new Game(map, { heroId, heroBuild: app.save.heroBuild(), difficulty, mods, seed: (Date.now() & 0xffff) + 1, remaster, loadout: towerLoadout, kit: heroKit, manualStart: true });
+  const game = new Game(map, { heroId, difficulty, mods, seed: (Date.now() & 0xffff) + 1, remaster, loadout: towerLoadout, kit: heroKit, manualStart: true });
   const audio = new AudioBus({
     muted: app.save.data.muted,
     sfxGain: app.save.data.sfxVolume,
@@ -813,7 +813,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       return;
     }
     if (game.useAbility(slot)) {
-      if (game.heroDef.id === 'jeff' && !(slot === 4 && game.heroBuild.technique !== 'signature')) audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
+      if (game.heroDef.id === 'jeff') audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
       else audio.heroImpact('cast');
       hud.setHint(`${ability.name} — ${ability.description}`);
     } else if (game.hero.downed > 0) hud.setHint(`${game.heroDef.name} is recovering.`);
@@ -865,7 +865,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         return;
       }
       if (game.useAbility(slot, { pos: prey.pos, enemyId })) {
-        if (game.heroDef.id === 'jeff' && !(slot === 4 && game.heroBuild.technique !== 'signature')) audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
+        if (game.heroDef.id === 'jeff') audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
         else audio.heroImpact('cast');
         cancelAim();
         hud.setHint(`${ability.name} — ${ability.description}`);
@@ -877,7 +877,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       return;
     }
     if (game.useAbility(slot, { pos: p })) {
-      if (game.heroDef.id === 'jeff' && !(slot === 4 && game.heroBuild.technique !== 'signature')) audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
+      if (game.heroDef.id === 'jeff') audio.skill(['clamp', 'shutoff', 'pulse', 'sleeve', 'coffee'][slot] as 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee');
       else audio.heroImpact('cast');
       cancelAim();
       hud.setHint(`${ability.name} — ${ability.description}`);

@@ -463,7 +463,6 @@ describe('Skills and save', () => {
     expect(save.starsFor('crawlspace')).toBe(2);
     expect(save.isUnlocked(1)).toBe(true);
     expect(save.availableStars()).toBe(2);
-    expect(save.unlockSkill('sharpTools')).toBe(false);
   });
 
   it('stars for a clear follow the lives kept', () => {
@@ -627,16 +626,6 @@ describe('Stage 3 progression and kit', () => {
     applyTalents(m, ['closer']);
     expect(m.jeffReach).toBeCloseTo(1.2);
     expect(m.jeffDamage).toBeCloseTo(1.15);
-  });
-
-  it('save store no-ops legacy skill and talent unlocks', () => {
-    const save = new SaveStore(null);
-    for (const map of CORE_MAPS) save.recordClear(map.id, 'master', 3);
-    expect(save.unlockSkill('longReach')).toBe(false);
-    expect(save.unlockSkill('sharpTools')).toBe(false);
-    save.addXp(xpToNext(1) + xpToNext(2) + xpToNext(3) + xpToNext(4));
-    expect(save.unlockTalent('wreckingTap')).toBe(false);
-    expect(save.unlockTalent('ironGrip')).toBe(false);
   });
 
   it('chests roll gear and affixes fold into modifiers', () => {

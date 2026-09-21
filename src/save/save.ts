@@ -1,4 +1,3 @@
-import { buildBudget, normalizeHeroBuild, type HeroBuild } from '../data/heroBuilds';
 import { defaultCards } from '../data/kitCards';
 import { STARTER_TOWERS, TOWER_PRICES, WELCOME_POINTS } from '../data/store';
 import { COMMENDATIONS, commendationKey, type CommendationId } from '../data/commendations';
@@ -619,12 +618,6 @@ export class SaveStore {
     return this.totalStars();
   }
 
-  unlockSkill(_id: string): boolean {
-    return false;
-  }
-
-  respec(): void {}
-
   jeffLevel(): number {
     return levelFromXp(this.data.jeffXp).level;
   }
@@ -638,12 +631,6 @@ export class SaveStore {
     this.data.jeffXp += amount;
     this.save();
   }
-
-  unlockTalent(_id: string): boolean {
-    return false;
-  }
-
-  respecTalents(): void {}
 
   nextGearId(): string {
     const id = `g${this.data.gearSeq}`;
@@ -851,19 +838,6 @@ export class SaveStore {
     this.data.selectedHero = id;
     this.save();
   }
-
-  /** Stub for UI/combat until kit replaces build trees. */
-  heroBuild(hero: HeroId = this.data.selectedHero): HeroBuild {
-    return normalizeHeroBuild(hero, undefined, buildBudget(this.data.jeffXp));
-  }
-
-  unlockBuildNode(_hero: HeroId, _id: string): boolean {
-    return false;
-  }
-
-  equipTechnique(_hero: HeroId, _technique: HeroBuild['technique']): void {}
-
-  resetBuild(_hero: HeroId): void {}
 
   buyTower(id: TowerId): boolean {
     if (!TOWER_ORDER.includes(id) || this.data.ownedTowers.includes(id) || this.data.servicePoints < TOWER_PRICES[id]) return false;

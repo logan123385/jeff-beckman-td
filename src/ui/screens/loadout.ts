@@ -1,4 +1,3 @@
-import { heroForBuild } from '../../data/heroBuilds';
 import { COMMENDATIONS, commendationKey } from '../../data/commendations';
 import { cardById } from '../../data/kitCards';
 import { ABILITY_KEYS, HEROES, HERO_ORDER } from '../../data/heroes';
@@ -39,7 +38,7 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
   const el = h('div', { class: 'screen loadout' });
 
   const heroPicker = () => {
-    const build = app.save.heroBuild(), selected = heroForBuild(app.save.data.selectedHero, build);
+    const selected = HEROES[app.save.data.selectedHero];
     const kit = app.save.heroKit(selected.id);
     const weaponItem = kit.weaponId ? app.save.itemById(kit.weaponId) : undefined;
     const weaponName = weaponItem?.kind === 'weapon' ? weaponItem.name : familyLabel(kit.family);
