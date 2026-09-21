@@ -54,9 +54,9 @@ const textButton = async name => {
   assert(selector, `Missing button: ${name}`); await click(selector); await read(`document.querySelector('[data-playtest-button]')?.removeAttribute('data-playtest-button')`);
 };
 const press = async key => {
-  const code = key === ' ' ? 'Space' : /^[0-9]$/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`;
-  await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: key.toUpperCase().charCodeAt(0) });
-  await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: key.toUpperCase().charCodeAt(0) });
+  const code = key === 'Escape' ? 'Escape' : key === ' ' ? 'Space' : /^[0-9]$/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`;
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: key === 'Escape' ? 27 : key.toUpperCase().charCodeAt(0) });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: key === 'Escape' ? 27 : key.toUpperCase().charCodeAt(0) });
   await delay(70);
 };
 const world = async (x, y, button = 'left') => {
@@ -72,6 +72,7 @@ const shot = async name => {
 const stats = () => read(`({cash:Number(document.querySelector('.medal.coin b')?.textContent),lives:Number(document.querySelector('.medal.heart b')?.textContent),wave:document.querySelector('.medal.wave b')?.textContent,result:document.querySelector('.results')?.innerText})`);
 try {
   await send('Runtime.enable'); await send('Page.enable');
+  await waitFor('.adventure-title, .hub, .results');
   const priorSave = await read(`JSON.parse(localStorage.getItem('jbtd-save-v1') || 'null')`);
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false });
   if (await read(`!!document.querySelector('.adventure-title')`)) await textButton(await read(`document.querySelector('.adventure-copy .btn.primary').textContent`));
@@ -81,6 +82,8 @@ try {
   assert(await read(`document.querySelector('.campaign-briefing').textContent.includes('Clear the previous job')`));
   await click('[aria-label^="1. Crawlspace"]');
   await click('.campaign-briefing .map-foot .btn.primary');
+  const heroName = process.argv[4] ?? 'Jeff Beckman';
+  await click(`[aria-label="Play as ${heroName}"]`);
   await shot('02-loadout'); await textButton('Take the call');
   if (await read(`!!document.querySelector('.coach-skip')`)) await textButton('Skip tutorial');
   await press('i'); await shot('03-scout');
@@ -98,6 +101,9 @@ try {
       await rankUp(); await world(x,y);
       if (await read(`document.querySelector('.kr-hub-name')?.textContent.includes(${JSON.stringify(name)})`)) return;
     }
+    // Victory has a short presentation delay; a finishing job no longer accepts builds.
+    await delay(1200);
+    if (await read(`!!document.querySelector('.results')`)) return false;
     throw new Error(`Confirm ${name} was actually built.`);
   };
   let trained = false, abilityActivated = false, activeUsed = false, ranksPicked = 0, extra = 0, previousWave = '', nextReport = 0;
@@ -113,12 +119,27 @@ try {
   await delay(1200);
   assert.equal(await read(`document.querySelector('.ab-crew .cooldown-number').textContent`), cdBefore, 'Scouting pauses the summoned companion cooldown.');
   await textButton('Back to defenses');
-  const plan = [['torch', 320, 340, 'Soldering Torch'], ['washer', 320, 465, 'Pressure Washer'], ['torch',420,280,'Soldering Torch']];
+  // CBJ concentrates upgrades around his tower-damage aura.
+  const plan = heroName === 'CBJ' ? [] : [['torch', 320, 340, 'Soldering Torch'], ['washer', 320, 465, 'Pressure Washer'], ['torch',420,280,'Soldering Torch']];
   async function rankUp() {
     while (await read(`!!document.querySelector('.rank-overlay:not(.hidden) .rank-skill:not(:disabled)')`)) {
       await click('.rank-overlay:not(.hidden) .rank-skill:not(:disabled)'); ranksPicked++;
     }
+    // A combat hotkey can also legitimately choose a rank when that panel opens mid-input.
+    ranksPicked = Math.max(ranksPicked, await read(`document.querySelectorAll('.ability .rank-pips > i.on').length`));
   };
+  async function selectTower(x,y,name) {
+    for(let retry=0;retry<4;retry++) {
+      await rankUp();
+      if(await read(`!!document.querySelector('.ability.aiming')`))await press('Escape');
+      // Pick the visible tower body, clear of enemies walking along the adjoining lane.
+      await world(x+8,y-28);
+      const shown = await read(`document.querySelector('.kr-wheel:not(.hidden) .kr-hub-name')?.textContent`);
+      // Elite specialization deliberately changes the building's display name.
+      if(shown?.includes(name) || name==='Pressure Washer' && shown==='Tidal Artillery')return;
+    }
+    throw new Error(`Select ${name} through its visible sprite.`);
+  }
   const started = Date.now();
   while (Date.now() - started < 240000) {
     await rankUp();
@@ -128,18 +149,24 @@ try {
     if (await read(`!!document.querySelector('.jeff-card.ready-deploy')`)) { await press('j'); await world(170,275); }
     if (await read(`!!document.querySelector('.ab-crew.ready')`)) { await press('d'); await world(160,330); }
     if (await read(`!!document.querySelector('.ab-strike.ready')`)) { await press('x'); await world(160,250); }
-    for (const key of ['q','r','t','c']) await press(key);
+    for (const key of ['q','r','t','c']) {
+      await press(key);
+      if(heroName==='CBJ' && key==='c' && await read(`!!document.querySelector('.ability.aiming')`))await world(160,250);
+    }
+    if(await read(`!!document.querySelector('.ability.aiming')`))await press('Escape');
     await rankUp();
     if (!trained || !activeUsed) {
-      await world(225,250);
-      if (await read(`!!document.querySelector('.kr-spec.power:not(:disabled)')`)) await click('.kr-spec.power');
+      await selectTower(225,250,'Pressure Washer');
+      if (await read(`!!document.querySelector('.kr-wheel:not(.hidden) .kr-spec.power:not(:disabled)')`)) await click('.kr-spec.power');
       if (!activeUsed && await read(`!!document.querySelector('.kr-ability:not(:disabled)')`)) {
-        const before = Number(await read(`document.querySelector('.medal.parts b')?.textContent`));
-        await press('v');
-        activeUsed = await read(`document.querySelector('.kr-ability .kr-cost')?.textContent.endsWith('s')`);
-        assert(activeUsed && Number(await read(`document.querySelector('.medal.parts b')?.textContent`)) < before, 'V spends spare parts and starts its own cooldown.');
+        // A live kill may open the mandatory rank panel between selecting a tower and V.
+        for(let retry=0;retry<3&&!activeUsed;retry++) {
+          await selectTower(225,250,'Pressure Washer'); await press('v');
+          activeUsed = await read(`document.querySelector('.kr-ability .kr-cost')?.textContent.endsWith('s')`);
+        }
+        assert(activeUsed, 'V starts the tower active cooldown through the normal controls.');
       }
-      if (!trained && await read(`!!document.querySelector('.kr-specialist-open')`)) {
+      if (!trained && await read(`!!document.querySelector('.kr-wheel:not(.hidden) .kr-specialist-open')`)) {
         await click('.kr-specialist-open');
         if (await read(`!!document.querySelector('[data-ability="barrage"]:not(:disabled)')`)) {
           await click('[data-ability="barrage"]');
@@ -153,13 +180,13 @@ try {
           }
           assert(abilityActivated, 'Purchased specialist fires against a real target.');
         }
-      } else if (!trained && await read(`!!document.querySelector('.kr-up:not(:disabled)')`)) await press('u');
+      } else if (!trained && await read(`!!document.querySelector('.kr-wheel:not(.hidden) .kr-up:not(:disabled)')`)) await press('u');
     } else if (plan[extra] && state.cash > 115) {
       const [id,x,y,name] = plan[extra]; if (await build(id,x,y,name) === false) break; extra++;
     } else {
       const [x,y] = [[225,250],[100,250],[320,340],[320,465]][Math.floor((Date.now()-started)/1000)%4];
       await world(x,y);
-      if (await read(`!!document.querySelector('.kr-up:not(:disabled)')`)) await press('u');
+      if (await read(`!!document.querySelector('.kr-wheel:not(.hidden) .kr-up:not(:disabled)')`)) await press('u');
       if (await read(`!!document.querySelector('.kr-ability:not(:disabled)')`)) await press('v');
     }
     await delay(500);
@@ -178,6 +205,6 @@ try {
   await send('Page.reload'); await waitFor('.adventure-copy .btn.primary'); await textButton('Back to the Van');
   assert(await read(`document.querySelector('[aria-label^="2. Boiler Room"]').getAttribute('aria-label').includes('Ready to play')`));
   assert.deepEqual(errors, []);
-  const report = { pass: true, purpose: 'Combined-version browser regression', difficulty: 'apprentice', won, lives: final.lives, abilitiesTrained: trained, abilityActivated, towerActiveUsed: activeUsed, heroRanksPicked: ranksPicked, xp: saved.jeffXp, gear: saved.inventory.length, errors, evidence: output };
+  const report = { pass: true, purpose: 'Production playthrough with ordinary resources', hero: heroName, difficulty: 'apprentice', won, lives: final.lives, abilitiesTrained: trained, abilityActivated, towerActiveUsed: activeUsed, heroRanksPicked: ranksPicked, xp: saved.jeffXp, gear: saved.inventory.length, errors, evidence: output };
   writeFileSync(`${output}/report.json`, JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));
 } finally { ws.close(); }

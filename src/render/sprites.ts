@@ -615,7 +615,6 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       ctx.restore();
       break;
     }
-    case 'apprentices': case 'jayjay': case 'cbjDoni':
     case 'barricade': {
       roundRect(ctx, x - 11, y - 16, 22, 16, 4);
       ctx.fillStyle = metalFill(ctx, x - 11, y - 16, 22, 16, '#90a4ae');
@@ -1266,7 +1265,6 @@ function drawTowerLife(ctx: Ctx, t: Tower, time: number): void {
     case 'zoneValve':
     case 'expansion':
     case 'mixingValve':
-    case 'apprentices': case 'jayjay': case 'cbjDoni':
     case 'barricade': {
       ctx.save();
       ctx.translate(x - 12, y - 6);

@@ -1,11 +1,12 @@
 import { JEFF } from './jeff';
+import { CREW_HEROES } from './crewHeroes';
 
-export const HERO_ORDER = ['jeff', 'mike', 'bob', 'chris', 'becbec'] as const;
+export const HERO_ORDER = ['jeff', 'mike', 'bob', 'chris', 'becbec', 'cbj', 'doni', 'jayjay'] as const;
 export type HeroId = typeof HERO_ORDER[number];
 export type AbilitySlot = 0 | 1 | 2 | 3 | 4;
 export const ABILITY_KEYS = ['Q', 'E', 'R', 'T', 'C'] as const;
 export const ABILITY_RANK_CAP = 3;
-// Retain the original save/test-facing cooldown fields while all four kits use the same controls.
+// Retain the original save-facing cooldown fields while every kit uses the same controls.
 export const COOLDOWN_FIELDS = ['clampCooldown', 'shutoffCooldown', 'pulseCooldown', 'sleeveCooldown', 'coffeeCooldown'] as const;
 export interface HeroAbility {
   name: string; description: string; short: string; cooldown: number;
@@ -23,6 +24,7 @@ export interface HeroDef {
   abilities: readonly [HeroAbility, HeroAbility, HeroAbility, HeroAbility, HeroAbility];
 }
 export const HEROES: Record<HeroId, HeroDef> = {
+  ...CREW_HEROES,
   jeff: {
     ...JEFF, id: 'jeff', style: 'Frontline guardian', description: 'Wrench through armor, hold the line, and keep the entire crew on their feet.',
     color: '#e6c16b', armor: 0, ranged: false,

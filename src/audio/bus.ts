@@ -283,6 +283,12 @@ export class AudioBus {
       this.play({ freq: 277, dur: .36, type: 'triangle', gain: .028 });
     } else if (kind === 'golf') {
       this.play({ freq: 1450, slide: 610, dur: .08, type: 'triangle', gain: .035, click: .035 });
+    } else if (kind === 'tater') {
+      this.play({ freq: 230, slide: 85, dur: .16, type: 'sine', gain: .038, click: .018 });
+    } else if (kind === 'hook') {
+      this.play({ freq: 780, slide: 340, dur: .13, type: 'triangle', gain: .022, click: .012, filter: { type: 'bandpass', freq: 1200, q: .5 } });
+    } else if (kind === 'current') {
+      this.play({ freq: 180, slide: 75, dur: .32, type: 'sine', gain: .045, click: .025, filter: { type: 'lowpass', freq: 800 } });
     } else if (kind === 'plunger') {
       this.play({ freq: 310, slide: 100, dur: .12, type: 'sine', gain: .04, click: .014 });
     } else if (kind === 'summon') {

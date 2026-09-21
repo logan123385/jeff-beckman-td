@@ -1,0 +1,55 @@
+{
+  "pass": true,
+  "purpose": "Three new heroes via production mouse and keyboard controls",
+  "checks": [
+    {
+      "hero": "CBJ",
+      "retiredTowersAbsent": true,
+      "casts": [
+        {
+          "ability": "Lunch Break",
+          "cooldown": 26
+        },
+        {
+          "ability": "Fully Loaded",
+          "cooldown": 40
+        }
+      ],
+      "combatCash": 274,
+      "lives": 20
+    },
+    {
+      "hero": "Doni",
+      "retiredTowersAbsent": true,
+      "casts": [
+        {
+          "ability": "Cast a Wide Net",
+          "cooldown": 24
+        },
+        {
+          "ability": "Shore Lunch",
+          "cooldown": 27
+        }
+      ],
+      "combatCash": 296,
+      "lives": 20
+    },
+    {
+      "hero": "Jayjay",
+      "retiredTowersAbsent": true,
+      "casts": [
+        {
+          "ability": "Canvas Slam",
+          "cooldown": 23
+        },
+        {
+          "ability": "Unanimous Decision",
+          "cooldown": 36
+        }
+      ],
+      "combatCash": 296,
+      "lives": 20
+    }
+  ],
+  "errors": []
+}

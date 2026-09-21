@@ -9,14 +9,14 @@ import { Renderer } from '../../src/render/renderer';
 import { h } from '../../src/ui/dom';
 import { Hud } from '../../src/ui/play/hud';
 
-export function mountBossVisual(root: HTMLElement): void {
+export function createBossVisualGame(): Game {
   const game = new Game({ ...HEAT_PLANT, startMoney: 10000, allowedTowers: TOWER_ORDER }, {
-    difficulty: DIFFICULTIES.journeyman, mods: neutralModifiers(), manualStart: true, loadout: ['apprentices', 'torch', 'heatExchanger', 'vent', 'barricade'],
+    difficulty: DIFFICULTIES.journeyman, mods: neutralModifiers(), manualStart: true, loadout: ['washer', 'torch', 'heatExchanger', 'vent', 'barricade'],
   });
-  game.placeTower(9, 'apprentices');
-  const academy = game.towers[0]!;
-  game.upgradeTower(academy.id); game.upgradeTower(academy.id); game.specializeTower(academy.id, 'power');
-  game.buySpecialistAbility(academy.id, 'mend');
+  game.placeTower(9, 'washer');
+  const washer = game.towers[0]!;
+  game.upgradeTower(washer.id); game.upgradeTower(washer.id); game.specializeTower(washer.id, 'power');
+  if (!game.buySpecialistAbility(washer.id, 'barrage')) throw new Error('Boss fixture could not train the washer barrage');
   game.placeTower(10, 'torch'); game.placeTower(8, 'heatExchanger'); game.placeTower(12, 'vent'); game.placeTower(11, 'barricade');
   for (const f of game.friendlies) f.pos = { ...f.home };
   for (const t of game.towers) t.build = 0;
@@ -26,6 +26,11 @@ export function mountBossVisual(root: HTMLElement): void {
   game.effects.length = 0;
   updateEnemies(game, .05); if (boss.ventCast) boss.ventCast.left = 1.4;
   game.waveIdx = HEAT_PLANT.waves.length; game.time = 20;
+  return game;
+}
+
+export function mountBossVisual(root: HTMLElement): void {
+  const game = createBossVisualGame();
   const noop = () => {};
   const hud = new Hud(game, { onCallWave: noop, onToggleSpeed: noop, onTogglePause: noop, onQuit: noop,
     onClockOut: noop, onMute: noop, muteLabel: () => 'Sound off', onClamp: noop, onShutoff: noop,

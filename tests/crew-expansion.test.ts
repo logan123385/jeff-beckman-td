@@ -7,8 +7,9 @@ import { TOWERS, TOWER_ORDER } from '../src/data/towers';
 import { chestsForRun, xpForRun } from '../src/data/progress';
 import { SaveStore, starsForClear } from '../src/save/save';
 import { Game } from '../src/sim/game';
-import { damageFriendly } from '../src/sim/friendlies';
-import { damageBarricade } from '../src/sim/towers';
+import { resolveLoadout } from '../src/data/loadout';
+import type { TowerId } from '../src/data/types';
+import { MAPS } from '../src/data/maps';
 
 function field() {
   return new Game({ ...CRAWLSPACE, paths: [[{x:20,y:200},{x:920,y:200}]], slots:[{x:300,y:150},{x:400,y:150},{x:500,y:150}],
@@ -16,67 +17,25 @@ function field() {
 }
 function step(g:Game,s:number) { for(let i=0;i<Math.ceil(s*60);i++) g.update(1/60); }
 
-describe('Real recruit towers',()=>{
-  it('recruits do not hold or punch while the shop is still installing', () => {
-    const g = field();
-    g.placeTower(0, 'jayjay');
-    expect((g.towers[0]!.build ?? 0)).toBeGreaterThan(0.5);
-    const f = g.friendlies[0]!;
-    const e = g.spawnEnemy('sludge', 0, 280);
-    e.pos = { ...f.pos };
-    e.def = { ...e.def, dps: 0, speed: 0 };
-    e.hp = e.maxHp = 10000;
-    const hp = e.hp;
-    step(g, 0.5);
-    expect((g.towers[0]!.build ?? 0)).toBeGreaterThan(0);
-    expect(e.heldBy).toBeNull();
-    expect(e.hp).toBe(hp);
-    expect(f.swing).toBe(0);
+describe('Retired crew towers and saved loadouts', () => {
+  it.each(['apprentices', 'jayjay', 'cbjDoni'])('%s is absent from every playable catalogue and cannot be built', retired => {
+    expect(TOWER_ORDER).not.toContain(retired);
+    expect(TOWERS).not.toHaveProperty(retired);
+    for (const map of [...MAPS, SERVICE_CALL]) expect(map.allowedTowers).not.toContain(retired);
+    const g = field(); const money = g.money;
+    expect(g.placeTower(0, retired as TowerId)).toBe(false);
+    expect(g.towers).toHaveLength(0); expect(g.money).toBe(money);
   });
-  it('four tool-bearing apprentices walk from the workshop, expanding to six at tier six',()=>{
-    const g=field();g.placeTower(0,'apprentices');const t=g.towers[0]!;
-    expect(g.friendlies).toHaveLength(4);expect(g.friendlies.every(f=>f.pos.y===150)).toBe(true);
-    step(g,.2);expect(g.friendlies.some(f=>f.moving && f.pos.y>150 && f.pos.y<200)).toBe(true);
-    for(let i=0;i<5;i++) expect(g.upgradeTower(t.id)).toBe(true);
-    expect(g.friendlies).toHaveLength(6);expect(g.friendlies.every(f=>f.tier===5)).toBe(true);
-    expect(g.friendlies[0]!.maxHp).toBeGreaterThan(1000);
-    expect(g.upgradeTower(t.id)).toBe(false);
-  });
-  it('Jayjay is a single armored tank; CBJ and Doni have distinct health and attack speeds',()=>{
-    const g=field();g.placeTower(0,'jayjay');g.placeTower(1,'cbjDoni');
-    const [jay,cbj,doni]=g.friendlies;
-    expect(g.friendlies.map(f=>f.role)).toEqual(['jayjay','cbj','doni']);
-    expect(jay!.maxHp).toBeGreaterThan(doni!.maxHp);expect(jay!.holds).toBe(3);
-    expect(cbj!.rate).toBeGreaterThan(doni!.rate);expect(doni!.damage).toBeGreaterThan(cbj!.damage);
-    const hp=jay!.hp;damageFriendly(g,jay!,100);expect(hp-jay!.hp).toBeCloseTo(75);
-  });
-  it('Doni deals damage at contact and NYEH appears only on a connected punch',()=>{
-    const g=field();g.placeTower(0,'cbjDoni');step(g,2);
-    const cbj=g.friendlies[0]!,doni=g.friendlies[1]!; cbj.respawn=30;
-    const e=g.spawnEnemy('sludge',0,doni.pos.x-20);e.pos={x:doni.pos.x+5,y:doni.pos.y};e.def={...e.def,dps:0,speed:0};e.hp=e.maxHp=10000;
-    const hp=e.hp;step(g,.1);expect(e.hp).toBe(hp);expect(doni.swing).toBeGreaterThan(0);
-    step(g,.3);expect(e.hp).toBeLessThan(hp);expect(g.effects.some(v=>v.kind==='text'&&v.text==='NYEH!')).toBe(true);
-  });
-  it('death releases enemies, respawn walks back, and selling removes every recruit',()=>{
-    const g=field();g.placeTower(0,'jayjay');step(g,2);const f=g.friendlies[0]!,t=g.towers[0]!;
-    const e=g.spawnEnemy('sludge',0,280);step(g,.1);expect(e.heldBy).toEqual({kind:'friendly',id:f.id});
-    damageFriendly(g,f,100000);expect(e.heldBy).toBeNull();expect(f.respawn).toBe(14);
-    e.dead=true;step(g,14.1);expect(f.hp).toBe(f.maxHp);expect(f.pos.y).toBeLessThan(f.home.y);
-    g.sellTower(t.id);expect(g.friendlies).toHaveLength(0);
-  });
-  it('rally orders release holds without teleporting the crew',()=>{
-    const g=field();g.placeTower(0,'apprentices');step(g,2);const before={...g.friendlies[0]!.pos};
-    expect(g.setRally(g.towers[0]!.id,{x:400,y:200})).toBe(true);
-    expect(g.friendlies[0]!.pos).toEqual(before);step(g,.2);expect(g.friendlies[0]!.pos.x).toBeGreaterThan(before.x);
-  });
-  it('recruit workshops rebuild after a blowout and idle the crew until they stand back up',()=>{
-    const g=field();g.placeTower(0,'apprentices');step(g,2);
-    const t=g.towers[0]!,f=g.friendlies[0]!;
-    const e=g.spawnEnemy('sludge',0,280);e.pos={...f.pos};e.def={...e.def,dps:0,speed:0};e.hp=e.maxHp=10000;
-    step(g,.5);expect(f.targetId).not.toBeNull();
-    damageBarricade(g,t,1e9);expect(t.rebuild).toBeGreaterThan(7);
-    step(g,.1);expect(f.targetId).toBeNull();expect(t.rebuild).toBeGreaterThan(0);expect(t.rebuild).toBeLessThan(8);
-    step(g,8);expect(t.rebuild).toBeLessThanOrEqual(0);expect(t.hp).toBe(t.maxHp);
+  it('filters retired saved picks, refills a legal bag, and preserves earned progress', () => {
+    const storage = { length: 1, clear() {}, key() { return null; }, getItem() { return JSON.stringify({
+      version: 1, selectedHero: 'doni', lastLoadout: ['apprentices', 'jayjay', 'cbjDoni', 'torch'],
+      stars: { crawlspace: { journeyman: 3 } }, skills: ['sharpTools'], jeffXp: 500, serviceCallBest: 42,
+    }); }, setItem() {}, removeItem() {} };
+    const save = new SaveStore(storage);
+    expect(save.data.lastLoadout).toEqual(['torch']);
+    expect(resolveLoadout(save.data.lastLoadout, CRAWLSPACE.allowedTowers)).toEqual(['torch', 'washer', 'barricade']);
+    expect(save.starsFor('crawlspace')).toBe(3); expect(save.data.skills).toEqual(['sharpTools']);
+    expect(save.data.jeffXp).toBe(500); expect(save.data.serviceCallBest).toBe(42); expect(save.data.selectedHero).toBe('doni');
   });
 });
 

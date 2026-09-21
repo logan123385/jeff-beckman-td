@@ -47,44 +47,27 @@ export function campaignMap(app: App, card: (map: MapDef, index: number, unlocke
 }
 
 function districtIllustration(): string {
-  // Original vector cartography. Repeated symbols are deliberately small, with the mission pins carrying navigation.
-  const trees = Array.from({ length: 100 }, (_, i) => {
-    const x = 30 + ((i * 137 + (i % 3) * 57) % 945), y = 115 + ((i * 83) % 420);
-    if (x > 590 && y < 175 || x > 690 && y > 380) return '';
-    return `<use href="#county-pine" x="${x}" y="${y}" opacity="${.25 + (i % 5) * .08}" transform="rotate(${(i % 5) - 2} ${x} ${y})"/>`;
-  }).join('');
-  const houses = [[105, 395], [154, 413], [260, 258], [310, 272], [146, 126], [191, 142], [395, 103], [450, 118], [807, 164], [860, 188], [628, 280], [692, 300]]
-    .map(([x, y]) => `<use href="#county-house" x="${x}" y="${y}"/>`).join('');
-  const road = 'M120 425 Q155 340 290 307 Q355 230 170 165 Q280 62 430 142 Q550 208 670 100 Q797 75 850 200 Q820 308 660 313 Q635 428 830 437 Q755 556 490 472';
+  const art = new URL('../../../assets/cinematic/beckman-county.jpg', import.meta.url).href;
+  const points = MAPS.map(m => CAMPAIGN_LOCATIONS[m.id]!).map(p => [p.x * 10, p.y * 5.9]);
+  const road = points.map(([x, y], i) => {
+    if (!i) return `M${x} ${y}`;
+    const [px, py] = points[i - 1]!;
+    return `C${px} ${(py! + y!) / 2} ${x} ${(py! + y!) / 2} ${x} ${y}`;
+  }).join(' ');
   return `<svg viewBox="0 0 1000 590" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <defs>
-      <radialGradient id="county-land"><stop stop-color="#7e9262"/><stop offset="1" stop-color="#3d6450"/></radialGradient>
-      <linearGradient id="county-water" x2="1" y2="1"><stop stop-color="#8dbfb4"/><stop offset="1" stop-color="#356e76"/></linearGradient>
-      <pattern id="county-grain" width="31" height="29" patternUnits="userSpaceOnUse"><circle cx="3" cy="8" r="1" fill="#fff2be" opacity=".12"/><path d="M20 21h4" stroke="#102f26" opacity=".15"/></pattern>
-      <g id="county-pine"><ellipse cy="12" rx="13" ry="5" fill="#173d31" opacity=".4"/><path d="M-2 0h4v15h-4" fill="#624d31"/><path d="M0-25L-15 7H15ZM0-34L-12-7H12Z" fill="#294f38" stroke="#8d9e60" stroke-width="1.2"/></g>
-      <g id="county-house"><path d="M-15 0v22l30 4V0" fill="#cebe8b" stroke="#3d5039" stroke-width="2"/><path d="M-22 0L0-17L24 0Z" fill="#855b44" stroke="#3a4533" stroke-width="2"/><path d="M-3 12h7v12M-10 6h5v5M7 6h5v5" fill="#5a7866"/><path d="M11-10v-12h5v16" fill="#bda986"/></g>
-      <g id="county-mountain"><path d="M-75 56L0-72L84 56Z" fill="#798c81" stroke="#4c6b60" stroke-width="3"/><path d="M0-72L-30-20L-5-30L9-9L25-27L42-10Z" fill="#e2e7cb"/><path d="M0-70L12 55H80Z" fill="#405f58" opacity=".35"/></g>
+      <linearGradient id="county-shade" x2="0" y2="1"><stop stop-color="#0a2632" stop-opacity=".45"/><stop offset=".23" stop-color="#0a2632" stop-opacity="0"/><stop offset=".8" stop-color="#0a2632" stop-opacity="0"/><stop offset="1" stop-color="#0a2632" stop-opacity=".65"/></linearGradient>
+      <radialGradient id="county-mist"><stop stop-color="#dbecd6" stop-opacity=".18"/><stop offset="1" stop-color="#dbecd6" stop-opacity="0"/></radialGradient>
     </defs>
-    <rect width="1000" height="590" fill="url(#county-land)"/>
-    <path d="M0 396Q194 457 275 365T509 425T701 402T1000 470V590H0Z" fill="#a3ad6e" opacity=".35"/>
-    <path d="M0 195Q133 103 304 165T590 95T1000 145V0H0Z" fill="#a4ac74" opacity=".35"/>
-    <path d="M488-30C395 72 533 169 479 257S314 330 428 454S489 567 420 640" fill="none" stroke="#294b3d" stroke-width="64" opacity=".35"/>
-    <path d="M488-30C395 72 533 169 479 257S314 330 428 454S489 567 420 640" fill="none" stroke="#a0b394" stroke-width="54"/>
-    <path d="M488-30C395 72 533 169 479 257S314 330 428 454S489 567 420 640" fill="none" stroke="url(#county-water)" stroke-width="43"/>
-    <path d="M491-30C398 72 536 169 482 257S317 330 431 454S492 567 423 640" fill="none" stroke="#e0efd0" stroke-opacity=".3" stroke-width="2" stroke-dasharray="22 12"/>
-    <use href="#county-mountain" x="620" y="40"/><use href="#county-mountain" x="740" y="56"/><use href="#county-mountain" x="825" y="41"/>
-    ${trees}
-    <path d="${road}" fill="none" stroke="#334e36" stroke-opacity=".5" stroke-width="17"/>
-    <path d="${road}" fill="none" stroke="#c9b47d" stroke-width="12"/>
-    <path d="${road}" fill="none" stroke="#ede0ad" stroke-width="2" stroke-dasharray="4 9"/>
-    <path d="M469 150l55 25M462 161l55 25" stroke="#66593c" stroke-width="8"/>
-    ${houses}
-    <g transform="translate(808 405)"><path d="M-45 20V-20H40V20Z" fill="#8d8671" stroke="#42594b" stroke-width="3"/><path d="M-49-20L-28-40L-8-20L12-40L42-20" fill="#654f40" stroke="#42594b" stroke-width="3"/><path d="M26-20V-61H38V-20" fill="#9a8064"/><path d="M-34-5h13v12h-13M-10-5h13v12h-13M14-5h13v12H14" fill="#d9bd76"/></g>
-    <g transform="translate(490 446)"><path d="M-55 18V-25L-30-42H34L58-25V18Z" fill="#614e3d" stroke="#3b4535" stroke-width="3"/><path d="M-35-31v-53h15v46M16-38v-65h18v70" fill="#9c7050" stroke="#4c4835" stroke-width="3"/><path d="M-18 18V-2Q0-30 18-2V18Z" fill="#eda752"/><path d="M-9 18V0Q0-13 9 0V18" fill="#ffe0a2"/></g>
-    <rect width="1000" height="590" fill="url(#county-grain)"/>
-    <g fill="#e6e2b9" font-family="Georgia,serif"><text x="44" y="49" font-size="30" font-weight="bold">Beckman County</text><text x="46" y="71" font-family="sans-serif" font-size="9" letter-spacing="3">DEPARTMENT OF KEEPING THINGS RUNNING</text></g>
-    <g fill="#c2d0a3" opacity=".75" font-size="11" font-family="Georgia,serif" letter-spacing="3"><text x="40" y="555">THE LOWLANDS</text><text x="592" y="226">HIGH COUNTRY</text><text x="689" y="567">THE WORKS</text></g>
-    <g transform="translate(928 507)" stroke="#d7cf9d" fill="none"><circle r="28" stroke-opacity=".5"/><path d="M0-34L7 0L0 34L-7 0ZM-34 0L0-7L34 0L0 7Z"/><path d="M0-34L7 0H0Z" fill="#d7cf9d"/><text y="-42" text-anchor="middle" fill="#ece1b1" stroke="none" font-family="Georgia,serif" font-size="13">N</text></g>
-    <rect x="9" y="9" width="982" height="572" rx="12" fill="none" stroke="#ece1b1" stroke-opacity=".2"/>
+    <image href="${art}" width="1000" height="590" preserveAspectRatio="none"/>
+    <rect width="1000" height="590" fill="url(#county-shade)"/>
+    <path d="${road}" fill="none" stroke="#16313d" stroke-opacity=".7" stroke-width="10"/>
+    <path d="${road}" fill="none" stroke="#e1c794" stroke-opacity=".85" stroke-width="5"/>
+    <path d="${road}" fill="none" stroke="#fff0c5" stroke-width="1.5" stroke-dasharray="4 10"/>
+    <g class="county-clouds"><ellipse cx="260" cy="260" rx="230" ry="65" fill="url(#county-mist)"/><ellipse cx="780" cy="410" rx="200" ry="48" fill="url(#county-mist)"/></g>
+    <g fill="#f9e4b5" font-family="Georgia,serif"><text x="32" y="39" font-size="27" font-weight="bold">Beckman County</text><text x="34" y="57" font-family="sans-serif" font-size="8" letter-spacing="2.4">DEPARTMENT OF KEEPING THINGS RUNNING</text></g>
+    <g fill="#eee2bd" opacity=".85" font-size="10" font-family="Georgia,serif" letter-spacing="3"><text x="35" y="564">THE LOWLANDS</text><text x="756" y="564">THE WETLANDS</text></g>
+    <g transform="translate(945 505)" stroke="#e4cca0" fill="none"><circle r="23" stroke-opacity=".5"/><path d="M0-28L5 0L0 28L-5 0ZM-28 0L0-5L28 0L0 5Z"/><path d="M0-28L5 0H0Z" fill="#e4cca0"/><text y="-35" text-anchor="middle" fill="#f6e3b4" stroke="none" font-family="Georgia,serif" font-size="11">N</text></g>
+    <rect x="8" y="8" width="984" height="574" rx="4" fill="none" stroke="#e8d7b0" stroke-opacity=".22"/>
   </svg>`;
 }

@@ -36,7 +36,7 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
   const heroPicker = () => {
     const selected = HEROES[app.save.data.selectedHero];
     return h('section', { class: 'hero-roster sheet', attrs: { 'aria-label': 'Choose your hero' } },
-      h('div', { class: 'hero-roster-heading' }, h('div', {}, h('span', { class: 'eyebrow', text: 'Five legends. One service call.' }), h('h2', { text: 'Who’s taking the call?' })), h('span', { class: 'pill', text: 'All heroes available' })),
+      h('div', { class: 'hero-roster-heading' }, h('div', {}, h('span', { class: 'eyebrow', text: 'Eight legends. One service call.' }), h('h2', { text: 'Who’s taking the call?' })), h('span', { class: 'pill', text: 'All heroes available' })),
       h('div', { class: 'hero-roster-grid', attrs: { role: 'group', 'aria-label': 'Playable heroes' } }, ...HERO_ORDER.map(id => {
         const hero = HEROES[id], on = selected.id === id;
         return h('button', { class: `hero-roster-card ${on ? 'selected' : ''}`, attrs: { style: `--hero-color: ${hero.color}`,  'aria-pressed': String(on), 'aria-label': `Play as ${hero.name}` },

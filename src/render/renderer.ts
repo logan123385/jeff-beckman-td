@@ -12,19 +12,15 @@ import type { Game } from '../sim/game';
 import type { Effect, JeffSkillId } from '../sim/state';
 import {
   colorGrade,
-  heatShimmer,
-  shockwave,
-  sparkleField,
-  starBurst,
   statusHalo,
   towerIdleGlow,
-  trailRibbon,
 } from './fx';
-import { blotch, CANVAS_UI, disc, filmGrain, glow, lampCone, noGlow, pulseRing, radial, rgba, stampText, vignette } from './ink';
+import { blotch, CANVAS_UI, disc, filmGrain, glow, noGlow, pulseRing, radial, rgba, stampText, vignette } from './ink';
 import { drawBuildPad, drawEnemy, drawJeff, drawSplitTell, drawTower, drawTowerBase, drawValveGate } from './sprites';
 import { paintAtmosphere, paintForeground, paintPipeFlow, paintYard } from './yard';
 import { paintedCrew, paintedFriendly } from './paintedActors';
-import { ENEMY_ART, paintedSprite } from './art';
+import { Spectacle, impact, cinematicWeather, pointLight } from './spectacle';
+import { FIXED_DT } from '../core/loop';
 import { drawBossTelegraphs, drawScoutedRoute } from './tactics';
 
 interface Spark {
@@ -73,7 +69,9 @@ export class Renderer {
   private lastSparkTime = 0;
   private fxTime = 0;
   private trauma = 0;
-  private shakeSeed = 0;
+  private spectacle = new Spectacle();
+  private frameDt = 0;
+  private towerFacing = new Map<number, number>();
   private lastLives = -1;
   private hurt = 0;
   private lastDrawTime = 0;
@@ -100,24 +98,25 @@ export class Renderer {
 
   draw(game: Game, view: RenderView): void {
     const ctx = this.ctx;
-    this.fxTime = game.time;
     this.interp = view.interp ?? 1;
+    const time = Math.max(this.fxTime, game.time - (1 - this.interp) * FIXED_DT);
+    this.frameDt = Math.max(0, Math.min(.1, time - this.fxTime));
+    this.fxTime = time;
     ctx.save();
     const shake = this.trauma * this.trauma;
     if (shake > 0.004) {
-      this.shakeSeed += 1;
-      const dx = Math.sin(this.shakeSeed * 12.9898 + this.fxTime * 18) * shake * 11;
-      const dy = Math.cos(this.shakeSeed * 78.233 + this.fxTime * 14) * shake * 9;
+      const dx = Math.sin(this.fxTime * 71) * shake * 11;
+      const dy = Math.cos(this.fxTime * 83) * shake * 9;
       ctx.translate(dx, dy);
-      ctx.rotate(shake * 0.012 * Math.sin(this.shakeSeed));
+      ctx.rotate(shake * 0.012 * Math.sin(this.fxTime * 61));
     }
     this.drawBackground(game);
+    this.spectacle.ground(ctx, game, this.fxTime);
     paintPipeFlow(ctx, game.map.paths, game.time, game.map.palette.pipe);
     this.drawEntrances(game);
     drawScoutedRoute(ctx, game, view.scoutedRoute ?? null);
     this.drawWaveWarning(game);
     paintAtmosphere(ctx, game.map, game.time);
-    this.drawAmbient(game);
     this.drawLights(game);
     this.drawSlots(game, view);
     this.drawRangePreview(game, view);
@@ -130,26 +129,27 @@ export class Renderer {
     this.drawHeroAuras(game);
     this.drawActors(game, view.hoverEnemyId);
     drawBossTelegraphs(ctx, game);
-    this.drawProjectiles(game);
-    drawHeroMissiles(ctx, game);
+    this.spectacle.projectiles(ctx, game, this.fxTime, this.interp);
+    drawHeroMissiles(ctx, game, this.interp);
     drawHeroVisuals(ctx, game);
     for (const fx of game.effects) {
       this.seedSparks(fx);
-      if (fx.kind !== 'skill') this.drawEffect(fx);
+      if (fx.kind !== 'skill') this.drawEffect({ ...fx, ttl: Math.min(fx.max, fx.ttl + game.time - this.fxTime) });
     }
-    this.tickSparks(game.time);
+    this.tickSparks(this.fxTime);
     this.drawSparks();
     this.drawMuzzleFlashes(game);
     this.drawStrikes(game, view);
     this.drawForeground(game);
+    cinematicWeather(ctx, game, this.fxTime, this.reducedMotion);
     if (game.globalSlowTimer > 0) this.drawShutoffHud(game);
     for (const fx of game.effects) {
       if (fx.kind === 'skill') this.drawEffect(fx);
     }
     // living film + grade + edge vignette so the stage reads like a lit diorama
-    colorGrade(ctx, game.map.id === 'serviceCall' ? 0.1 : 0.16);
-    filmGrain(ctx, WORLD_W, WORLD_H, Math.floor(game.time * 10), 0.018);
-    vignette(ctx, WORLD_W, WORLD_H, game.map.id === 'serviceCall' ? 0.26 : 0.14);
+    colorGrade(ctx, game.map.id === 'serviceCall' ? .06 : .035);
+    filmGrain(ctx, WORLD_W, WORLD_H, Math.floor(this.fxTime * 10), 0.008);
+    vignette(ctx, WORLD_W, WORLD_H, game.map.id === 'serviceCall' ? .22 : .15);
     this.drawHurtFlash(game);
     this.drawLowLives(game);
     this.drawSkillNotice(game);
@@ -167,7 +167,7 @@ export class Renderer {
   /** Nudge the camera; decays each frame. */
   private kick(amount: number): void {
     if (this.reducedMotion) return;
-this.trauma = Math.min(1, this.trauma + amount / 14);
+    this.trauma = Math.min(.65, this.trauma + amount / 28);
   }
 
   /** Brass pulse along the pipes that the next wave will actually use. */
@@ -304,76 +304,6 @@ this.trauma = Math.min(1, this.trauma + amount / 14);
   }
 
 
-  private drawAmbient(game: Game): void {
-    const ctx = this.ctx;
-    ctx.save();
-    const snow = game.map.id === 'snowmelt';
-    const embers = game.map.id === 'heatPlant' || game.map.id === 'mechanicalRoom' || game.map.id === 'boilerRoom';
-    const night = game.map.id === 'serviceCall';
-    const n = night ? 64 : snow ? 58 : embers ? 52 : 40;
-    ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < n; i++) {
-      const speed = snow ? 22 + (i % 5) * 5 : 14 + (i % 6) * 1.4;
-      const drift = (game.time * speed + i * 40) % (WORLD_W + 40);
-      const sway = Math.sin(game.time * 1.6 + i) * (snow ? 14 : 7);
-      const baseY = 24 + ((i * 73) % (WORLD_H - 50));
-      const y = embers ? (baseY - game.time * 22 * (1 + (i % 3) * 0.35)) % WORLD_H + (baseY < 0 ? WORLD_H : 0) : baseY + sway;
-      const a = 0.22 + Math.sin(game.time * 2.4 + i) * 0.12;
-      ctx.fillStyle = snow
-        ? `rgba(224,247,250,${a + 0.22})`
-        : embers
-          ? `rgba(255,${138 + (i % 3) * 30},64,${a + 0.2})`
-          : `rgba(255,236,179,${a})`;
-      const py = ((y % WORLD_H) + WORLD_H) % WORLD_H;
-      ctx.beginPath();
-      ctx.arc(drift - 20, py, snow ? 3.4 : embers ? 2.2 + (i % 2) : 2.4, 0, Math.PI * 2);
-      ctx.fill();
-      if (snow && i % 3 === 0) {
-        ctx.fillStyle = `rgba(255,255,255,${a * 0.65})`;
-        ctx.beginPath();
-        ctx.arc(drift - 18, py - 1, 1.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      if (embers && i % 4 === 0) {
-        ctx.strokeStyle = `rgba(255,183,77,${a * 0.7})`;
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(drift - 20, py);
-        ctx.lineTo(drift - 20, py + 8 + (i % 3) * 3);
-        ctx.stroke();
-      }
-    }
-    ctx.globalCompositeOperation = 'source-over';
-    sparkleField(ctx, game.time, night ? 36 : embers ? 32 : 26, snow ? '#e1f5fe' : embers ? '#ffcc80' : '#fff8e1');
-    // work-lamp cones for crawlspace / attic feel
-    if (game.map.id === 'crawlspace' || game.map.id === 'attic') {
-      for (const x of [180, 520, 780]) {
-        lampCone(ctx, x, 8, 190, 0.14 + Math.sin(game.time * 0.8 + x) * 0.03);
-      }
-    }
-    if (embers) {
-      for (const x of [220, 480, 740]) {
-        heatShimmer(ctx, x, WORLD_H - 80, 90, 110, game.time, 0.16);
-      }
-    }
-    // slow light sweep across the yard
-    const sweepX = WORLD_W / 2 + Math.sin(game.time * 0.35) * WORLD_W * 0.42;
-    const g = ctx.createLinearGradient(sweepX - 220, 0, sweepX + 220, 0);
-    g.addColorStop(0, 'rgba(255,224,130,0)');
-    g.addColorStop(0.5, 'rgba(255,224,130,0.16)');
-    g.addColorStop(1, 'rgba(255,224,130,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(sweepX - 220, 0, 440, WORLD_H);
-    // live bulb flicker for maps with hanging lights
-    if (game.map.id === 'crawlspace' || game.map.id === 'attic' || game.map.id === 'serviceCall') {
-      const flicker = 0.85 + Math.sin(game.time * 11) * 0.1 + Math.sin(game.time * 27) * 0.05;
-      for (const x of [160, 480, 800]) {
-        radial(ctx, x, 28, 4, 110 * flicker, '#ffe082', 0.16 * flicker);
-      }
-    }
-    ctx.restore();
-  }
-
   private drawLights(game: Game): void {
     const ctx = this.ctx;
     ctx.save();
@@ -382,7 +312,7 @@ this.trauma = Math.min(1, this.trauma + amount / 14);
       const hot = t.recoil > 0 || t.frozen > 0 || t.def.kind === 'aura';
       towerIdleGlow(ctx, t.pos.x, t.pos.y, t.frozen > 0 ? '#81d4fa' : t.def.color, game.time, hot);
       if (!hot) continue;
-      const peak = t.recoil > 0 ? 0.48 : t.frozen > 0 ? 0.22 : 0.18;
+      const peak = t.recoil > 0 ? 0.22 : t.frozen > 0 ? 0.15 : 0.12;
       radial(ctx, t.pos.x, t.pos.y - 10, 6, t.recoil > 0 ? 88 : 56, t.frozen > 0 ? '#81d4fa' : t.def.color, peak);
     }
     if (game.heroEnabled && game.hero.deployed && game.hero.downed <= 0) {
@@ -396,7 +326,7 @@ this.trauma = Math.min(1, this.trauma + amount / 14);
         4,
         swing > 0 || cast ? 72 : 36,
         swing > 0 || cast ? '#ffe082' : '#a5d6a7',
-        swing > 0 || cast ? 0.42 : 0.14,
+        swing > 0 || cast ? 0.22 : 0.09,
       );
       if (h.sleeveTimer > 0) radial(ctx, h.pos.x, h.pos.y - 6, 6, 64, '#a1887f', 0.34);
       if (h.coffeeTimer > 0) radial(ctx, h.pos.x, h.pos.y - 10, 6, 72, '#ffe082', 0.38);
@@ -410,19 +340,18 @@ this.trauma = Math.min(1, this.trauma + amount / 14);
     ctx.globalCompositeOperation = 'lighter';
     for (const t of game.towers) {
       if (t.recoil <= 0 || t.def.kind !== 'shooter') continue;
-      const x = t.pos.x + Math.cos(t.facing) * 20;
-      const y = t.pos.y - 12 + Math.sin(t.facing) * 20;
-      const punch = Math.min(1, t.recoil * 8);
-      radial(ctx, x, y, 1, 34, '#fff8e1', 0.85 * punch);
-      radial(ctx, x, y, 1, 56, t.def.color, 0.62 * punch);
-      radial(ctx, x, y, 1, 20, '#c9a15b', 0.45 * punch);
-      starBurst(ctx, x, y, t.def.color, punch * 0.7, 6, 14);
-      ctx.strokeStyle = rgba('#fffde7', Math.min(0.95, punch));
-      ctx.lineWidth = 3;
+      const aim = this.towerFacing.get(t.id) ?? t.facing;
+      const height = 65 + t.level * 8 + (t.specialization ? 10 : 0);
+      const x = t.pos.x + Math.cos(aim) * (26 + t.level * 2);
+      const y = t.pos.y + 13 - height * .48 + Math.sin(aim) * (26 + t.level * 2);
+      const punch = Math.pow(Math.min(1, t.recoil * 6), 2);
+      pointLight(ctx, x, y, 25, t.def.color, punch * .65);
+      ctx.strokeStyle = rgba('#fff0c7', punch * .8);
+      ctx.lineWidth = 1.7;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.lineTo(x + Math.cos(t.facing) * 26, y + Math.sin(t.facing) * 26);
+      ctx.lineTo(x + Math.cos(aim) * (7 + punch * 9), y + Math.sin(aim) * (7 + punch * 9));
       ctx.stroke();
     }
     ctx.restore();
@@ -679,18 +608,22 @@ this.trauma = Math.min(1, this.trauma + amount / 14);
 
   private drawActors(game: Game, hoverEnemyId: number | null): void {
     const ctx = this.ctx;
-    const a = this.interp;
+    const a = this.interp, lag = (1 - a) * FIXED_DT;
+    const countdown = (value: number, max: number) => value > 0 ? Math.min(max, value + lag) : 0;
     const items: { y: number; z: number; draw: () => void }[] = [];
     const slide = (pos: Vec, prev: Vec | undefined): Vec => {
       if (!prev || a >= 0.995) return pos;
       return { x: prev.x + (pos.x - prev.x) * a, y: prev.y + (pos.y - prev.y) * a };
     };
-    for (const t of game.towers) {
-      if (t.drawFacing === undefined) t.drawFacing = t.facing;
+    const currentTowers = new Set(game.towers.map(t => t.id));
+    for (const id of this.towerFacing.keys()) if (!currentTowers.has(id)) this.towerFacing.delete(id);
+    for (const tower of game.towers) {
+      const t = { ...tower, drawFacing: this.towerFacing.get(tower.id) ?? tower.facing };
       let d = t.facing - t.drawFacing;
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
-      t.drawFacing += d * 0.18;
+      t.drawFacing += d * (1 - Math.exp(-13 * this.frameDt));
+      this.towerFacing.set(t.id, t.drawFacing);
       if (t.def.kind === 'barricade' && !t.def.recruits) {
         items.push({ y: t.rally.y, z: 0, draw: () => {
           if (t.rebuild > 0) { drawValveGate(ctx, t); return; }
@@ -706,25 +639,23 @@ this.trauma = Math.min(1, this.trauma + amount / 14);
       const opponent=hold?.kind==='friendly'?game.friendlies.find(f=>f.id===hold.id)?.pos:hold?.kind==='crew'?game.crew.find(f=>f.id===hold.id)?.pos:hold?.kind==='summon'?game.heroSummons.find(s=>s.id===hold.id)?.pos:hold?.kind==='hero'?game.hero.pos:hold?.kind==='tower'?game.towerById(hold.id)?.rally:null;
 if(opponent)dir={x:opponent.x-vis.x,y:opponent.y-vis.y};
       items.push({ y: vis.y, z: e.def.flying ? 4 : 2, draw: () => {
-        const keep = e.pos;
-        e.pos = vis;
+        const shown = { ...e, pos: vis, wobble: e.wobble - (e.dead || e.heldBy || e.stun > 0 || e.ventCast ? 0 : lag * 6), attackSwing: countdown(e.attackSwing ?? 0, .64) };
         if (e.stun > 0) statusHalo(ctx, e.pos.x, e.pos.y, e.def.radius, 'stun', game.time);
         else if (e.slow > 0.15) statusHalo(ctx, e.pos.x, e.pos.y, e.def.radius, 'slow', game.time);
-        drawEnemy(ctx, e, game.time, dir);
-        drawSplitTell(ctx, e, hoverEnemyId === e.id);
-        e.pos = keep;
+        drawEnemy(ctx, shown, this.fxTime, dir);
+        drawSplitTell(ctx, shown, hoverEnemyId === e.id);
       } });
     }
     for (const f of game.friendlies) {
       const vis = slide(f.pos, f.prev);
       items.push({ y: vis.y, z: 2, draw: () => {
-        const keep = f.pos; f.pos = vis; paintedFriendly(ctx, f, game.time); f.pos = keep;
+        paintedFriendly(ctx, { ...f, pos: vis, walkPhase: f.walkPhase - dist(f.prev, f.pos) * (1 - a) * .13, swing: countdown(f.swing, .68) }, this.fxTime);
       } });
     }
     for (const summon of game.heroSummons) {
       const vis = slide(summon.pos, summon.prev);
       items.push({ y: vis.y, z: 2, draw: () => {
-        const keep = summon.pos; summon.pos = vis; drawLogan(ctx, summon, game.time); summon.pos = keep;
+        drawLogan(ctx, { ...summon, pos: vis, walkPhase: summon.walkPhase - dist(summon.prev, summon.pos) * (1 - a) * .22, swing: countdown(summon.swing, .46) }, this.fxTime);
       } });
     }
     for (const crew of game.crew) {
@@ -734,7 +665,8 @@ if(opponent)dir={x:opponent.x-vis.x,y:opponent.y-vis.y};
     if (game.heroEnabled && (game.hero.deployed || game.hero.downed > 0)) {
       const vis = slide(game.hero.pos, game.hero.prev);
       items.push({ y: vis.y, z: 3, draw: () => {
-        const keep = game.hero.pos; game.hero.pos = vis; drawJeff(ctx, game.hero, game.time); game.hero.pos = keep;
+        const h = game.hero;
+        drawJeff(ctx, { ...h, pos: vis, walkPhase: (h.walkPhase ?? 0) - dist(h.prev, h.pos) * (1 - a) * .1, swing: countdown(h.swing, h.swingDuration ?? JEFF.swingTime), castTimer: countdown(h.castTimer ?? 0, .72), cast: h.cast ? { ...h.cast, left: countdown(h.cast.left, h.cast.duration) } : undefined }, this.fxTime);
       } });
     }
     items.sort((a, b) => a.y - b.y || a.z - b.z);
@@ -1038,25 +970,21 @@ if(opponent)dir={x:opponent.x-vis.x,y:opponent.y-vis.y};
     this.seededFx.add(fx);
     switch (fx.kind) {
       case 'death':
-        this.burst(fx.pos.x, fx.pos.y, '#ff8a65', 22, 180);
-        this.burst(fx.pos.x, fx.pos.y, '#fffde7', 14, 90);
-        this.burst(fx.pos.x, fx.pos.y, '#c9a15b', 10, 140);
-        this.kick(fx.radius >= 28 ? 5.5 : 3.2);
+        this.burst(fx.pos.x, fx.pos.y, '#d8c39c', 5, 140);
+        if (fx.radius >= 28) this.kick(5.5);
         break;
       case 'hit':
-        this.burst(fx.pos.x, fx.pos.y, fx.color, 7, 85);
-        this.burst(fx.pos.x, fx.pos.y, '#fffde7', 5, 45);
-        if (fx.max >= 0.25) this.kick(2.4);
+        this.burst(fx.pos.x, fx.pos.y, fx.color, 3, 85);
         break;
       case 'splash':
-        this.burst(fx.pos.x, fx.pos.y, fx.color, 28, 240);
-        this.burst(fx.pos.x, fx.pos.y, '#fff8e1', 12, 110);
+        this.burst(fx.pos.x, fx.pos.y, fx.color, 10, 240);
+        this.burst(fx.pos.x, fx.pos.y, '#fff8e1', 4, 110);
         if (fx.radius >= 60) this.kick(7.5);
         else if (fx.radius >= 40) this.kick(4);
         break;
       case 'ring':
-        this.burst(fx.pos.x, fx.pos.y, fx.color, 18, 100);
-        this.burst(fx.pos.x, fx.pos.y, '#fffde7', 6, 50);
+        this.burst(fx.pos.x, fx.pos.y, fx.color, 6, 100);
+        this.burst(fx.pos.x, fx.pos.y, '#fffde7', 2, 50);
         this.kick(2);
         break;
       case 'text':
@@ -1114,7 +1042,7 @@ if (fx.text.startsWith('+$')) {
         vy: Math.sin(a) * sp - 55,
         life,
         max: life,
-        r: 1.6 + Math.random() * 3.2,
+        r: .9 + Math.random() * 1.7,
         color,
         g: gravity,
         shape,
@@ -1131,8 +1059,9 @@ if (fx.text.startsWith('+$')) {
       if (s.shape === 3 && s.hx !== undefined && s.hy !== undefined) {
         const k = 1 - Math.max(0, s.life / s.max);
         const ease = k * k * (3 - 2 * k);
-        s.x += (s.hx - s.x) * Math.min(1, 0.12 + ease * 0.35);
-        s.y += (s.hy - s.y) * Math.min(1, 0.12 + ease * 0.35);
+        const follow = 1 - Math.exp(-(8 + ease * 25) * dt);
+        s.x += (s.hx - s.x) * follow;
+        s.y += (s.hy - s.y) * follow;
       } else {
         s.x += s.vx * dt;
         s.y += s.vy * dt;
@@ -1151,7 +1080,7 @@ if (fx.text.startsWith('+$')) {
       const a = Math.max(0, s.life / s.max);
       ctx.globalAlpha = a;
       if (s.shape === 1) {
-        const len = s.r * 4.2;
+        const len = s.r * 2.8;
         const ang = Math.atan2(s.vy, s.vx);
         ctx.strokeStyle = s.color;
         ctx.lineWidth = Math.max(1.4, s.r * 0.85);
@@ -1189,163 +1118,13 @@ disc(ctx, s.x - s.r * 0.25, s.y - s.r * 0.35, s.r * 0.35, rgba('#ffffff', 0.7));
     ctx.restore();
   }
 
-  private drawProjectiles(game: Game): void {
-    const ctx = this.ctx;
-    const a = this.interp;
-    for (const p of game.projectiles) {
-      const px = p.prev && a < 0.995 ? p.prev.x + (p.pos.x - p.prev.x) * a : p.pos.x;
-      const py = p.prev && a < 0.995 ? p.prev.y + (p.pos.y - p.prev.y) * a : p.pos.y;
-      const dx = p.lastTargetPos.x - px;
-      const dy = p.lastTargetPos.y - py;
-      const len = Math.hypot(dx, dy) || 1;
-      const ux = dx / len;
-      const uy = dy / len;
-      const span = Math.hypot(p.lastTargetPos.x - p.from.x, p.lastTargetPos.y - p.from.y) || 1;
-      const flight = Math.max(0, Math.min(1, 1 - len / span));
-      const arc = Math.sin(flight * Math.PI) * (p.splash > 0 ? 34 : 11);
-      const x = px;
-      const y = py - arc;
-      const big = p.splash > 0;
-      const ang = Math.atan2(uy, ux);
-      ctx.save();
-ctx.globalAlpha = 0.28;
-      ctx.fillStyle = '#1a1208';
-      ctx.beginPath();
-      ctx.ellipse(px, py + 6, big ? 7 : 4, big ? 3 : 1.8, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'lighter';
-      trailRibbon(ctx, x, y, ux, uy, p.color, big);
-      for (let i = 1; i <= 7; i++) {
-        const back = i * (big ? 6 : 4.5);
-        ctx.globalAlpha = 0.4 - i * 0.05;
-        disc(ctx, x - ux * back, y - uy * back, (big ? 6 : 3.6) * (1 - i * 0.1), p.color);
-      }
-      glow(ctx, p.color, big ? 18 : 14);
-      ctx.translate(x, y);
-      ctx.rotate(ang + (big ? game.time * 6 : 0));
-      ctx.globalAlpha = 1;
-      if (big) {
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 10, 6, 0, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.fill();
-        ctx.fillStyle = '#fffde7';
-        ctx.beginPath();
-        ctx.ellipse(-2, -1.5, 3.5, 2.4, 0, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (p.color.includes('ff') && (p.color.includes('6') || p.color.includes('a') || p.color.includes('e'))) {
-        ctx.beginPath();
-        ctx.moveTo(12, 0);
-        ctx.lineTo(-5, -6);
-        ctx.lineTo(-2, 0);
-        ctx.lineTo(-5, 6);
-        ctx.closePath();
-        ctx.fillStyle = p.color;
-        ctx.fill();
-        ctx.fillStyle = '#fffde7';
-        ctx.beginPath();
-        ctx.moveTo(7, 0);
-        ctx.lineTo(-1, -2.5);
-        ctx.lineTo(-1, 2.5);
-        ctx.closePath();
-        ctx.fill();
-      } else {
-        ctx.beginPath();
-        ctx.moveTo(11, 0);
-        ctx.lineTo(-6, -3.8);
-        ctx.lineTo(-2, 0);
-        ctx.lineTo(-6, 3.8);
-        ctx.closePath();
-        ctx.fillStyle = p.color;
-        ctx.fill();
-        ctx.fillStyle = '#fffde7';
-        ctx.beginPath();
-        ctx.arc(-1, 0, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      noGlow(ctx);
-      ctx.restore();
-    }
-  }
-
   private drawEffect(fx: Effect): void {
     const ctx = this.ctx;
     const k = fx.ttl / fx.max;
     ctx.save();
+    if (impact(ctx, fx, this.fxTime)) { ctx.restore(); return; }
     switch (fx.kind) {
-      case 'death': {
-        shockwave(ctx, fx.pos.x, fx.pos.y, fx.radius * 2.4, '#ff8a65', k, 5);
-        starBurst(ctx, fx.pos.x, fx.pos.y - 6, '#fffde7', k, 10, 16 + fx.radius * 0.4);
-        const index = ENEMY_ART[fx.enemy];
-        if (index !== undefined) {
-          ctx.globalAlpha = k * 0.85;
-          ctx.translate(fx.pos.x, fx.pos.y + 10);
-          ctx.rotate((1 - k) * 1.35);
-          ctx.scale(0.75 + k * 0.25, 0.45 + k * 0.55);
-          paintedSprite(ctx, 'units', index, 0, 0, Math.max(37, fx.radius * 2.8));
-        }
-        break;
-      }
-      case 'beam':
-        ctx.globalAlpha = k;
-        ctx.globalCompositeOperation = 'lighter';
-        glow(ctx, fx.color, 28);
-        ctx.strokeStyle = fx.color;
-        ctx.lineWidth = 12;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(fx.from.x, fx.from.y - 14);
-        ctx.lineTo(fx.to.x, fx.to.y);
-        ctx.stroke();
-        noGlow(ctx);
-        ctx.strokeStyle = '#fffde7';
-        ctx.lineWidth = 3;
-        ctx.globalAlpha = k * 0.95;
-        ctx.stroke();
-        glow(ctx, fx.color, 20);
-        disc(ctx, fx.to.x, fx.to.y, 7 + (1 - k) * 12, fx.color);
-        disc(ctx, fx.to.x, fx.to.y, 3 + (1 - k) * 5, '#fffde7');
-        starBurst(ctx, fx.to.x, fx.to.y, fx.color, k, 6, 14);
-        noGlow(ctx);
-        break;
-      case 'hit':
-        starBurst(ctx, fx.pos.x, fx.pos.y, fx.color, k, 8, 16);
-        ctx.globalAlpha = k;
-        ctx.globalCompositeOperation = 'lighter';
-        glow(ctx, fx.color, 12);
-        ctx.fillStyle = fx.color;
-        ctx.beginPath();
-        ctx.arc(fx.pos.x, fx.pos.y, 4 + (1 - k) * 7, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#fffde7';
-        ctx.globalAlpha = k * 0.95;
-        ctx.beginPath();
-        ctx.arc(fx.pos.x, fx.pos.y, 2.5 + (1 - k) * 4, 0, Math.PI * 2);
-        ctx.fill();
-        noGlow(ctx);
-        break;
-      case 'splash':
-        shockwave(ctx, fx.pos.x, fx.pos.y, fx.radius, fx.color, k, 5);
-        ctx.globalCompositeOperation = 'lighter';
-        glow(ctx, fx.color, 24);
-        ctx.globalAlpha = k * 0.85;
-        ctx.strokeStyle = fx.color;
-        ctx.fillStyle = rgba(fx.color, 0.45);
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.arc(fx.pos.x, fx.pos.y, fx.radius * (1 - k * 0.35), 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = k * 0.32;
-        ctx.fill();
-        pulseRing(ctx, fx.pos.x, fx.pos.y, fx.radius * (1 - k * 0.5), fx.color, k, 3.5);
-        noGlow(ctx);
-        break;
-      case 'ring':
-        shockwave(ctx, fx.pos.x, fx.pos.y, fx.radius, fx.color, k, 4.5);
-        pulseRing(ctx, fx.pos.x, fx.pos.y, fx.radius * (1 - k * 0.45), fx.color, k, 5);
-        break;
-case 'text': {
+      case 'text': {
         const t = 1 - k;
         const rise = (1 - Math.pow(1 - Math.min(1, t * 1.15), 3)) * 36;
         const pop = 1 + 0.4 * Math.sin(Math.min(1, t * 5) * Math.PI);
@@ -1363,10 +1142,7 @@ case 'text': {
       case 'skill':
         this.drawSkillEffect(fx.skill, fx.pos, k);
         break;
-      default: {
-        const _exhaustive: never = fx;
-        return _exhaustive;
-      }
+      default: break;
     }
     ctx.restore();
   }

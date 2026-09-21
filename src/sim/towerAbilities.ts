@@ -180,15 +180,6 @@ function fireAbility(game: Game, t: Tower): void {
     case 'zoneValve':
       burst(game, t, range, dmg * 1.4, 'physical', 0, { groundOnly: true, stun: 1.1 });
       return;
-    case 'apprentices':
-    case 'jayjay':
-    case 'cbjDoni':
-      game.overtime = Math.max(game.overtime, 8);
-      for (const f of game.friendlies) {
-        if (f.towerId !== t.id || f.respawn > 0) continue;
-        f.hp = Math.min(f.maxHp, f.hp + f.maxHp * 0.35);
-      }
-      return;
     default:
       burst(game, t, range, dmg * 2.2, t.def.damageType, 24);
   }

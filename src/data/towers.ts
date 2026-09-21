@@ -355,36 +355,6 @@ export const TOWERS: Record<TowerId, TowerDef> = {
       { cost: 125, damage: 50, range: 144, fireRate: 2.15 },
     ],
   },
-  apprentices: {
-    id: 'apprentices', name: 'Apprentice Workshop', role: 'Four tool-bearing recruits',
-    blurb: 'Four apprentices march to a rally point, fight, and respawn independently. Five at tier IV, six at tier VI.',
-    kind: 'barricade', recruits: 'apprentices', damageType: 'physical', targets: 'ground', color: '#edbd58',
-    levels: [
-      { cost: 140, damage: 8, range: 34, fireRate: 1, hp: 135, holds: 1, recruits: 4, armor: 0.05 },
-      { cost: 125, damage: 12, range: 36, fireRate: 1.05, hp: 190, holds: 1, recruits: 4, armor: 0.1 },
-      { cost: 210, damage: 18, range: 38, fireRate: 1.1, hp: 270, holds: 1, recruits: 4, armor: 0.15 },
-    ],
-  },
-  jayjay: {
-    id: 'jayjay', name: 'Jayjay’s Stronghold', role: 'One heavyweight tank',
-    blurb: 'Jayjay: bald, built like a boiler, grey beard. One heavily armored bruiser who holds three enemies and punches them back.',
-    kind: 'barricade', recruits: 'jayjay', damageType: 'physical', targets: 'ground', color: '#aab7bf',
-    levels: [
-      { cost: 220, damage: 27, range: 43, fireRate: 0.8, hp: 780, holds: 3, recruits: 1, armor: 0.25 },
-      { cost: 195, damage: 39, range: 45, fireRate: 0.85, hp: 1100, holds: 3, recruits: 1, armor: 0.3 },
-      { cost: 300, damage: 57, range: 47, fireRate: 0.9, hp: 1550, holds: 3, recruits: 1, armor: 0.35 },
-    ],
-  },
-  cbjDoni: {
-    id: 'cbjDoni', name: 'CBJ & Doni’s Garage', role: 'Fast hands + heavy fists',
-    blurb: 'CBJ in his blue trucker cap fights fast. Burly, black-haired Doni throws heavy punches: NYEH! They fight and respawn separately.',
-    kind: 'barricade', recruits: 'cbjDoni', damageType: 'physical', targets: 'ground', color: '#6ea4cf',
-    levels: [
-      { cost: 190, damage: 22, range: 37, fireRate: 1, hp: 290, holds: 1, recruits: 2, armor: 0.12 },
-      { cost: 170, damage: 33, range: 39, fireRate: 1.05, hp: 420, holds: 1, recruits: 2, armor: 0.18 },
-      { cost: 265, damage: 48, range: 42, fireRate: 1.1, hp: 620, holds: 2, recruits: 2, armor: 0.24 },
-    ],
-  },
   zoneValve: {
     id: 'zoneValve',
     name: 'Zone Valve',
@@ -451,7 +421,6 @@ export const TOWER_ORDER: TowerId[] = [
   'dirtSep',
   'steamTrap',
   'zoneValve',
-  'apprentices', 'jayjay', 'cbjDoni',
 ];
 
 export const MINERAL_ENEMIES = ['scaleCrab', 'sludge', 'frozenMain', 'sedimentBoulder', 'glycolGolem', 'limeScale', 'biofilm'] as const;

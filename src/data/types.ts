@@ -26,10 +26,7 @@ export type TowerId =
   | 'heatExchanger'
   | 'dirtSep'
   | 'steamTrap'
-  | 'zoneValve'
-  | 'apprentices'
-  | 'jayjay'
-  | 'cbjDoni';
+  | 'zoneValve';
 
 export type RemasterId = 'classic' | 'codeInspection' | 'frozenMain' | 'cashJob' | 'cleanHands';
 
