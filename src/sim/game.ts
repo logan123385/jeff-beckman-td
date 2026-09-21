@@ -65,7 +65,6 @@ export class Game {
   projSpeedMult = 1;
   jeffSpeedAura = 1;
   jeffCdAura = 1;
-  waveHpScale = 1;
   peakTowerCount = 0;
   readonly builtTypes = new Set<TowerId>();
   nightMutator: NightMutatorId | null = null;
@@ -1012,7 +1011,6 @@ export class Game {
     const index = this.waveIdx;
     const w = this.waveDefAt(index);
     if (!w) return;
-    this.waveHpScale = this.waveHealthScale(index);
     this.activeWaves.set(index + 1, { started: this.time, kills: 0, leaks: 0, livesLost: 0, bounty: 0 });
     this.waveJustCleared = false;
     let duration = 0;

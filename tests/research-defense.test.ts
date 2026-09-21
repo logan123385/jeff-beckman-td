@@ -25,7 +25,7 @@ describe('Honest scouting and route coverage', () => {
     expect(g.waveEntryDuration()).toBeGreaterThan(0);
   });
   it('keeps delayed spawns and split children on their original wave health scale', () => {
-    const g = game(); g.waveIdx = 10; g.waveHpScale = g.waveHealthScale(9);
+    const g = game(); g.waveIdx = 10;
     const child = g.spawnEnemy('drip', 0, 0, ['pressurized', 'cast'], 2);
     expect(child.maxHp).toBe(g.previewHealth('drip', 1, ['pressurized', 'cast']));
     expect(child.shellHp).toBe(Math.round(child.maxHp * .85));
