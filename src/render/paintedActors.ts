@@ -1,6 +1,7 @@
 import { towerMechanisms } from './towerMotion';
 import { drawNewHero } from './heroActors';
 import { JEFF } from '../data/jeff';
+import { defaultFamily, familyStance, type WeaponFamilyId } from '../data/weapons';
 import type { Enemy, Hero, Tower, Friendly } from '../sim/state';
 import { humanoid, monster } from './animation';
 import { FRIENDLY_SWING } from '../sim/friendlies';
@@ -10,6 +11,7 @@ import { leakMax, leakRemaining } from '../sim/combat';
 import { BUILD_TIME } from '../sim/game';
 import { pointLight } from './spectacle';
 import { castShadow, celFill, disc, glow, metalFill, noGlow, pulseRing, radial, rgba, stampText } from './ink';
+import { drawRangedProp } from './weaponActors';
 
 type Ctx = CanvasRenderingContext2D;
 export function paintedCrew(ctx: Ctx, pos: { x: number; y: number }, time: number, swing: number, facing: number, hp: number, lifetime = 1): void {
@@ -39,9 +41,11 @@ function health(ctx: Ctx, x: number, y: number, w: number, ratio: number, color:
   ctx.fillStyle = '#ffffff55'; ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, ratio)), 1);
 }
 
-export function paintedJeff(ctx: Ctx, hero: Hero, time: number, showBar: boolean, scale: number): boolean {
-  if (hero.id && hero.id !== 'jeff') return drawNewHero(ctx, hero, time, showBar);
+export function paintedJeff(ctx: Ctx, hero: Hero, time: number, showBar: boolean, scale: number, family?: WeaponFamilyId): boolean {
+  if (hero.id && hero.id !== 'jeff') return drawNewHero(ctx, hero, time, showBar, family);
   if (!artReady('units')) return false;
+  const kit = family ?? defaultFamily(hero.id ?? 'jeff');
+  const melee = familyStance(kit) === 'melee';
   const { x, y } = hero.pos;
   const size = 68 * scale / 1.72;
   const moving = !!hero.moving || (hero.moveBlend ?? 0) > 0;
@@ -51,8 +55,10 @@ export function paintedJeff(ctx: Ctx, hero: Hero, time: number, showBar: boolean
   if (hero.downed > 0) { ctx.globalAlpha = 0.48; ctx.rotate(-1.15); }
   ctx.scale(hero.facing, 1);
   humanoid(ctx, 'units', 0, size, { time, walk: hero.walkPhase ?? 0, walkWeight: hero.moveBlend ?? 0, moving, phase, attacking: hero.swing > 0 || !!hero.cast, cast: hero.cast ? 0 : Math.sin(Math.PI * (hero.castTimer ?? 0) / .72) });
+  // Painted Jeff atlas already carries the melee wrench; only overlay when stance differs.
+  if (!melee) drawRangedProp(ctx, kit, time);
   ctx.restore();
-  if (hero.swing > 0) {
+  if (melee && hero.swing > 0) {
     ctx.save(); ctx.translate(x + hero.facing * 8, y - 22); ctx.scale(hero.facing, 1);
     ctx.globalAlpha = Math.max(0, Math.sin((phase - .28) / .4 * Math.PI)) * (phase < .68 ? 1 : 0); ctx.strokeStyle = '#fff3bc'; ctx.lineWidth = 7;
     ctx.beginPath(); ctx.arc(0, 0, 42, -1.5 + phase, 0.4 + phase); ctx.stroke();
