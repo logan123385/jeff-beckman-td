@@ -51,8 +51,16 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   const map = found;
   const difficulty = DIFFICULTIES[app.save.data.difficulty];
   const mods = buildRunModifiers(app.save);
-  const kit = resolveLoadout(loadout ?? app.save.data.lastLoadout, availableTowers(app.save, map, remaster));
-  const game = new Game(map, { heroId: app.save.data.selectedHero, heroBuild: app.save.heroBuild(), difficulty, mods, seed: (Date.now() & 0xffff) + 1, remaster, loadout: kit, manualStart: true });
+  const towerLoadout = resolveLoadout(loadout ?? app.save.data.lastLoadout, availableTowers(app.save, map, remaster));
+  const heroId = app.save.data.selectedHero;
+  const heroKitState = app.save.heroKit(heroId);
+  const equippedWeapon = heroKitState.weaponId ? app.save.itemById(heroKitState.weaponId) : null;
+  const heroKit = {
+    family: heroKitState.family,
+    weapon: equippedWeapon?.kind === 'weapon' ? equippedWeapon : null,
+    cards: heroKitState.cards,
+  };
+  const game = new Game(map, { heroId, heroBuild: app.save.heroBuild(), difficulty, mods, seed: (Date.now() & 0xffff) + 1, remaster, loadout: towerLoadout, kit: heroKit, manualStart: true });
   const audio = new AudioBus({
     muted: app.save.data.muted,
     sfxGain: app.save.data.sfxVolume,

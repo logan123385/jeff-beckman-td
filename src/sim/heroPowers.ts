@@ -318,6 +318,74 @@ export function heroAttackSpeed(game: Game): number {
   return game.heroDef.id === 'bob' ? 1.65 : ['mike', 'cbj'].includes(game.heroDef.id) ? 1.5 : 1.3;
 }
 
+export function strikeFromProfile(game: Game, enemy: Enemy): void {
+  const h = game.hero;
+  const profile = game.attackProfile;
+  h.facing = enemy.pos.x >= h.pos.x ? 1 : -1;
+  switch (profile.basic) {
+    case 'laser': {
+      applyDamage(game, enemy, profile.damage * game.mods.jeffDamage, profile.damageType, 'jeff');
+      visual(game, 'laser', { x: h.pos.x + h.facing * 18, y: h.pos.y - 25 }, { x: enemy.pos.x, y: enemy.pos.y - 10 }, 4, game.heroDef.color, .22);
+      break;
+    }
+    case 'missile': {
+      fireHeroMissile(game, profile.missile!, enemy.pos, profile.damage, enemy.id, profile.splash, profile.bounce, undefined, { pull: profile.pull, stun: profile.stun });
+      const missile = game.heroMissiles.at(-1);
+      if (missile) {
+        missile.basic = true;
+        missile.pierce = profile.pierce;
+        missile.damageType = profile.damageType;
+      }
+      break;
+    }
+    case 'contact': {
+      const dmg = profile.damage * game.mods.jeffDamage;
+      if (profile.tapStunEvery !== null) {
+        h.tapCount += 1;
+        if (h.tapCount >= profile.tapStunEvery) {
+          h.tapCount = 0;
+          enemy.stun = Math.max(enemy.stun, profile.stun * game.mods.stunDuration);
+        }
+      }
+      if (profile.shred > 0) {
+        enemy.armorShred = Math.max(enemy.armorShred, profile.shred);
+        enemy.shredTimer = Math.max(enemy.shredTimer, 4);
+      }
+      if (profile.stunChance > 0 && game.rng.next() < profile.stunChance) {
+        enemy.stun = Math.max(enemy.stun, profile.stun * game.mods.stunDuration);
+      }
+      if (profile.stun > 0 && profile.stunChance === 0 && profile.tapStunEvery === null) {
+        enemy.stun = Math.max(enemy.stun, profile.stun * game.mods.stunDuration);
+      }
+      const dealt = applyDamage(game, enemy, dmg, profile.damageType, 'jeff');
+      if (profile.splash > 0) {
+        for (const e of targets(game, profile.splashRadius, enemy.pos)) {
+          if (e.id === enemy.id) continue;
+          applyDamage(game, e, dmg * profile.splash, profile.damageType, 'jeff');
+        }
+      }
+      if (game.heroDef.id === 'chris') {
+        if ((h.lifesteal ?? 0) > 0) h.hp = Math.min(h.maxHp, h.hp + dealt * .45);
+        visual(game, 'saw', h.pos, enemy.pos, 32, '#ffcc84', .2);
+      } else if (game.heroDef.id === 'becbec' || game.heroDef.id === 'jayjay') {
+        visual(game, 'punch', h.pos, enemy.pos, 30, game.heroDef.color, .22);
+      } else if (game.heroDef.id === 'jeff') {
+        const from = { x: h.pos.x + h.facing * 22, y: h.pos.y - 18 };
+        game.addEffect({ kind: 'beam', from, to: { ...enemy.pos }, color: '#ffe082', ttl: 0.24, max: 0.24 });
+        game.addEffect({ kind: 'hit', pos: { ...enemy.pos }, color: '#ffecb3', ttl: 0.42, max: 0.42 });
+        game.addEffect({ kind: 'splash', pos: { ...enemy.pos }, radius: 30, color: '#ffe082', ttl: 0.32, max: 0.32 });
+        game.addEffect({ kind: 'ring', pos: { x: h.pos.x + h.facing * 10, y: h.pos.y + 12 }, radius: 20, color: '#ffe082', ttl: 0.26, max: 0.26 });
+        game.addEffect({ kind: 'ring', pos: { ...enemy.pos }, radius: 22, color: '#fff8e1', ttl: 0.18, max: 0.18 });
+      }
+      break;
+    }
+    default: {
+      const _exhaustive: never = profile.basic;
+      return _exhaustive;
+    }
+  }
+}
+
 export function strikeNewHero(game: Game, enemy: Enemy): void {
   const h = game.hero, def = game.heroDef;
   if (def.id === 'mike') fireHeroMissile(game, 'plunger', enemy.pos, def.damage, enemy.id);
@@ -389,19 +457,25 @@ export function updateHeroMissiles(game: Game, dt: number): void {
     const step = moveToward(p.pos, p.goal, speed * dt);
     p.pos = step.pos;
     if (!step.arrived) { keep.push(p); continue; }
-    if (p.splash > 0) for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, 'physical', 'jeff');
-    else if (target) { applyDamage(game, target, p.damage, 'physical', 'jeff'); if (p.basic) onBuildAttack(game, target, p.damage); }
+    if (p.splash > 0) for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, p.damageType ?? 'physical', 'jeff');
+    else if (target) applyDamage(game, target, p.damage, p.damageType ?? 'physical', 'jeff');
     if (target && !target.dead && (p.pull ?? 0) > 0 && !target.def.flying) {
       shove(target, p.pull!); target.stun = Math.max(target.stun, p.stun ?? 0);
       visual(game, 'hook', p.from, p.goal, 25, '#71d5ce', .3);
     }
-    game.addEffect({ kind: 'hit', pos: { ...p.goal }, color: p.kind === 'golf' ? '#fffde7' : p.kind === 'hook' ? '#71d5ce' : p.kind === 'tater' ? '#efbb68' : '#e1a886', ttl: .24, max: .24 });
+    game.addEffect({ kind: 'hit', pos: { ...p.goal }, color: p.kind === 'golf' || p.kind === 'bell' ? '#fffde7' : p.kind === 'hook' ? '#71d5ce' : p.kind === 'tater' ? '#efbb68' : p.kind === 'hose' ? '#8ddfe9' : p.kind === 'rebar' ? '#b87333' : '#e1a886', ttl: .24, max: .24 });
     if (p.splash > 0) game.addEffect({ kind: 'ring', pos: { ...p.goal }, radius: p.splash, color: '#eab982', ttl: .35, max: .35 });
     if (p.targetId !== undefined) p.hitIds.push(p.targetId);
     const next = p.bounces > 0 ? targets(game, 135, p.goal).find(e => !p.hitIds.includes(e.id)) : undefined;
     if (next) {
       p.bounces--; p.damage *= .7; p.from = { ...p.goal }; p.goal = { ...next.pos }; p.targetId = next.id;
       p.age = 0; p.duration = Math.max(.16, dist(p.from, p.goal) / 470); keep.push(p);
+    } else if ((p.pierce ?? 0) > 0) {
+      const pierced = targets(game, 135, p.goal).find(e => !p.hitIds.includes(e.id));
+      if (pierced) {
+        p.pierce!--; p.from = { ...p.goal }; p.goal = { ...pierced.pos }; p.targetId = pierced.id;
+        p.age = 0; p.duration = Math.max(.16, dist(p.from, p.goal) / 470); keep.push(p);
+      }
     }
   }
   game.heroMissiles = keep;

@@ -3,9 +3,29 @@ import { Rng } from '../src/core/rng';
 import { HERO_ORDER } from '../src/data/heroes';
 import { cardUnlocked, cardsFor, defaultCards, KIT_CARDS } from '../src/data/kitCards';
 import { rollChest } from '../src/data/loot';
+import { CRAWLSPACE } from '../src/data/maps/crawlspace';
+import { DIFFICULTIES } from '../src/data/difficulty';
+import { neutralModifiers } from '../src/data/skills';
 import { defaultFamily, familyHero, familyStance, implicitFor } from '../src/data/weapons';
 import { SAVE_KEY, normalizeSave, SaveStore } from '../src/save/save';
 import { resolveAttackProfile as resolve } from '../src/sim/attackProfile';
+import { Game } from '../src/sim/game';
+
+function playJeff(family: 'jeff_melee' | 'jeff_ranged') {
+  return new Game(CRAWLSPACE, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), hero: 'jeff', kit: { family, weapon: null, cards: [null, null] } });
+}
+
+describe('profile basics', () => {
+  it('lets a wand Jeff hit air and a wrench Jeff hold ground', () => {
+    const melee = playJeff('jeff_melee');
+    expect(melee.attackProfile.air).toBe(false);
+    expect(melee.attackProfile.holds).toBeGreaterThanOrEqual(2);
+    const wand = playJeff('jeff_ranged');
+    expect(wand.attackProfile.air).toBe(true);
+    expect(wand.attackProfile.holds).toBe(0);
+    expect(wand.attackProfile.missile).toBe('hose');
+  });
+});
 
 describe('weapon families', () => {
   it('gives each hero a default family matching today’s stance', () => {

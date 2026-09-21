@@ -236,8 +236,17 @@ export function drawHeroZones(ctx: Ctx, game: Game): void {
 
 export function drawHeroMissiles(ctx: Ctx, game: Game, alpha = 1): void {
   for (const p of game.heroMissiles) {
-    const color = p.kind === 'hook' ? '#8be6dd' : p.kind === 'tater' ? '#efbb68' : p.kind === 'golf' ? '#ffedba' : '#edab82';
-    const age = Math.max(0, p.age - (1 - alpha) / 60), phase = Math.min(1, age / p.duration), arc = Math.sin(phase * Math.PI) * (p.kind === 'golf' ? 17 : 26);
+    const color = p.kind === 'hook' ? '#8be6dd'
+      : p.kind === 'tater' ? '#efbb68'
+      : p.kind === 'golf' || p.kind === 'bell' ? '#ffedba'
+      : p.kind === 'hose' ? '#8ddfe9'
+      : p.kind === 'rebar' ? '#b87333'
+      : '#edab82';
+    const drawer = p.kind === 'golf' || p.kind === 'bell' ? 'golf'
+      : p.kind === 'tater' ? 'tater'
+      : p.kind === 'hook' || p.kind === 'rebar' ? 'hook'
+      : 'plunger';
+    const age = Math.max(0, p.age - (1 - alpha) / 60), phase = Math.min(1, age / p.duration), arc = Math.sin(phase * Math.PI) * (drawer === 'golf' ? 17 : 26);
     const x = p.prev.x + (p.pos.x - p.prev.x) * alpha, groundY = p.prev.y + (p.pos.y - p.prev.y) * alpha, y = groundY - arc;
     const angle = Math.atan2(p.goal.y - p.from.y - Math.cos(phase * Math.PI) * 70, p.goal.x - p.from.x);
     ctx.save();
@@ -252,7 +261,7 @@ export function drawHeroMissiles(ctx: Ctx, game: Game, alpha = 1): void {
     ctx.beginPath();
     for (let i = 0; i <= 10; i++) {
       const t = Math.max(0, phase - .22 + i * .022);
-      const tx = p.from.x + (p.goal.x - p.from.x) * t, ty = p.from.y + (p.goal.y - p.from.y) * t - Math.sin(t * Math.PI) * (p.kind === 'golf' ? 17 : 26);
+      const tx = p.from.x + (p.goal.x - p.from.x) * t, ty = p.from.y + (p.goal.y - p.from.y) * t - Math.sin(t * Math.PI) * (drawer === 'golf' ? 17 : 26);
       if (!i) ctx.moveTo(tx, ty); else ctx.lineTo(tx, ty);
     }
     ctx.stroke(); ctx.globalAlpha = 1;
@@ -265,14 +274,14 @@ export function drawHeroMissiles(ctx: Ctx, game: Game, alpha = 1): void {
     ctx.globalAlpha = 1;
     ctx.strokeStyle = rgba(color, .6); ctx.lineWidth = p.kind === 'golf' ? 2.6 : 1.6;
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - Math.cos(angle) * 28, y - Math.sin(angle) * 28); ctx.stroke();
-    ctx.translate(x, y); ctx.rotate(angle + (p.kind === 'plunger' ? Math.sin(phase * TAU) * .35 : 0));
-    if (p.kind === 'golf') {
-      glow(ctx, '#fff9e8', 12);
-      disc(ctx, 0, 0, 4.4, '#fff9e8'); disc(ctx, -1, 1, .9, '#a7b7b7');
+    ctx.translate(x, y); ctx.rotate(angle + (drawer === 'plunger' ? Math.sin(phase * TAU) * .35 : 0));
+    if (drawer === 'golf') {
+      glow(ctx, p.kind === 'bell' ? '#ffd54f' : '#fff9e8', 12);
+      disc(ctx, 0, 0, 4.4, p.kind === 'bell' ? '#ffd54f' : '#fff9e8'); disc(ctx, -1, 1, .9, '#a7b7b7');
       noGlow(ctx);
-    } else if (p.kind === 'tater') {
+    } else if (drawer === 'tater') {
       ctx.rotate(age * 7); tater(ctx, p.splash > 0 ? 9 : 6);
-    } else if (p.kind === 'hook') {
+    } else if (drawer === 'hook') {
       ctx.strokeStyle = '#173d45'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(5, 0); ctx.bezierCurveTo(13, 0, 13, 11, 4, 11); ctx.lineTo(3, 6); ctx.stroke();
       ctx.strokeStyle = '#edf9f1'; ctx.lineWidth = 2; ctx.stroke();
       disc(ctx, -9, 0, 2.5, '#e38365');

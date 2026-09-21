@@ -4,6 +4,9 @@ import { clamp, dist, type Vec } from '../core/vec';
 import { enemyForMap } from '../data/bosses';
 import { JEFF } from '../data/jeff';
 import { COOLDOWN_FIELDS, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
+import { defaultCards } from '../data/kitCards';
+import { defaultFamily, type AttackProfile, type WeaponFamilyId } from '../data/weapons';
+import { resolveAttackProfile } from './attackProfile';
 import { updateHeroMissiles, updateHeroSummons, summonLogan, useHeroAbility, fireJeffAbility } from './heroPowers';
 import type { HeroMissile, HeroSummon, HeroVisual, HeroZone } from './state';
 import { TOWERS, TOWER_ORDER } from '../data/towers';
@@ -13,7 +16,7 @@ import { generateEndlessWave, nightMutatorAt, proceduralIndex, type NightMutator
 import { propertiesFor } from '../data/leakProperties';
 import { isNoPowers, isNoSell, isOneLife, isTruckMoney } from '../data/remasters';
 import { fieldRbe } from '../data/splits';
-import type { Difficulty, EnemyId, LeakProperty, MapDef, Modifiers, RemasterId, TowerId, WaveDef } from '../data/types';
+import type { Difficulty, EnemyId, LeakProperty, MapDef, Modifiers, RemasterId, TowerId, WaveDef, WeaponItem } from '../data/types';
 import { AIM_ORDER, applyDamage, canTowerDamage, heroOnYard, isTargetable, matchesTargetMode, missionXpToNext, predictedPos, abilityRangeFactor, abilityRank } from './combat';
 import { updateEnemies } from './enemies';
 import { updateHero } from './hero';
@@ -30,7 +33,9 @@ export interface GameOptions {
   seed?: number;
   heroEnabled?: boolean;
   heroId?: HeroId;
+  hero?: HeroId;
   heroBuild?: HeroBuild;
+  kit?: { family: WeaponFamilyId; weapon?: WeaponItem | null; cards: [string | null, string | null] };
   remaster?: RemasterId;
   /** If set, only these owned tools can be built; inspection bans are applied below. */
   loadout?: TowerId[];
@@ -59,6 +64,8 @@ export class Game {
   readonly heroEnabled: boolean;
   readonly heroDef: HeroDef;
   readonly heroBuild: HeroBuild;
+  readonly attackProfile: AttackProfile;
+  readonly kitCards: [string | null, string | null];
   buildState = { focusId: 0, focusHits: 0, helperTimer: 3, overtime: 0 };
   buildZones: { pos: Vec; radius: number; left: number; duration: number; dps: number }[] = [];
   rewardsClaimed = false;
@@ -148,9 +155,14 @@ export class Game {
     this.mods = opts.mods;
     this.rng = new Rng(opts.seed ?? 1);
     this.heroEnabled = opts.heroEnabled ?? true;
-    const heroId = isHeroId(opts.heroId) ? opts.heroId : 'jeff';
+    const heroOpt = opts.heroId ?? opts.hero;
+    const heroId = isHeroId(heroOpt) ? heroOpt : 'jeff';
     this.heroBuild = normalizeHeroBuild(heroId, opts.heroBuild);
     this.heroDef = heroForBuild(heroId, this.heroBuild);
+    const kitInput = opts.kit ?? { family: defaultFamily(heroId), weapon: null, cards: defaultCards(heroId) };
+    const weapon = kitInput.weapon ?? null;
+    this.kitCards = kitInput.cards;
+    this.attackProfile = resolveAttackProfile(kitInput.family, weapon?.rarity ?? 'common', weapon?.affixes ?? []);
     this.manualStart = opts.manualStart ?? false;
     this.remaster = opts.remaster ?? 'classic';
     this.endless = map.endless === true;
@@ -629,7 +641,7 @@ export class Game {
   commandHeroAttack(enemyId: number): boolean {
     if (!heroOnYard(this) || this.status !== 'playing') return false;
     const enemy = this.enemies.find((e) => e.id === enemyId);
-    if (!enemy || enemy.dead || enemy.escaped || (!this.heroDef.ranged && enemy.def.flying)) return false;
+    if (!enemy || enemy.dead || enemy.escaped || (!this.attackProfile.air && enemy.def.flying)) return false;
     if (this.hero.cast) { this.hero.queuedOrder = { kind: 'attack', enemyId }; return true; }
     this.hero.queuedOrder = undefined;
     this.hero.dest = null;
