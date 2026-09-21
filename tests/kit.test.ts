@@ -288,6 +288,114 @@ describe('kit combat', () => {
     expect(e.dotSource).toBe('jeff');
   });
 
+  it('counts Jeff pin cadence once per ranged basic', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'jeff',
+      kit: { family: 'jeff_ranged', weapon: null, cards: ['jeff_pin', null] },
+      manualStart: true,
+    });
+    g.deployHero({ ...g.map.jeffStart });
+    const e = g.spawnEnemy('sludge', 0, 320);
+    e.lane = 0;
+    e.pos = { x: 340, y: 250 };
+    e.def = { ...e.def, dps: 0, speed: 0 };
+    e.hp = e.maxHp = 10000;
+    const losses: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      e.hp = 10000;
+      g.hero.attackTimer = 0;
+      g.hero.swing = 0;
+      g.hero.pendingStrike = undefined;
+      g.heroMissiles = [];
+      const before = e.hp;
+      updateHero(g, 0.01);
+      updateHero(g, g.heroDef.swingTime * 0.55);
+      updateHeroMissiles(g, 2);
+      losses.push(before - e.hp);
+    }
+    expect(losses[0]).toBeGreaterThan(0);
+    expect(losses[1]).toBeCloseTo(losses[0]!, 0);
+    expect(losses[3]! / losses[0]!).toBeCloseTo(1.6, 1);
+  });
+
+  it('splashes on a killing Basin Swing', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'jeff',
+      kit: { family: 'jeff_melee', weapon: null, cards: ['jeff_sweep', null] },
+      manualStart: true,
+    });
+    g.deployHero({ ...g.map.jeffStart });
+    const primary = g.spawnEnemy('sludge', 0, 320);
+    primary.lane = 0;
+    primary.pos = { x: 340, y: 250 };
+    primary.def = { ...primary.def, dps: 0, speed: 0 };
+    primary.hp = primary.maxHp = 1;
+    const nearby = g.spawnEnemy('sludge', 0, 320);
+    nearby.lane = 0;
+    nearby.pos = { x: 365, y: 250 };
+    nearby.def = { ...nearby.def, dps: 0, speed: 0 };
+    nearby.hp = nearby.maxHp = 10000;
+    landContactBasic(g);
+    expect(primary.dead).toBe(true);
+    expect(nearby.hp).toBeLessThan(10000);
+  });
+
+  it('applies onHitHeat when a ranged basic connects', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'jeff',
+      kit: {
+        family: 'jeff_ranged',
+        weapon: {
+          kind: 'weapon',
+          id: 'w-heat',
+          family: 'jeff_ranged',
+          name: 'Hot Wand',
+          rarity: 'rare',
+          affixes: [{ key: 'onHitHeat', amount: 8 }],
+        },
+        cards: [null, null],
+      },
+      manualStart: true,
+    });
+    g.deployHero({ ...g.map.jeffStart });
+    const e = g.spawnEnemy('sludge', 0, 320);
+    e.lane = 0;
+    e.pos = { x: 340, y: 250 };
+    e.def = { ...e.def, dps: 0, speed: 0 };
+    e.hp = e.maxHp = 10000;
+    updateHero(g, 0.01);
+    updateHero(g, g.heroDef.swingTime * 0.2);
+    updateHero(g, g.heroDef.swingTime * 0.3);
+    updateHeroMissiles(g, 2);
+    expect(e.dotDps).toBe(8);
+    expect(e.dotTime).toBe(2);
+  });
+
+  it('starts helper cards on their own interval', () => {
+    const cbj = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'cbj',
+      kit: { family: 'cbj_melee', weapon: null, cards: ['cbj_crew', null] },
+      manualStart: true,
+    });
+    const doni = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'doni',
+      kit: { family: 'doni_melee', weapon: null, cards: ['doni_crew', null] },
+      manualStart: true,
+    });
+    expect(cbj.kitState.helperTimer).toBe(28);
+    expect(doni.kitState.helperTimer).toBe(20);
+  });
+
   it('stuns on jayjay_ranged bell impact without pull', () => {
     const g = new Game(CRAWLSPACE, {
       difficulty: DIFFICULTIES.apprentice,

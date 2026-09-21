@@ -1,4 +1,5 @@
 import { dist, type Vec } from '../core/vec';
+import type { HeroId } from '../data/heroes';
 import { cardById, type KitCard } from '../data/kitCards';
 import type { AttackProfile } from '../data/weapons';
 import { applyDamage, heroOnYard, isTargetable } from './combat';
@@ -376,9 +377,9 @@ function onPinHit(game: Game, enemy: Enemy, card: KitCard, baseDamage: number, d
   }
 }
 
-/** Basic-hit procs after damage is applied. */
+/** Basic-hit procs after damage is applied, including the blow that kills. */
 export function onKitHit(game: Game, enemy: Enemy, baseDamage: number): void {
-  if (!heroOnYard(game) || enemy.dead) return;
+  if (!heroOnYard(game)) return;
   const damageType = game.attackProfile.damageType;
   for (const card of activeCards(game)) {
     switch (card.job) {
@@ -492,23 +493,32 @@ export function updateKitCards(game: Game, dt: number): void {
   }
   for (const card of activeCards(game)) {
     if (card.job !== 'crew') continue;
-    switch (card.hero) {
-      case 'chris':
-        maybeHelper(game, dt, 1, 8, 22);
-        break;
-      case 'cbj':
-        maybeHelper(game, dt, 2, 10, 28);
-        break;
-      case 'doni':
-        maybeHelper(game, dt, 1, 10, 20);
-        break;
-      case 'jayjay':
-        maybeHelper(game, dt, 1, 12, 20);
-        break;
-      default:
-        break;
-    }
+    const spec = crewHelperSpec(card.hero);
+    if (spec) maybeHelper(game, dt, spec.count, spec.duration, spec.interval);
   }
+}
+
+const CREW_HELPERS: Partial<Record<HeroId, { count: number; duration: number; interval: number }>> = {
+  chris: { count: 1, duration: 8, interval: 22 },
+  cbj: { count: 2, duration: 10, interval: 28 },
+  doni: { count: 1, duration: 10, interval: 20 },
+  jayjay: { count: 1, duration: 12, interval: 20 },
+};
+
+function crewHelperSpec(hero: HeroId): { count: number; duration: number; interval: number } | null {
+  return CREW_HELPERS[hero] ?? null;
+}
+
+/** First helper spawn waits the equipped card's interval, not a shared 22s. */
+export function initialHelperTimer(cardIds: readonly (string | null)[]): number {
+  for (const id of cardIds) {
+    if (!id) continue;
+    const card = cardById(id);
+    if (!card || card.job !== 'crew') continue;
+    const spec = crewHelperSpec(card.hero);
+    if (spec) return spec.interval;
+  }
+  return 22;
 }
 
 /** Mike Tailgate Call: +20% Logan and helper summon damage while deployed. */

@@ -6,7 +6,7 @@ import { COOLDOWN_FIELDS, HEROES, isHeroId, type AbilitySlot, type HeroDef, type
 import { defaultCards } from '../data/kitCards';
 import { defaultFamily, type AttackProfile, type WeaponFamilyId } from '../data/weapons';
 import { resolveAttackProfile } from './attackProfile';
-import { syncKitProfile } from './kitCards';
+import { syncKitProfile, initialHelperTimer } from './kitCards';
 import { updateHeroMissiles, updateHeroSummons, summonLogan, useHeroAbility, fireJeffAbility } from './heroPowers';
 import type { HeroMissile, HeroSummon, HeroVisual, HeroZone } from './state';
 import { TOWERS, TOWER_ORDER } from '../data/towers';
@@ -161,6 +161,7 @@ export class Game {
     const kitInput = opts.kit ?? { family: defaultFamily(heroId), weapon: null, cards: defaultCards(heroId) };
     const weapon = kitInput.weapon ?? null;
     this.kitCards = kitInput.cards;
+    this.kitState.helperTimer = initialHelperTimer(this.kitCards);
     this.attackProfile = resolveAttackProfile(kitInput.family, weapon?.rarity ?? 'common', weapon?.affixes ?? []);
     this.baseAttackProfile = { ...this.attackProfile };
     if (weapon) {
