@@ -86,10 +86,11 @@ try {
     await click(`[data-kit-hero="${hero.id}"]`);
     const families=await read(`[...document.querySelectorAll('.kit-stance-toggle .btn-row button')].map(b=>b.textContent.trim())`);
     assert.equal(families.length,2,`${hero.id} needs melee and ranged families`);
-    for(const family of families) {
-      await textButton(family);
+    for(let i=0;i<families.length;i++) {
+      const stance=i===0?'melee':'ranged';
+      await textButton(families[i]);
       const footer=await read(`document.querySelector('.kit-footer-line').textContent`);
-      assert(footer.includes(family),`${hero.id} footer must mention ${family}: ${footer}`);
+      assert(footer.includes(stance),`${hero.id} footer must mention ${stance}: ${footer}`);
     }
     await read(`window.scrollTo(0,0)`);await shot(`kit-${hero.id}`);
     await textButton(`Take ${hero.name}`);await click('[aria-label^="1. Crawlspace"]');await click('.campaign-briefing .map-foot .btn.primary');

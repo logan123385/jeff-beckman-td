@@ -86,6 +86,8 @@ try {
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false });
   await textButton(await read(`document.querySelector('.adventure-copy .btn.primary').textContent`));
   await read(`(()=>{const s=JSON.parse(localStorage.getItem('jbtd-save-v1'));s.heroJobs={jeff:1};localStorage.setItem('jbtd-save-v1',JSON.stringify(s));})()`);
+  await send('Page.reload'); await waitFor('.adventure-title');
+  await textButton(await read(`document.querySelector('.adventure-copy .btn.primary').textContent`));
   await textButton('Kit8 heroes');
   await waitFor('[data-kit-hero="jeff"]');
   await click('[data-kit-hero="jeff"]');
@@ -94,7 +96,7 @@ try {
   await cardOption('Wash the Lane');
   await cardOption('Steam Cloud');
   const footer = await read(`document.querySelector('.kit-footer-line').textContent`);
-  assert(footer.includes('Pressure Wand'), footer);
+  assert(footer.includes('ranged'), footer);
   assert(footer.includes('Wash'), footer);
   assert(footer.includes('Cloud'), footer);
   await shot('01-kit-ranged');
