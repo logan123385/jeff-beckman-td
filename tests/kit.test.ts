@@ -154,6 +154,14 @@ describe('save v2', () => {
     expect(normalized.chestId).toBe('chest-1');
     expect(normalized.bootsId).toBe('boots-1');
   });
+  it('seeds stance-correct starter cards when v2 kit has family but no cards', () => {
+    const data = normalizeSave({
+      version: 2,
+      kits: { jeff: { family: 'jeff_ranged' } },
+    } as never);
+    expect(data.kits.jeff?.family).toBe('jeff_ranged');
+    expect(data.kits.jeff?.cards).toEqual(['jeff_lane', 'jeff_pin']);
+  });
   it('keeps stored heroJobs when v1 heroBuilds would grant fewer', () => {
     const data = normalizeSave({
       version: 2,

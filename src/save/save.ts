@@ -263,7 +263,10 @@ function sanitizeKits(
       }
     }
 
-    const cards: [string | null, string | null] = [...defaultCards(hero)];
+    const cards: [string | null, string | null] =
+      stance === 'melee'
+        ? [`${hero}_anchor`, `${hero}_breaker`]
+        : [`${hero}_lane`, `${hero}_pin`];
     if (Array.isArray(kitRow.cards)) {
       for (let i = 0; i < 2; i++) {
         const id = kitRow.cards[i];
