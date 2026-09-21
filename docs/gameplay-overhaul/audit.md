@@ -71,3 +71,7 @@ node scripts/browser-visual-check.mjs <development-port> /tmp/renderer
 
 ![Upgrade comparison and route coverage](upgrade-and-coverage.png)
 ![Contained mobile tower commands](mobile-commands.png)
+
+## PR #8 review follow-up
+
+Greptile's two reporting findings are fixed: streaks now consume completed outcomes in wave-number order, while rewards still arrive immediately; the receipt feed presents every unseen clear, including simultaneous or reverse-order completions, and preserves its display time under early-call notifications. New completions bypass HUD throttling. Four regressions bring the suite to **338 passing tests**.

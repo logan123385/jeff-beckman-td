@@ -1,5 +1,6 @@
 import type { Game } from '../../sim/game';
 import { h } from '../dom';
+import { WaveReceiptFeed } from './receipts';
 
 /** Readable battle rhythm and warnings, outside the player's targeting surface. */
 export class BattleFlow {
@@ -10,11 +11,11 @@ export class BattleFlow {
   private readonly warning = h('div', { class: 'flow-warning hidden', attrs: { role: 'status' } });
   private readonly track = h('div', { class: 'wave-track', attrs: { 'aria-label': 'Campaign wave progress' } });
   private readonly pips: HTMLElement[] = [];
-  private reportWave = 0;
-  private reportUntil = 0;
+  private receipts = new WaveReceiptFeed();
   private warningKey = '';
   private lastUpdate = -1;
   private lastWave = -1;
+  private lastCompleted = -1;
 
   constructor(private readonly game: Game) {
     if (!game.endless) {
@@ -28,8 +29,8 @@ export class BattleFlow {
 
   update(): void {
     const g = this.game;
-    if (this.lastWave === g.waveIdx && g.time - this.lastUpdate < .12) return;
-    this.lastWave = g.waveIdx; this.lastUpdate = g.time;
+    if (this.lastWave === g.waveIdx && this.lastCompleted === g.completedWaves && g.time - this.lastUpdate < .12) return;
+    this.lastWave = g.waveIdx; this.lastCompleted = g.completedWaves; this.lastUpdate = g.time;
     const alive = g.enemies.filter(e => !e.dead && !e.escaped);
     const queued = g.spawns.reduce((n, s) => n + s.remaining, 0);
     const phase = g.waveIdx === 0 ? 'BUILD YOUR DEFENSE'
@@ -45,16 +46,14 @@ export class BattleFlow {
       const title = `Wave ${i + 1}${report ? report.clean ? ' · clean' : ` · ${report.leaks} escaped` : i < g.waveIdx ? ' · active' : ''}`;
       if (pip.title !== title) pip.title = title;
     });
-    const report = g.waveReports.at(-1);
-    if (report && report.wave !== this.reportWave) {
-      this.reportWave = report.wave; this.reportUntil = g.time + 4;
-    }
-    if (g.lastEarlyCall && g.lastEarlyCall.recovery > 0) {
+    const early = g.lastEarlyCall && g.lastEarlyCall.recovery > 0 ? g.lastEarlyCall : null;
+    const receipts = this.receipts.update(g.waveReports, g.completedWaves, g.time, !!early);
+    if (early) {
       this.reward.classList.remove('hidden');
-      this.set(this.reward, `EARLY CALL  +$${g.lastEarlyCall.bonus}  ·  −${g.lastEarlyCall.recovery.toFixed(1)}s SKILLS`);
-    } else if (report && g.time < this.reportUntil) {
+      this.set(this.reward, `EARLY CALL  +$${early.bonus}  ·  −${early.recovery.toFixed(1)}s SKILLS`);
+    } else if (receipts.length) {
       this.reward.classList.remove('hidden');
-      this.set(this.reward, `WAVE ${report.wave} ${report.clean ? 'CLEAN' : 'CLEARED'}  ·  ${report.kills} pops  ·  +$${report.bonus}${g.cleanStreak > 1 ? `  ·  ${g.cleanStreak} clean in a row` : ''}`);
+      this.set(this.reward, receipts.map(report => `WAVE ${report.wave} ${report.clean ? 'CLEAN' : 'CLEARED'}  ·  ${report.kills} pops  ·  +$${report.bonus}`).join('\n'));
     } else this.reward.classList.add('hidden');
 
     const threat = alive.filter(e => !e.heldBy && e.stun <= 0)

@@ -9,6 +9,8 @@ import { Game } from '../src/sim/game';
 import { applyDamage, pickTarget } from '../src/sim/combat';
 import { updateHero } from '../src/sim/hero';
 import { updateTowers } from '../src/sim/towers';
+import { WaveReceiptFeed } from '../src/ui/play/receipts';
+import type { WaveReport } from '../src/sim/state';
 
 const waves: MapDef['waves'] = Array.from({ length: 3 }, () => ({ groups: [{ enemy: 'drip', count: 1, interval: 1, delay: 0, path: 0 }] }));
 function field(heroId: HeroId = 'cbj', extra: Partial<MapDef> = {}) {
@@ -70,6 +72,29 @@ describe('Wave rhythm, overlap and honest rewards', () => {
     children.forEach(e => applyDamage(g, e, 10000, 'heat', 'torch')); step(g, .1);
     expect(g.waveReports[0]!.wave).toBe(1); expect(g.completedWaves).toBe(1);
     expect(g.waveActive).toBe(true);
+  });
+  it('orders clean streaks by wave number even when later waves clear first', () => {
+    const g = field(); g.callNextWave(); step(g, .1); stop(g);
+    const first = g.enemies[0]!;
+    g.callNextWave(); step(g, .1); stop(g);
+    const second = g.enemies.find(e => e.waveId === 2)!;
+    second.progress = g.paths[0]!.length; step(g, .1);
+    g.callNextWave(); step(g, .1); stop(g);
+    const third = g.enemies.find(e => e.waveId === 3)!;
+    applyDamage(g, third, 1000, 'heat', 'torch'); step(g, .1);
+    applyDamage(g, first, 1000, 'heat', 'torch'); step(g, .1);
+    expect(g.waveReports.map(r => r.wave)).toEqual([2, 3, 1]);
+    expect(g.cleanStreak).toBe(1); expect(g.bestCleanStreak).toBe(1);
+  });
+  it('does not undercount a clean streak when a later leaky wave resolves first', () => {
+    const g = field(); g.callNextWave(); step(g, .1); stop(g);
+    const first = g.enemies[0]!;
+    g.callNextWave(); step(g, .1); stop(g);
+    applyDamage(g, g.enemies.find(e => e.waveId === 2)!, 1000, 'heat', 'torch'); step(g, .1);
+    g.callNextWave(); step(g, .1); stop(g);
+    g.enemies.find(e => e.waveId === 3)!.progress = g.paths[0]!.length; step(g, .1);
+    applyDamage(g, first, 1000, 'heat', 'torch'); step(g, .1);
+    expect(g.cleanStreak).toBe(0); expect(g.bestCleanStreak).toBe(2);
   });
   it('first-call cash is preserved but does not manufacture cooldown recovery', () => {
     const g = field(); g.hero.clampCooldown = 10;
@@ -171,5 +196,25 @@ describe('Pause inside a fixed-step frame', () => {
     loop.speed = 3; loop.start(); callback(1100); expect(count).toBe(1);
     loop.paused = false; loop.speed = 1; callback(1110); expect(count).toBe(1);
     loop.stop(); vi.restoreAllMocks();
+  });
+});
+
+
+describe('Every clear receipt is presented', () => {
+  const report = (wave: number): WaveReport => ({ wave, kills: 1, leaks: 0, livesLost: 0, bounty: 4, bonus: 20, seconds: 10, clean: true });
+  it('shows both simultaneous clears, retains reverse-order clears and never repeats them', () => {
+    const feed = new WaveReceiptFeed(), reports = [report(2), report(1)];
+    expect(feed.update(reports, 2, 10, false).map(r => r.wave)).toEqual([2, 1]);
+    expect(feed.update(reports, 2, 11, false)).toHaveLength(2);
+    expect(feed.update(reports, 2, 15, false)).toHaveLength(0);
+    expect(feed.update([...reports, report(3)], 3, 16, false).map(r => r.wave)).toEqual([3]);
+  });
+  it('preserves receipt time while an early-call message covers it and handles a trimmed log', () => {
+    const feed = new WaveReceiptFeed();
+    feed.update([report(1)], 1, 10, true);
+    feed.update([report(1)], 1, 15, true);
+    expect(feed.update([report(1)], 1, 16, false).map(r => r.wave)).toEqual([1]);
+    feed.update(Array.from({length: 30}, (_, i) => report(i + 2)), 31, 30, false);
+    expect(feed.update(Array.from({length: 30}, (_, i) => report(i + 3)), 32, 35, false).map(r => r.wave)).toEqual([32]);
   });
 });

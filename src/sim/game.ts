@@ -87,6 +87,8 @@ export class Game {
   cleanWaves = 0;
   cleanStreak = 0;
   bestCleanStreak = 0;
+  private nextStreakWave = 1;
+  private pendingStreaks = new Map<number, boolean>();
   callRecovery = 0;
   lastEarlyCall: { bonus: number; recovery: number; left: number } | null = null;
   crewCooldown = 0;
@@ -926,8 +928,13 @@ export class Game {
       const bonus = clean ? 16 + index * 2 : 0;
       this.money += bonus; this.stats.moneyEarned += bonus;
       if (clean) this.cleanWaves++;
-      this.cleanStreak = clean ? this.cleanStreak + 1 : 0;
-      this.bestCleanStreak = Math.max(this.bestCleanStreak, this.cleanStreak);
+      this.pendingStreaks.set(index, clean);
+      // Rewards arrive immediately, but consecutive streaks follow campaign order.
+      while (this.pendingStreaks.has(this.nextStreakWave)) {
+        this.cleanStreak = this.pendingStreaks.get(this.nextStreakWave) ? this.cleanStreak + 1 : 0;
+        this.bestCleanStreak = Math.max(this.bestCleanStreak, this.cleanStreak);
+        this.pendingStreaks.delete(this.nextStreakWave++);
+      }
       const payout = this.endless ? 70 + index * 9 : 0;
       this.money += payout; this.stats.moneyEarned += payout;
       this.waveReports.push({ wave: index, kills: wave.kills, leaks: wave.leaks, livesLost: wave.livesLost,
