@@ -89,7 +89,7 @@ describe('Elite investments', () => {
   });
 });
 
-describe('Support crew and rally orders', () => {
+describe('Summon Logan and rally orders', () => {
   it('only spends a cooldown on a valid visible route, prevents repeat deployment', () => {
     const g = game();
     expect(g.reinforce({ x: 300, y: 500 })).toBe(false);
@@ -97,39 +97,39 @@ describe('Support crew and rally orders', () => {
     expect(g.reinforce({ x: -10, y: 200 })).toBe(false);
     expect(g.crewCooldown).toBe(0);
     expect(g.reinforce({ x: 300, y: 190 })).toBe(true);
-    expect(g.crew).toHaveLength(2); expect(g.crewCooldown).toBe(30);
-    expect(g.reinforce({ x: 300, y: 200 })).toBe(false); expect(g.crew).toHaveLength(2);
+    expect(g.heroSummons).toHaveLength(1); expect(g.crewCooldown).toBe(28);
+    expect(g.reinforce({ x: 300, y: 200 })).toBe(false); expect(g.heroSummons).toHaveLength(1);
   });
-  it('holds only ground enemies and attributes damage separately from Jeff and towers', () => {
+it('holds only ground enemies and attributes companion damage to Logan', () => {
     const g = game(); g.reinforce({ x: 300, y: 200 });
     const enemy = g.spawnEnemy('sludge', 0, 280), flyer = g.spawnEnemy('steamWisp', 0, 280);
-    const hp = enemy.hp; step(g, 1);
-    expect(enemy.heldBy?.kind).toBe('crew'); expect(flyer.heldBy).toBeNull();
+    const hp = enemy.hp; step(g, 0.5);
+    expect(enemy.heldBy?.kind).toBe('summon'); expect(flyer.heldBy).toBeNull();
     expect(enemy.hp).toBeLessThan(hp); expect(g.stats.crewDamage).toBeGreaterThan(0);
     expect(g.stats.jeffDamage).toBe(0);
   });
-  it('releases holds when the crew expires and allows a new deployment after recharge', () => {
+  it('releases holds when Logan expires and allows a new deployment after recharge', () => {
     const g = game(); g.reinforce({ x: 300, y: 200 });
     const enemy = g.spawnEnemy('sludge', 0, 280);
     enemy.def = { ...enemy.def, dps: 0 }; enemy.hp = enemy.maxHp = 10000;
-    step(g, 1); expect(enemy.heldBy?.kind).toBe('crew');
-    step(g, 18); expect(g.crew).toHaveLength(0); expect(enemy.heldBy).toBeNull();
+step(g, 0.1); expect(enemy.heldBy?.kind).toBe('summon');
+    step(g, 18); expect(g.heroSummons).toHaveLength(0); expect(enemy.heldBy).toBeNull();
     step(g, 12); expect(g.reinforce({ x: 500, y: 200 })).toBe(true);
   });
-  it('releases a killed helper immediately', () => {
+  it('releases a killed Logan immediately', () => {
     const g = game(); g.reinforce({ x: 300, y: 200 });
-    const e = g.spawnEnemy('sludge', 0, 280); step(g, 1);
-    const id = e.heldBy?.kind === 'crew' ? e.heldBy.id : -1;
-    const c = g.crew.find(crew => crew.id === id)!;
-    c.hp = 1; e.attackTimer = 0; step(g, 1 / 60);
-    expect(c.hp).toBe(1); // Enemy damage waits for the contact frame.
+const e = g.spawnEnemy('sludge', 0, 280); step(g, 0.1);
+    const id = e.heldBy?.kind === 'summon' ? e.heldBy.id : -1;
+    const s = g.heroSummons.find(summon => summon.id === id)!;
+    s.hp = 1; e.attackTimer = 0; step(g, 1 / 60);
+    expect(s.hp).toBe(1); // Enemy damage waits for the contact frame.
     step(g, .35);
-    expect(c.hp).toBe(0); expect(e.heldBy).not.toEqual({ kind: 'crew', id });
+    expect(s.hp).toBe(0); expect(e.heldBy).not.toEqual({ kind: 'summon', id });
   });
-  it('stuns stop an enemy attacking its holder', () => {
+  it('stuns stop an enemy attacking Logan', () => {
     const g = game(); g.reinforce({ x: 300, y: 200 });
     const e = g.spawnEnemy('sludge', 0, 280); e.stun = 2; e.attackTimer = 0;
-    step(g, 0.5); expect(g.crew.every(c => c.hp === c.maxHp)).toBe(true);
+    step(g, 0.5); expect(g.heroSummons.every(s => s.hp === s.maxHp)).toBe(true);
   });
   it('bounds rally orders and releases enemies before moving a barricade crew', () => {
     const g = game(); g.placeTower(0, 'barricade'); const t = g.towers[0]!;

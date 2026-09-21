@@ -673,30 +673,30 @@ export function paintPipeFlow(ctx: CanvasRenderingContext2D, paths: readonly (re
 
 /** Drips, steam, and flange sparks — the yard is alive. */
 export function paintAtmosphere(ctx: CanvasRenderingContext2D, map: MapDef, time: number): void {
-  if (usesPaintedYard(map)) return;
+  const painted = usesPaintedYard(map);
   ctx.save();
+  // Remaster biomes still get living steam / dust — lighter so paint stays readable.
+  const dripAlpha = painted ? 0.55 : 1;
   let n = 0;
   for (const path of map.paths) {
     for (let i = 1; i < path.length - 1; i++) {
       const pt = path[i]!;
       const drop = (time * 55 + n * 23) % 64;
       const fade = 1 - drop / 64;
-      ctx.fillStyle = rgba(map.palette.accent, 0.28 + fade * 0.4);
+      ctx.fillStyle = rgba(map.palette.accent, (0.28 + fade * 0.4) * dripAlpha);
       ctx.beginPath();
       ctx.ellipse(pt.x + Math.sin(time + n) * 2, pt.y + 10 + drop, 2.8, 4.2, 0, 0, Math.PI * 2);
       ctx.fill();
-      // splash ring when drip nears ground
       if (drop > 52) {
         const splash = (drop - 52) / 12;
-        ctx.strokeStyle = rgba(map.palette.accent, 0.35 * (1 - splash));
+        ctx.strokeStyle = rgba(map.palette.accent, 0.35 * (1 - splash) * dripAlpha);
         ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.ellipse(pt.x, pt.y + 72, 4 + splash * 10, 2 + splash * 3, 0, 0, Math.PI * 2);
         ctx.stroke();
       }
-      // flange weld glint
       if (n % 2 === 0) {
-        radial(ctx, pt.x, pt.y, 2, 18 + Math.sin(time * 5 + n) * 4, '#ffe082', 0.22);
+        radial(ctx, pt.x, pt.y, 2, 18 + Math.sin(time * 5 + n) * 4, '#ffe082', (painted ? 0.14 : 0.22));
       }
       n++;
     }
@@ -706,9 +706,8 @@ export function paintAtmosphere(ctx: CanvasRenderingContext2D, map: MapDef, time
       const t = (Math.sin(time * 0.7 + n) + 1) / 2;
       const x = a.x + (b.x - a.x) * t;
       const y = a.y + (b.y - a.y) * t;
-      // chunky steam blotches
-      blotch(ctx, x, y - 10, 10 + Math.sin(time * 2 + n) * 3, 7, 0.2, rgba('#eceff1', 0.16 + Math.sin(time * 3 + n) * 0.06));
-      blotch(ctx, x + 6, y - 18, 7, 5, -0.3, rgba('#fff8e1', 0.12));
+      blotch(ctx, x, y - 10, 10 + Math.sin(time * 2 + n) * 3, 7, 0.2, rgba('#eceff1', (0.16 + Math.sin(time * 3 + n) * 0.06) * dripAlpha));
+      blotch(ctx, x + 6, y - 18, 7, 5, -0.3, rgba('#fff8e1', 0.12 * dripAlpha));
       const t2 = (t + 0.35) % 1;
       blotch(
         ctx,
@@ -717,16 +716,16 @@ export function paintAtmosphere(ctx: CanvasRenderingContext2D, map: MapDef, time
         8,
         6,
         0.4,
-        rgba(map.id === 'snowmelt' ? '#e1f5fe' : '#fff8e1', 0.14),
+        rgba(map.id === 'snowmelt' ? '#e1f5fe' : '#fff8e1', 0.14 * dripAlpha),
       );
       n++;
     }
   }
-  // denser hanging dust motes
-  for (let i = 0; i < 36; i++) {
+  const moteCount = painted ? 48 : 36;
+  for (let i = 0; i < moteCount; i++) {
     const x = (i * 83 + time * (8 + (i % 3))) % WORLD_W;
     const y = 40 + ((i * 57 + time * (4 + (i % 2))) % (WORLD_H - 80));
-    ctx.fillStyle = rgba('#fff8e1', 0.1 + (i % 3) * 0.04);
+    ctx.fillStyle = rgba('#fff8e1', (0.1 + (i % 3) * 0.04) * (painted ? 0.7 : 1));
     ctx.beginPath();
     ctx.arc(x, y, 1.4 + (i % 2), 0, Math.PI * 2);
     ctx.fill();
@@ -734,7 +733,7 @@ export function paintAtmosphere(ctx: CanvasRenderingContext2D, map: MapDef, time
   for (let i = 0; i < 10; i++) {
     const x = 60 + ((i * 151 + time * 12) % (WORLD_W - 120));
     const y = 30 + ((time * 40 + i * 90) % (WORLD_H - 60));
-    ctx.fillStyle = rgba(map.palette.accent, 0.22);
+    ctx.fillStyle = rgba(map.palette.accent, 0.22 * dripAlpha);
     ctx.beginPath();
     ctx.ellipse(x, y, 2, 3.8, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -742,9 +741,16 @@ export function paintAtmosphere(ctx: CanvasRenderingContext2D, map: MapDef, time
   ctx.restore();
 }
 
-/** Silhouettes and weeds drawn over actors so the map has a foreground. */
+/** Soft edge vignette over actors so remaster biomes still feel staged. */
 export function paintForeground(ctx: CanvasRenderingContext2D, map: MapDef): void {
-  if (usesPaintedYard(map)) return;
+  if (usesPaintedYard(map)) {
+    const g = ctx.createLinearGradient(0, WORLD_H - 90, 0, WORLD_H);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.28)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, WORLD_H - 90, WORLD_W, 90);
+    return;
+  }
   const p = map.palette;
   const g = ctx.createLinearGradient(0, WORLD_H - 120, 0, WORLD_H);
   g.addColorStop(0, 'rgba(0,0,0,0)');

@@ -1,11 +1,28 @@
 import { updateHeroAura, updateHeroZones } from './heroPowers';
-import { dist } from '../core/vec';
+import { dist, turnToward } from '../core/vec';
 import { PHASE_VISIBLE_SECONDS } from '../data/enemies';
 import { BARRICADE_REBUILD_SECONDS, BARRICADE_REGEN_PER_SEC, MINERAL_ENEMIES } from '../data/towers';
 import type { EnemyId } from '../data/types';
 import { applyDamage, estimateDamage, heroOnYard, isTargetable, matchesTargetMode, pickTarget, predictedPos } from './combat';
 import type { Game } from './game';
 import type { Enemy, Tower } from './state';
+
+/** How fast shooter turrets swivel toward prey (rad/s). */
+const TURRET_TURN_RATE = 9.5;
+
+function aimShooter(game: Game, t: Tower, dt: number): void {
+  const target = pickTarget(game, t, game.effectiveRange(t));
+  if (!target) return;
+  const want = Math.atan2(target.pos.y - t.pos.y, target.pos.x - t.pos.x);
+  t.facing = turnToward(t.facing, want, TURRET_TURN_RATE * dt);
+}
+
+function muzzle(t: Tower, reach = 20): { x: number; y: number } {
+  return {
+    x: t.pos.x + Math.cos(t.facing) * reach,
+    y: t.pos.y + Math.sin(t.facing) * reach - 12,
+  };
+}
 
 export function releaseHeldBy(game: Game, tower: Tower): void {
   for (const e of game.enemies) {
@@ -389,6 +406,8 @@ function updateElite(game: Game, t: Tower, dt: number): void {
 }
 
 function updateShooter(game: Game, t: Tower, dt: number): void {
+  // Track prey every frame so turrets visibly swing before / between shots.
+  if (t.def.id !== 'pipeSnake') aimShooter(game, t, dt);
   if ((t.windup ?? 0) > 0) {
     t.windup = Math.max(0, (t.windup ?? 0) - dt);
     if ((t.windup ?? 0) <= 0) fireShooter(game, t);
@@ -436,7 +455,8 @@ function fireShooter(game: Game, t: Tower): void {
   const damage = game.effectiveDamage(t);
   if (t.def.projectileSpeed === undefined) {
     applyDamage(game, target, damage, t.def.damageType, t.def.id, { groundMult: t.def.groundMult });
-    game.addEffect({ kind: 'beam', from: { ...t.pos }, to: { ...target.pos }, color: t.def.color, ttl: 0.14, max: 0.14 });
+    const from = muzzle(t);
+    game.addEffect({ kind: 'beam', from: { ...from }, to: { ...target.pos }, color: t.def.color, ttl: 0.14, max: 0.14 });
     game.addEffect({ kind: 'hit', pos: { ...target.pos }, color: t.def.color, ttl: 0.18, max: 0.18 });
     if (t.def.id === 'manifold') fireManifoldExtras(game, t, target, damage);
     if (t.def.id === 'heatExchanger') fireHeatJump(game, t, target, damage);

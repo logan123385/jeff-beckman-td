@@ -22,7 +22,7 @@ export function humanoid(ctx: Ctx, sheet: ActorSheet, index: number, height: num
     ctx.save();ctx.globalAlpha*=amount;attackSprite(ctx,0,amount*.26,height);ctx.restore();return true;
   }
   if(m.attacking&&artReady('crewAttacks')){
-    const opacity=Math.min(1,m.phase/.1,(1-m.phase)/.1);
+    const opacity=Math.min(1,m.phase/.2,(1-m.phase)/.22);
     if(opacity<1){ctx.save();ctx.globalAlpha*=1-opacity;humanoid(ctx,sheet,index,height,{...m,attacking:false,moving:false,tier:0});ctx.restore();}
     ctx.save();ctx.globalAlpha*=Math.max(0,opacity);
     attackSprite(ctx,sheet==='units'?0:index===4?1:index===5?2:index===6?3:4,m.phase,height,sheet==='recruits'&&index<4?index:0);

@@ -185,6 +185,8 @@ export interface Hero {
   /** False while waiting in the truck or after a down — click the yard to drop them. */
   deployed: boolean;
   facing: number;
+  /** Soft −1…1 facing used only for drawing (lerps toward `facing`). */
+  faceVisual?: number;
   swing: number;
   /** Sticky Diablo-style attack order — Jeff only swings this enemy until it dies. */
   orderTargetId: number | null;
@@ -204,7 +206,7 @@ export interface HeroMissile {
   age: number; duration: number; damage: number; splash: number; bounces: number; hitIds: number[];
 }
 export interface HeroZone {
-  id: number; kind: 'supply' | 'gas' | 'rain' | 'review'; pos: Vec; radius: number;
+  id: number; kind: 'supply' | 'gas' | 'rain' | 'review' | 'sand'; pos: Vec; radius: number;
   left: number; duration: number; tick: number; ticks: number; targetIds?: number[];
 }
 export interface HeroVisual {

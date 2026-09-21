@@ -189,10 +189,10 @@ export class Hud {
       this.rankPips[i] = dots;
     });
 
-    ability(this.crewBtn, this.crewCd, 'D', 'Support crew', '2 helpers · 18 seconds', handlers.onCrew);
+ability(this.crewBtn, this.crewCd, 'D', 'Summon Logan', 'Tiny gremlin · 18s', handlers.onCrew);
     ability(this.strikeBtn, this.strikeCd, 'X', 'Torch rain', '3 fire dumps on a point', handlers.onStrike);
     if (isNoPowers(game.remaster)) {
-      this.crewBtn.title = 'Clean Hands — no support crew.';
+      this.crewBtn.title = 'Clean Hands — no Summon Logan.';
       this.strikeBtn.title = 'Clean Hands — no torch rain.';
     }
 

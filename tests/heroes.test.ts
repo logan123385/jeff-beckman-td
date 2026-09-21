@@ -119,14 +119,21 @@ describe('Distinct active abilities', () => {
     expect(es[0]!.maxHp - es[0]!.hp).toBeGreaterThan(es[1]!.maxHp - es[1]!.hp);
   });
   it('Logan scurries, physically holds and fights, then expires and releases enemies', () => {
-    const g = field('chris'); const e = enemy(g, 460); g.hero.attackTimer = 100; cast(g, 0);
-    const s = g.heroSummons[0]!; expect(s).toBeDefined(); expect(s.pos.x).toBeGreaterThan(322); expect(s.walkPhase).toBeGreaterThan(0);
+    const g = field('jeff'); const e = enemy(g, 460); g.hero.attackTimer = 100;
+    expect(g.reinforce({ x: 460, y: 250 })).toBe(true);
+    const s = g.heroSummons[0]!; expect(s).toBeDefined();
     step(g, 1.5); expect(e.hp).toBeLessThan(e.maxHp); expect(e.heldBy).toEqual({ kind: 'summon', id: s.id });
     s.left = .01; updateHeroSummons(g, .02); expect(g.heroSummons).toHaveLength(0); expect(e.heldBy).toBeNull();
   });
   it('enemies can hurt Logan and a dead summon cannot hold or deal phantom damage', () => {
-    const g = field('chris'); const e = enemy(g, 440); e.def = { ...e.def, dps: 1000 }; g.hero.attackTimer = 100; cast(g, 0);
+    const g = field('jeff'); const e = enemy(g, 440); e.def = { ...e.def, dps: 1000 }; g.hero.attackTimer = 100;
+    expect(g.reinforce({ x: 440, y: 250 })).toBe(true);
     step(g, 3); expect(g.heroSummons).toHaveLength(0); expect(e.heldBy).toBeNull();
+  });
+  it('Sand Trap slows and chips ground enemies while Chris keeps his golf kit', () => {
+    const g = field('chris'); const e = enemy(g); g.hero.attackTimer = 100;
+    cast(g, 0); expect(g.heroZones.some(z => z.kind === 'sand')).toBe(true);
+    updateAuras(g, .01); expect(e.slow).toBeGreaterThanOrEqual(.55);
   });
   it('Becbec shreds armor before her haymaker, slams crowds, and finishes all five combo hits', () => {
     const g = field('becbec'), e = enemy(g); g.hero.attackTimer = 100;

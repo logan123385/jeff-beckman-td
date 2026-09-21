@@ -655,7 +655,11 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       ctx.stroke();
       ctx.save();
       ctx.translate(x, y - 42);
-      ctx.rotate(time * 7);
+      ctx.rotate(t.facing);
+      // Aiming vane + spinning blades on the facing axis
+      roundRect(ctx, 2 - kick * 0.4, -2.5, 14, 5, 2);
+      celFill(ctx, t.def.color, 1.4);
+      ctx.rotate(time * 9);
       glow(ctx, '#eceff1', 6);
       for (let i = 0; i < 4; i++) {
         ctx.rotate(Math.PI / 2);
@@ -772,6 +776,18 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       celShine(ctx, x - 3, y - 12, 6, 4, 0.28);
       roundRect(ctx, x - 5, y - 26, 10, 7, 2);
       celFill(ctx, '#33691e', 1.6);
+      ctx.save();
+      ctx.translate(x, y - 14);
+      ctx.rotate(t.facing);
+      roundRect(ctx, 4 - kick, -2.8, 16, 5.6, 2);
+      ctx.fillStyle = metalFill(ctx, 4 - kick, -2.8, 16, 5.6, '#9ccc65');
+      ctx.fill();
+      ctx.strokeStyle = CEL_INK;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      roundRect(ctx, 16 - kick, -3.8, 6, 7.6, 2);
+      celFill(ctx, t.def.color, 1.4);
+      ctx.restore();
       glow(ctx, '#c5e1a5', 8);
       ctx.beginPath();
       ctx.arc(x + 7, y - 30 + Math.sin(time * 3) * 2, 3.5, 0, Math.PI * 2);
@@ -841,6 +857,18 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       noGlow(ctx);
       roundRect(ctx, x + 4, y - 30, 7, 9, 2);
       celFill(ctx, '#3e2723', 1.6);
+      ctx.save();
+      ctx.translate(x, y - 14);
+      ctx.rotate(t.facing);
+      roundRect(ctx, 6 - kick, -3.5, 16, 7, 2);
+      ctx.fillStyle = metalFill(ctx, 6 - kick, -3.5, 16, 7, '#8d6e63');
+      ctx.fill();
+      ctx.strokeStyle = CEL_INK;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      roundRect(ctx, 18 - kick, -4.5, 7, 9, 2);
+      celFill(ctx, t.def.color, 1.4);
+      ctx.restore();
       break;
     }
     case 'hammerDrill': {
@@ -891,6 +919,15 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       celShine(ctx, x - 4, y - 10, 5, 4, 0.3);
       ctx.save();
       ctx.translate(x, y - 6);
+      ctx.rotate(t.facing);
+      roundRect(ctx, 6 - kick, -3, 15, 6, 2);
+      ctx.fillStyle = metalFill(ctx, 6 - kick, -3, 15, 6, '#5c6bc0');
+      ctx.fill();
+      ctx.strokeStyle = CEL_INK;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      roundRect(ctx, 17 - kick, -4, 6, 8, 2);
+      celFill(ctx, t.def.color, 1.4);
       ctx.rotate(time * 5.5);
       glow(ctx, '#c5cae9', 6);
       ctx.strokeStyle = '#c5cae9';
@@ -909,13 +946,18 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       ctx.strokeStyle = CEL_INK;
       ctx.lineWidth = 2.2;
       ctx.stroke();
-      const look = Math.sin(time * 1.6 + t.id) * 2.2;
+      ctx.save();
+      ctx.translate(x, y - 9);
+      ctx.rotate(t.facing);
+      glow(ctx, t.def.color, 8);
       ctx.beginPath();
-      ctx.arc(x + 2 + look, y - 9, 5.5, 0, Math.PI * 2);
+      ctx.arc(6 - kick * 0.3, 0, 5.5, 0, Math.PI * 2);
       celFill(ctx, t.def.color, 1.8);
-      celShine(ctx, x + 1 + look, y - 11, 2, 1.6, 0.45);
-      disc(ctx, x + 3 + look, y - 9, 1.8, '#1a1008');
-      disc(ctx, x + 3.6 + look, y - 9.6, 0.7, '#fffde7');
+      celShine(ctx, 5 - kick * 0.3, -2, 2, 1.6, 0.45);
+      disc(ctx, 7 - kick * 0.3, 0, 1.8, '#1a1008');
+      disc(ctx, 7.6 - kick * 0.3, -0.6, 0.7, '#fffde7');
+      noGlow(ctx);
+      ctx.restore();
       roundRect(ctx, x - 3, y - 24, 5, 9, 1);
       celFill(ctx, '#c9a15b', 1.4);
       glow(ctx, '#ffe082', 6);
@@ -934,7 +976,7 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       ctx.lineTo(x, y - 9);
       ctx.lineTo(x + 13, y + 2);
       ctx.moveTo(x, y - 9);
-      ctx.lineTo(x, y - 24);
+      ctx.lineTo(x, y - 18);
       ctx.stroke();
       noGlow(ctx);
       ctx.strokeStyle = CEL_INK;
@@ -943,12 +985,23 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       for (const [px, py] of [
         [x - 13, y + 2],
         [x + 13, y + 2],
-        [x, y - 24],
       ] as const) {
         ctx.beginPath();
         ctx.arc(px, py, 4, 0, Math.PI * 2);
         celFill(ctx, '#ffccbc', 1.6);
       }
+      ctx.save();
+      ctx.translate(x, y - 16);
+      ctx.rotate(t.facing);
+      roundRect(ctx, 2 - kick, -3, 18, 6, 2);
+      ctx.fillStyle = metalFill(ctx, 2 - kick, -3, 18, 6, '#ef9a9a');
+      ctx.fill();
+      ctx.strokeStyle = CEL_INK;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      roundRect(ctx, 16 - kick, -4, 7, 8, 2);
+      celFill(ctx, t.def.color, 1.4);
+      ctx.restore();
       break;
     }
     case 'mixingValve': {
@@ -1025,6 +1078,18 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       ctx.lineTo(x + 11, y - 20);
       ctx.lineTo(x - 11, y - 9);
       ctx.stroke();
+      ctx.save();
+      ctx.translate(x, y - 14);
+      ctx.rotate(t.facing);
+      roundRect(ctx, 4 - kick, -2.8, 15, 5.6, 2);
+      ctx.fillStyle = metalFill(ctx, 4 - kick, -2.8, 15, 5.6, '#ef9a9a');
+      ctx.fill();
+      ctx.strokeStyle = CEL_INK;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      roundRect(ctx, 15 - kick, -3.8, 6, 7.6, 2);
+      celFill(ctx, t.def.color, 1.4);
+      ctx.restore();
       break;
     }
     case 'dirtSep': {
@@ -1035,13 +1100,19 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       ctx.beginPath();
       ctx.arc(x - 3, y - 10, 4.5, 0, Math.PI * 2);
       celFill(ctx, t.def.color, 1.6);
+      ctx.save();
+      ctx.translate(x, y - 8);
+      ctx.rotate(t.facing);
       ctx.strokeStyle = '#d7ccc8';
-      ctx.lineWidth = 2.4;
+      ctx.lineWidth = 3;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(x + 7, y - 4);
-      ctx.lineTo(x + 15, y + 3);
+      ctx.moveTo(6, 0);
+      ctx.lineTo(16 - kick, 0);
       ctx.stroke();
+      roundRect(ctx, 14 - kick, -3.5, 7, 7, 2);
+      celFill(ctx, t.def.color, 1.4);
+      ctx.restore();
       break;
     }
     case 'steamTrap': {
@@ -1053,12 +1124,16 @@ export function drawTower(ctx: Ctx, t: Tower, time: number): void {
       ctx.stroke();
       rivet(ctx, x - 5, y - 5, 1.6);
       rivet(ctx, x + 5, y - 5, 1.6);
+      ctx.save();
+      ctx.translate(x, y - 14);
+      ctx.rotate(t.facing);
       ctx.beginPath();
-      ctx.moveTo(x - 5, y - 16);
-      ctx.lineTo(x, y - 28);
-      ctx.lineTo(x + 5, y - 16);
+      ctx.moveTo(2 - kick * 0.3, -4);
+      ctx.lineTo(14 - kick, 0);
+      ctx.lineTo(2 - kick * 0.3, 4);
       ctx.closePath();
       celFill(ctx, t.def.color, 1.8);
+      ctx.restore();
       glow(ctx, '#e0f7fa', 8);
       ctx.beginPath();
       ctx.arc(x + 2, y - 30 + Math.sin(time * 6) * 2.5, 3, 0, Math.PI * 2);

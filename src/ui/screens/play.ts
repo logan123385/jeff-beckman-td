@@ -361,7 +361,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         : remaster === 'cashJob'
           ? 'Cash Job — no selling, truck money only, one leak and you’re done. Upgrade a tool, then V for its active. Spare parts come from pops.'
           : remaster === 'cleanHands'
-            ? 'Clean Hands — no selling, no actives, no crew, no torch rain. Truck money only. One leak and you’re done. Your hero still works.'
+            ? 'Clean Hands — no selling, no actives, no Logan, no torch rain. Truck money only. One leak and you’re done. Your hero still works.'
           : game.endless
             ? 'The Neverending Service Call — the endgame. Mutators rotate. Clock out any time; XP and crates bank. Same kit, no exclusive power.'
             : `Arm a tool in the tray (keys 1–5), then tap a pad. Tap ${game.heroDef.name} (or J), then tap the yard to deploy. Space starts the job. Upgrade a tool and press V to fire its active.`;
@@ -539,8 +539,8 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
 
   function beginCrew(): void {
     if (!live()) return;
-    if (isNoPowers(game.remaster)) { hud.setHint('Clean Hands — no support crew.'); return; }
-    if (game.crewCooldown > 0) { hud.setHint(`Support crew ready in ${Math.ceil(game.crewCooldown)}s.`); return; }
+    if (isNoPowers(game.remaster)) { hud.setHint('Clean Hands — no Summon Logan.'); return; }
+    if (game.crewCooldown > 0) { hud.setHint(`Logan ready in ${Math.ceil(game.crewCooldown)}s.`); return; }
     view.targeting = 'crew';
     view.abilitySlot = null;
     view.selectedSlot = null;
@@ -549,7 +549,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     hud.setHeroSelected(false);
     hud.setAbilityArmed(null);
     popover.hide();
-    hud.setHint('Deploy support crew: click a route. Two helpers hold enemies for 18s. Esc cancels.');
+    hud.setHint('Summon Logan: click a route. He holds and batters ground leaks for 18s. Esc cancels.');
   }
 
   function beginStrike(): void {
@@ -906,8 +906,8 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       const ok = mode === 'crew' ? game.reinforce(p) : view.selectedTowerId !== null && game.setRally(view.selectedTowerId, p);
       if (ok) {
         audio.order();
-        cancelAim();
-        hud.setHint(mode === 'crew' ? 'Crew in position. Hold the line.' : 'Rally set. Recruits will hold that ground.');
+cancelAim();
+        hud.setHint(mode === 'crew' ? 'Logan is loose. Hold the line.' : 'Rally set. Recruits will hold that ground.');
       }
       else hud.setHint('Choose a visible route nearby. Esc cancels.');
       return;

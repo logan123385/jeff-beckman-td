@@ -3,7 +3,7 @@ import { clamp, dist, type Vec } from '../core/vec';
 import { ENEMIES } from '../data/enemies';
 import { JEFF } from '../data/jeff';
 import { HEROES, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
-import { updateHeroMissiles, updateHeroSummons, useHeroAbility, fireJeffAbility } from './heroPowers';
+import { updateHeroMissiles, updateHeroSummons, summonLogan, useHeroAbility, fireJeffAbility } from './heroPowers';
 import type { HeroMissile, HeroSummon, HeroVisual, HeroZone } from './state';
 import { TOWERS, TOWER_ORDER } from '../data/towers';
 import { specializeDef, specializationInfo, type Specialization } from '../data/specializations';
@@ -18,7 +18,7 @@ import { updateHero } from './hero';
 import { Path } from './path';
 import type { ActiveSpawn, AimPriority, Clamp, Crew, Friendly, Effect, Enemy, GameStatus, Hero, Projectile, RunStats, StrikeDrop, Tower } from './state';
 import { releaseFriendly, syncRecruits, updateFriendlies } from './friendlies';
-import { CREW_COOLDOWN, CREW_DURATION, updateCrew } from './crew';
+import { CREW_COOLDOWN, updateCrew } from './crew';
 import { applyDescaler, updateAuras, updateTowers } from './towers';
 import { useTowerAbility as fireTowerAbility } from './towerAbilities';
 
@@ -357,7 +357,7 @@ export class Game {
 
   // ---------------------------------------------------------------- commands
 
-  /** Call two temporary helpers onto a visible section of the route. */
+  /** Summon Logan onto a visible section of the route (shared D skill for every hero). */
   reinforce(pos: Vec): boolean {
     if (isNoPowers(this.remaster)) return false;
     if (this.status !== 'playing' || this.crewCooldown > 0 || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
@@ -365,18 +365,9 @@ export class Game {
     const rally = this.nearestPathPoint(pos);
     if (dist(pos, rally) > 55 || rally.x < 16 || rally.x > 944 || rally.y < 24 || rally.y > 576) return false;
     this.crewCooldown = CREW_COOLDOWN;
-    const path = this.paths[this.nearestPath(rally).pathIdx]!;
-    const dir = path.directionAt(Math.max(0, path.nearestPoint(rally).progress));
-    for (let i = 0; i < 2; i++) {
-      const home = { x: rally.x + (i === 0 ? -12 : 12), y: rally.y + (i === 0 ? -7 : 7) };
-      const start = { x: home.x - dir.x * 78, y: home.y - dir.y * 78 };
-      this.crew.push({
-        id: this.nextEntityId(), pos: start, prev: { ...start }, home,
-        hp: 110, maxHp: 110, timeLeft: CREW_DURATION, attackTimer: 0, swing: 0, facing: dir.x >= 0 ? 1 : -1,
-      });
-    }
-    this.addEffect({ kind: 'ring', pos: rally, radius: 44, color: '#a8df89', ttl: 0.65, max: 0.65 });
-    this.addEffect({ kind: 'text', pos: { x: rally.x, y: rally.y - 48 }, text: 'CREW ON SITE!', color: '#e5ffbb', ttl: 1.1, max: 1.1 });
+    summonLogan(this, rally);
+    this.addEffect({ kind: 'ring', pos: rally, radius: 44, color: '#d4e599', ttl: 0.65, max: 0.65 });
+    this.addEffect({ kind: 'text', pos: { x: rally.x, y: rally.y - 48 }, text: 'LOGAN!', color: '#e5ffbb', ttl: 1.1, max: 1.1 });
     return true;
   }
 

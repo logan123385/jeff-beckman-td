@@ -108,7 +108,7 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
           h('span', { class: 'share-pct', text: `${jeffPct.toFixed(0)}%` }),
         ),
         ...towerRows,
-        game.stats.crewDamage > 0 ? h('div', { class: 'share-row' }, h('span', { class: 'share-name', text: 'Support crew' }), h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${game.stats.crewDamage / total * 100}%`, background: '#dfc273' } })), h('span', { class: 'share-pct', text: `${(game.stats.crewDamage / total * 100).toFixed(0)}%` })) : null,
+        game.stats.crewDamage > 0 ? h('div', { class: 'share-row' }, h('span', { class: 'share-name', text: 'Logan' }), h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${game.stats.crewDamage / total * 100}%`, background: '#dfc273' } })), h('span', { class: 'share-pct', text: `${(game.stats.crewDamage / total * 100).toFixed(0)}%` })) : null,
         h('p', { class: 'small muted', text: jeffPct > 50 ? `${game.heroDef.name} led the damage. Invest in towers to spread the workload.` : `Towers held the line with ${game.heroDef.name} and the crew.` }),
       ),
       h(

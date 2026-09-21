@@ -186,3 +186,122 @@ button:focus-visible, [tabindex]:focus-visible { outline:3px solid #fff0a0; outl
 @media (max-width: 900px) { .hero-roster-grid { gap: 7px; } .hero-roster { padding: 16px; } .hero-roster-card b { font-size: 15px; } .hero-roster-art { height: 112px; } .hero-roster-art canvas { max-width: 112px; max-height: 112px; } .hero-kit { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .hero-roster-heading { align-items: start; } .hero-roster-heading > .pill { display: none; } .hero-roster-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hero-roster-card:last-child { grid-column: 1 / -1; } .hero-roster-card:last-child .hero-roster-art { height: 110px; } .hero-dossier { grid-template-columns: 1fr; } .hero-kit { grid-template-columns: 1fr; } .hero-kit-skill { display: flex; align-items: start; gap: 12px; padding-right: 60px; } .hero-kit-icon { flex: 0 0 32px; margin: 0; } .hero-kit-key { top: 16px; } .hero-roster-heading h2 { font-size: 26px; } }
 @media (prefers-reduced-motion: reduce) { .hero-roster-art, .hero-dossier { animation: none; } .hero-roster-card { transition: none; } }
+
+/* GOTY spectacle pass — stage bloom, ability juice, combat chrome */
+.stage {
+  box-shadow:
+    0 0 0 2px #0b1c16,
+    0 0 0 8px #2a3a28,
+    0 0 0 10px #c9b078,
+    0 0 40px #e6b85e33,
+    0 0 90px #ffcc8022,
+    0 18px 50px #000a,
+    inset 0 0 40px #0004;
+  animation: stage-breathe 7s ease-in-out infinite alternate;
+}
+@keyframes stage-breathe {
+  from { filter: saturate(1) brightness(1); }
+  to { filter: saturate(1.08) brightness(1.03); }
+}
+.stage::after {
+  box-shadow: inset 0 0 48px #ffe08214, inset 0 0 12px #fff8e118;
+  animation: stage-rim 4.5s ease-in-out infinite alternate;
+}
+@keyframes stage-rim {
+  from { opacity: .55; }
+  to { opacity: 1; }
+}
+.ability.ready {
+  animation: ready-pulse 1.15s ease-in-out infinite, ability-flare 2.2s ease-in-out infinite;
+  border-color: #ffe6a1 !important;
+  box-shadow:
+    0 0 0 2px #e6b85e88,
+    0 0 22px #e6b85e55,
+    0 0 40px #ffcc8030,
+    inset 0 1px #fff7cf55,
+    0 3px #0e211a !important;
+}
+@keyframes ability-flare {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.12) saturate(1.15); }
+}
+.ability.ready .ab-glyph {
+  animation: glyph-pop 1.15s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px #ffe08288) drop-shadow(0 2px 1px #0007);
+}
+@keyframes glyph-pop {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+.medal.coin b, .medal.heart b {
+  text-shadow: 0 0 12px #ffe08255, 0 2px #0008;
+}
+.medal.bump .ico {
+  animation: medal-spark 0.45s ease-out;
+}
+@keyframes medal-spark {
+  0% { transform: scale(1); filter: brightness(1); }
+  40% { transform: scale(1.35); filter: brightness(1.4) drop-shadow(0 0 8px #ffe082); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+.banner {
+  animation: banner-drop 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.25), banner-glow 2.4s ease-in-out infinite alternate;
+  box-shadow: 0 4px 18px #0c291788, 0 0 28px #e6b85e33 !important;
+}
+@keyframes banner-glow {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.08) saturate(1.1); }
+}
+.btn.primary {
+  box-shadow: 0 3px #8c5d2c, inset 0 1px #fff7cf, 0 0 18px #e6b85e33;
+}
+.btn.primary:hover:not(:disabled) {
+  box-shadow: 0 3px #8c5d2c, inset 0 1px #fff7cf, 0 0 28px #e6b85e66;
+}
+.btn.call {
+  animation: call-ready 2s ease-in-out infinite;
+}
+@keyframes call-ready {
+  0%, 100% { box-shadow: 0 3px #0b1c18, 0 0 0 0 #e6b85e00; }
+  50% { box-shadow: 0 3px #0b1c18, 0 0 16px #e6b85e44; }
+}
+.jeff-card {
+  position: relative;
+  overflow: hidden;
+}
+.jeff-card::after {
+  content: '';
+  position: absolute;
+  inset: -40% -20%;
+  background: linear-gradient(115deg, transparent 40%, #fff8e122 48%, transparent 56%);
+  animation: sheen 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.hud-top, .hud-bottom {
+  backdrop-filter: saturate(1.1);
+}
+.adventure-title h1 {
+  animation: title-shine 5s ease-in-out infinite alternate;
+}
+@keyframes title-shine {
+  from { text-shadow: 0 4px #24382b, 0 8px 30px #001a13, 0 0 20px #ffe08222; }
+  to { text-shadow: 0 4px #24382b, 0 8px 36px #001a13, 0 0 36px #ffe08255; }
+}
+.popover {
+  box-shadow: 0 6px 0 #102117, 0 12px 28px #00160daa, 0 0 40px #e6b85e22 !important;
+}
+.boss-hp {
+  box-shadow: 0 0 12px #faaa6944;
+  animation: boss-pulse 1.4s ease-in-out infinite;
+}
+@keyframes boss-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.15); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage, .stage::after, .ability.ready, .ability.ready .ab-glyph,
+  .banner, .btn.call, .jeff-card::after, .adventure-title h1, .boss-hp {
+    animation: none !important;
+  }
+}
+

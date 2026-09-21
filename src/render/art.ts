@@ -67,7 +67,8 @@ export function heroFrame(ctx: CanvasRenderingContext2D, id: HeroAtlasId, row: n
   let frame = loop ? Math.floor(at) : 0;
   if (!loop) while (frame < 6 && at > times[frame + 1]!) frame++;
   const fraction = loop ? at - frame : (at - times[frame]!) / (times[frame + 1]! - times[frame]!);
-  const ease = Math.max(0, Math.min(1, fraction));
+  // Crossfade across most of the cell so painted poses don't hard-hold then pop.
+  const ease = Math.max(0, Math.min(1, (fraction - 0.12) / 0.76));
   const blend = ease * ease * (3 - 2 * ease);
   for (const [n, opacity] of [[frame, 1 - blend], [loop ? (frame + 1) % 8 : frame + 1, blend]]) {
     if (opacity! < .005) continue;
@@ -184,7 +185,7 @@ export function attackSprite(ctx: CanvasRenderingContext2D, row: number, phase: 
   const rows=apprenticeVariant>0?[0,1/3,2/3,1]:[0,.213,.406,.608,.794,1];const y=rows[row]!*img.height,h=(rows[row+1]!-rows[row]!)*img.height,w=img.width/8;
   const times=[0,.1,.24,.36,.48,.63,.80,1];let frame=0;while(frame<6&&phase>times[frame+1]!)frame++;
   const fraction=Math.max(0,Math.min(1,(phase-times[frame]!)/(times[frame+1]!-times[frame]!)));
-  const transition=fraction,blend=transition*transition*(3-2*transition),scale=height/h;
+  const transition=Math.max(0,(fraction-.18)/.7),blend=transition*transition*(3-2*transition),scale=height/h;
   const draw=(n:number,opacity:number)=>{
     if(opacity<.005)return;ctx.save();ctx.globalAlpha*=opacity;
     const band=apprenticeVariant>0?[.16,.64]:row===0||row===4?[.43,.76]:[.14,.46];
@@ -198,7 +199,7 @@ export function attackSprite(ctx: CanvasRenderingContext2D, row: number, phase: 
 export function walkSprite(ctx: CanvasRenderingContext2D, row: number, phase: number, height: number): boolean {
   const img=images.get('crewWalk');if(!img)return false;
   const w=img.width/8,h=img.height/4,scale=height/h;
-  const at=((phase/(Math.PI*2)%1)+1)%1*8,frame=Math.floor(at),t=at-frame,blend=t*t*(3-2*t);
+  const at=((phase/(Math.PI*2)%1)+1)%1*8,frame=Math.floor(at),t=Math.max(0,((at-frame)-.18)/.7),blend=t*t*(3-2*t);
   for(const[n,alpha]of[[frame,1-blend],[(frame+1)%8,blend]]){if(alpha!<.005)continue;ctx.save();ctx.globalAlpha*=alpha!;ctx.drawImage(img,n!*w,row*h,w,h,-w/2*scale,-height,w*scale,height);ctx.restore();}
   return true;
 }

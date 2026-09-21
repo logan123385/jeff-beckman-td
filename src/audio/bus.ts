@@ -1,4 +1,6 @@
-/** Soft AV — oscillator beds + short blips, no samples, no FOMO stingers. */
+/** Soft AV — oscillator beds, quiet looping music, short blips. No FOMO stingers. */
+
+import musicUrl from '../../assets/audio/rain-on-glass.mp3';
 
 export type SkillCue = 'clamp' | 'shutoff' | 'pulse' | 'sleeve' | 'coffee';
 
@@ -20,6 +22,9 @@ export type AmbientMood = 'warm' | 'plant' | 'cold' | 'night' | 'default';
 
 /** Soft / Full / Off presets for the HUD cycle. */
 export type SoundPreset = 'off' | 'soft' | 'full';
+
+/** Quiet bed under the oscillator drones — fills space without competing with SFX. */
+const MUSIC_BED_GAIN = 0.16;
 
 export function moodForMap(mapId: string): AmbientMood {
   switch (mapId) {
@@ -57,6 +62,10 @@ export class AudioBus {
   private ambientBus: GainNode | null = null;
   private ambientNodes: AudioNode[] = [];
   private ambientMood: AmbientMood | null = null;
+  private musicBuffer: AudioBuffer | null = null;
+  private musicSource: AudioBufferSourceNode | null = null;
+  private musicGain: GainNode | null = null;
+  private musicLoad: Promise<AudioBuffer | null> | null = null;
   private lastKillAt = 0;
   private killsThisBurst = 0;
   private lastHitAt = 0;
@@ -286,6 +295,7 @@ export class AudioBus {
     if (!ctx) return;
     if (this.ambientMood === mood && this.ambientNodes.length > 0) {
       this.applyGains();
+      void this.ensureMusicBed();
       return;
     }
     this.stopAmbient();
@@ -305,7 +315,8 @@ export class AudioBus {
       lfo.frequency.setValueAtTime(0.08, now);
       lfoGain.gain.setValueAtTime(freq * 0.012, now);
       g.gain.setValueAtTime(0.0001, now);
-      g.gain.exponentialRampToValueAtTime(gain, now + 1.4);
+      // Quieter drones so Rain on Glass can fill the bed.
+      g.gain.exponentialRampToValueAtTime(gain * 0.45, now + 1.4);
       lfo.connect(lfoGain);
       lfoGain.connect(osc.frequency);
       osc.connect(g);
@@ -330,7 +341,7 @@ export class AudioBus {
       filter.Q.setValueAtTime(0.7, now);
       const ng = ctx.createGain();
       ng.gain.setValueAtTime(0.0001, now);
-      ng.gain.exponentialRampToValueAtTime(mood === 'night' ? 0.012 : 0.018, now + 1.6);
+      ng.gain.exponentialRampToValueAtTime((mood === 'night' ? 0.012 : 0.018) * 0.55, now + 1.6);
       src.connect(filter);
       filter.connect(ng);
       ng.connect(bus);
@@ -339,9 +350,11 @@ export class AudioBus {
     }
 
     this.applyGains();
+    void this.ensureMusicBed();
   }
 
   stopAmbient(): void {
+    this.stopMusicBed();
     for (const node of this.ambientNodes) {
       try {
         if (node instanceof OscillatorNode || node instanceof AudioBufferSourceNode) {
@@ -358,6 +371,77 @@ export class AudioBus {
     }
     this.ambientNodes = [];
     this.ambientMood = null;
+  }
+
+  /** Decode and start the looping music bed if ambient is active. */
+  private async ensureMusicBed(): Promise<void> {
+    const ctx = this.ensure();
+    if (!ctx || !this.ambientBus || this.ambientMood === null) return;
+    if (this.musicSource) {
+      this.applyGains();
+      return;
+    }
+    const buffer = await this.loadMusic();
+    if (!buffer || this.ambientMood === null || !this.ambientBus) return;
+    if (this.musicSource) return;
+
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const g = ctx.createGain();
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(MUSIC_BED_GAIN, now + 2.2);
+    src.connect(g);
+    g.connect(this.ambientBus);
+    src.start();
+    this.musicSource = src;
+    this.musicGain = g;
+    this.ambientNodes.push(src, g);
+  }
+
+  private stopMusicBed(): void {
+    if (this.musicSource) {
+      try {
+        this.musicSource.stop();
+      } catch {
+        // already stopped
+      }
+      try {
+        this.musicSource.disconnect();
+      } catch {
+        // ignore
+      }
+      this.musicSource = null;
+    }
+    if (this.musicGain) {
+      try {
+        this.musicGain.disconnect();
+      } catch {
+        // ignore
+      }
+      this.musicGain = null;
+    }
+  }
+
+  private loadMusic(): Promise<AudioBuffer | null> {
+    if (this.musicBuffer) return Promise.resolve(this.musicBuffer);
+    if (!this.musicLoad) {
+      this.musicLoad = (async () => {
+        const ctx = this.ensure();
+        if (!ctx) return null;
+        try {
+          const res = await fetch(musicUrl);
+          if (!res.ok) return null;
+          const raw = await res.arrayBuffer();
+          this.musicBuffer = await ctx.decodeAudioData(raw.slice(0));
+          return this.musicBuffer;
+        } catch {
+          return null;
+        }
+      })();
+    }
+    return this.musicLoad;
   }
 
   private makeNoiseBuffer(ctx: AudioContext): AudioBuffer | null {

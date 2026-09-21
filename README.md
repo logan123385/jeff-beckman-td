@@ -20,13 +20,13 @@ skill emblems, numeric cooldowns, enemy previews, and a boss health bar.
   starts a hunt; moving him posts him at a new position.
 - Level-three towers choose a permanent **power** or **control** specialization.
   All 27 towers have two named choices. The choice applies to that tower only.
-- **D** arms Support Crew targeting. Click a route to deploy two helpers for
-  18 seconds; the ability recharges in 30 seconds. They block ground enemies and
-  can be defeated. Invalid placement never spends the cooldown.
+- **D** arms Summon Logan targeting. Click a route to deploy Logan for
+  18 seconds; the ability recharges in 28 seconds. He holds and batters ground
+  enemies and can be defeated. Invalid placement never spends the cooldown.
 - Select a barricade or barracks and press **G** to move its hold / rally point. Stock shutoff valves rally the hold; workshops rally their crew.
 - Hover the next-wave preview for enemy counts, routes, and counters. A **RUSH** pill means packed parents — splash or the children flood. The pipe medal counts lives on the line, including kids still inside parents.
 - Big leaks **split** when they pop: Scale Crabs shed drips, Frozen Mains shed crabs, Sediment Boulders become Lime Scale. Pressurized mains shed one extra child. Child pips sit under a parent on the yard; hover it to read the family. Splash the children; letting a parent walk off costs the whole family.
-- **Clean Hands** is the CHIMPS remaster: no selling, no actives, no crew, no torch rain, truck money only, one leak.
+- **Clean Hands** is the CHIMPS remaster: no selling, no actives, no Logan, no torch rain, truck money only, one leak.
 
 Progress remains in the existing save format (`jbtd-save-v1`). A backup copy (`jbtd-save-v1.bak`) is written before reset. Title and the van offer **Download save** if you have progress; a banner appears if this device couldn’t write, or if a backup was restored. Original PNG sources and optimized
 WebP runtime assets live in `assets/remaster/`; see [art direction and prompts](docs/overhaul/art-direction.md)
@@ -52,9 +52,9 @@ Choose your hero while packing the truck. Every hero is available immediately, t
 | Hero | Playstyle | Signature kit | Aura |
 |---|---|---|---|
 | Jeff Beckman | Frontline guardian | Wrench, Pipe Clamp, Emergency Shutoff, Manometer, Sleeve, Coffee | Greatest Plumber to Ever Live |
-| Big Mike | Mobile ranged support | Blue/cream truck with no logos, plunger javelins, horn knockback, supply crate, throttle, Royal Rain | The Truck King |
+| Big Mike | Mobile ranged support | Blue/cream truck with no logos, plunger javelins, horn knockback, supply crate, throttle, Plunger Rain | The Truck King |
 | Robo Bob | Precision ranged destroyer | Laser hand cannon, You’re Fired piercing beam, reboot, EMP, overclock, target marks | Orbs Aren’t Real |
-| Mr. Chris | Melee skirmisher and summoner | Reciprocating saw, temporary scurrying Logan, ricocheting golf ball, saw combo, gas cloud, lifesteal | Strongest Boy in the 8th Grade |
+| Mr. Chris | Melee skirmisher | Reciprocating saw, sand trap, ricocheting golf ball, saw combo, gas cloud, lifesteal | Strongest Boy in the 8th Grade |
 | Becbec | Heavy bare-handed brawler | Cartoonishly muscular, haymaker, ground slam, extra holds, Iron Will, five-punch combo | Stronger Together |
 
 Five painted transparent atlases contain 120 movement, attack, and signature-cast poses for the new heroes and Logan. Contact-timed damage, projectile arcs, custom laser/impact effects, distinct sound cues, smooth pose transitions, and moving aura boundaries make the kits readable. Logan moves, fights, takes damage, expires, and releases enemies as a real ally. See [hero verification](docs/overhaul/hero-verification.md), [motion sheet](docs/overhaul/hero-motion-sheet.png), and [exact art prompts](docs/overhaul/hero-art-prompts.md).
