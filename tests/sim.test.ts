@@ -215,37 +215,46 @@ describe('Towers', () => {
     game.callNextWave();
     step(game, 200 / ENEMIES.drip.speed + 0.5);
     const drip = game.enemies[0]!;
-    expect(drip.heldBy).toEqual({ kind: 'tower', id: b.id });
+    expect(drip.heldBy?.kind).toBe('friendly');
+    const holder = drip.heldBy;
+    expect(game.friendlies.find(f => holder?.kind === 'friendly' && f.id === holder.id)?.towerId).toBe(b.id);
     const held = drip.progress;
     step(game, 0.5);
     expect(drip.progress).toBe(held);
   });
 
-  it('barricade melee uses its fire rate without a windup cheat', () => {
+  it('apprentice melee waits for the contact pose and respects attack recovery', () => {
     const game = makeGame();
     game.placeTower(0, 'barricade');
     const b = game.towers[0]!;
+    finishBuild(game);
+    for (const f of game.friendlies) f.pos = { ...b.rally };
     const drip = game.spawnEnemy('drip', 0, 200);
     drip.pos = { ...b.rally };
     drip.def = { ...drip.def, dps: 0, speed: 0 };
     drip.hp = drip.maxHp = 10000;
     step(game, FIXED_DT);
+    expect(drip.hp).toBe(10000);
+    step(game, .34);
     const afterFirst = drip.hp;
     expect(afterFirst).toBeLessThan(10000);
-    step(game, 0.7);
+    step(game, 0.6);
     expect(drip.hp).toBe(afterFirst);
-    step(game, 0.2);
+    step(game, 0.45);
     expect(drip.hp).toBeLessThan(afterFirst);
   });
 
-  it('pressure spikes blow up barricades quickly', () => {
+  it('pressure spikes knock out individual apprentices quickly', () => {
     const game = makeGame();
     game.placeTower(0, 'barricade');
     const b = game.towers[0]!;
+    finishBuild(game);
+    for (const f of game.friendlies) f.pos = { ...b.rally };
     const spike = game.spawnEnemy('pressureSpike', 0, 190);
     spike.pos = game.paths[0]!.pointAt(190);
     step(game, 5);
-    expect(b.rebuild > 0 || b.hp < b.maxHp).toBe(true);
+    expect(game.friendlies.some(f => f.respawn > 0 || f.hp < f.maxHp)).toBe(true);
+    expect(b.rebuild).toBe(0);
   });
 
   it('radiant coil slows ground enemies and protects towers from freezing', () => {
@@ -742,7 +751,7 @@ describe('Loadout and new kit', () => {
     expect(LOADOUT_SIZE).toBe(5);
   });
 
-  it('unlocks tools from jobs already on the board, never from The Neverending Service Call', () => {
+  it('uses permanent store licenses on every job while respecting inspection bans', () => {
     const save = new SaveStore(null);
     expect(save.data.lastLoadout).toEqual([]);
     expect(unlockedTowers(save)).toEqual(['torch', 'washer', 'barricade']);
@@ -750,6 +759,8 @@ describe('Loadout and new kit', () => {
     save.setLoadout(['torch', 'washer']);
     expect(save.data.lastLoadout).toEqual(['torch', 'washer']);
     for (const map of MAPS.slice(0, 7)) save.recordClear(map.id, 'journeyman', 1);
+    expect(unlockedTowers(save)).not.toContain('manifold');
+    save.addServicePoints(1000); expect(save.buyTower('manifold')).toBe(true);
     expect(unlockedTowers(save)).toContain('manifold');
     expect(availableTowers(save, MECHANICAL_ROOM, 'classic')).toContain('manifold');
     expect(availableTowers(save, MECHANICAL_ROOM, 'codeInspection')).not.toContain('manifold');
@@ -761,7 +772,8 @@ describe('Loadout and new kit', () => {
     expect(kit.allowedTowers).toEqual(['torch', 'washer']);
     expect(kit.placeTower(0, 'torch')).toBe(true);
     expect(kit.placeTower(1, 'barricade')).toBe(false);
-    const fallback = makeGame({}, false, ['manifold']);
+    expect(makeGame({}, false, ['manifold']).allowedTowers).toEqual(['manifold']);
+    const fallback = makeGame({}, false, []);
     expect(fallback.allowedTowers).toEqual(STRAIGHT.allowedTowers);
   });
 

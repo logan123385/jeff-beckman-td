@@ -19,7 +19,10 @@ const NAMES: Record<TowerId, [string, string]> = {
 export function specializationInfo(def: TowerDef, choice: Specialization): { name: string; description: string; cost: number } {
   const name = NAMES[def.id][choice === 'power' ? 0 : 1];
   let description: string;
-  if (def.kind === 'barricade') description = choice === 'power'
+  if (def.recruits) description = choice === 'power'
+    ? 'Four apprentices gain 25% health and 60% damage. Each holds one enemy.'
+    : 'Four apprentices gain 25% reach and damage, 20% health. Heals nearby apprentices and your hero.';
+  else if (def.kind === 'barricade') description = choice === 'power'
     ? '+70% durability, +60% damage, holds 2 extra enemies.'
     : '+25% reach and damage, +20% durability, 1 extra hold. Repairs itself and heals nearby Jeff.';
   else if (def.kind === 'aura') description = choice === 'power'
@@ -37,8 +40,8 @@ export function specializeDef(def: TowerDef, choice: Specialization): TowerDef {
   const levels = def.levels.map((l): TowerLevel => ({ ...l })) as TowerDef['levels'];
   for (const l of levels.slice(2)) {
   if (def.kind === 'barricade') {
-    l.hp = Math.round((l.hp ?? 0) * (choice === 'power' ? 1.7 : 1.2));
-    l.holds = (l.holds ?? 0) + (choice === 'power' ? 2 : 1);
+    l.hp = Math.round((l.hp ?? 0) * (choice === 'power' ? def.recruits ? 1.25 : 1.7 : 1.2));
+    l.holds = (l.holds ?? 0) + (def.recruits ? 0 : choice === 'power' ? 2 : 1);
     l.damage *= choice === 'power' ? 1.6 : 1.25;
     if (choice === 'control') l.range *= 1.25;
   } else if (def.kind === 'aura') {

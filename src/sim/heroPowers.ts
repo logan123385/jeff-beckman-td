@@ -1,7 +1,8 @@
+import { onBuildAttack, resolveBuildTechnique } from './heroBuilds';
 import { dist, moveToward, type Vec } from '../core/vec';
 import { COOLDOWN_FIELDS, type AbilitySlot } from '../data/heroes';
 import { JEFF } from '../data/jeff';
-import { applyDamage, abilityPower, abilityRangeFactor, abilityRank, heroOnYard, isTargetable, scaledAbilityCooldown, scaledCastRange } from './combat';
+import { applyDamage, abilityPower, abilityRangeFactor, abilityRank, heroOnYard, isTargetable, scaledAbilityCooldown, scaledCastRange, heroAbilityHitsAir } from './combat';
 import type { Game } from './game';
 import type { Enemy, HeroMissile, HeroVisual, HeroZone } from './state';
 
@@ -79,7 +80,7 @@ export function useHeroAbility(game: Game, slot: AbilitySlot, aim?: { pos: Vec; 
     point = { ...aim.pos };
     if (ability.aim === 'enemy') {
       prey = game.enemies.find(e => e.id === aim.enemyId && isTargetable(e));
-      if (!prey || ((game.heroDef.id === 'becbec' || game.heroDef.id === 'jayjay') && prey.def.flying)) return false;
+      if (!prey || (prey.def.flying && !heroAbilityHitsAir(game, slot))) return false;
       point = { ...prey.pos };
     }
     if (dist(h.pos, point) > castRange + (prey?.def.radius ?? 8)) return false;
@@ -91,7 +92,7 @@ export function useHeroAbility(game: Game, slot: AbilitySlot, aim?: { pos: Vec; 
   h.pendingStrike = undefined; h.swing = 0; h.dest = null;
   if (prey) h.facing = prey.pos.x >= h.pos.x ? 1 : -1;
   else if (aim) h.facing = aim.pos.x >= h.pos.x ? 1 : -1;
-  h.cast = { slot, left: ability.cast, duration: ability.cast, fired: false, target: { ...point }, targetId: prey?.id, hits: 0 };
+  h.cast = { slot, buildTechnique: slot === 4 && game.heroBuild.technique !== 'signature', left: ability.cast, duration: ability.cast, fired: false, target: { ...point }, targetId: prey?.id, hits: 0 };
   h.castTimer = ability.cast;
   game.heroNotice = { name: ability.name, detail: ability.short, color: game.heroDef.color, left: ability.cast + 1.6 };
   return true;
@@ -103,7 +104,9 @@ export function advanceHeroCast(game: Game, dt: number): boolean {
   cast.left = Math.max(0, cast.left - dt); h.castTimer = cast.left;
   const phase = 1 - cast.left / cast.duration;
   // The three saw contacts have their own visible swing; other casts release at frame five.
-  if (game.heroDef.id === 'chris' && cast.slot === 2) {
+  if (cast.slot === 4 && game.heroBuild.technique !== 'signature') {
+    if (!cast.fired && phase >= .48) { cast.fired = true; resolveBuildTechnique(game, cast.target, cast.targetId); }
+  } else if (game.heroDef.id === 'chris' && cast.slot === 2) {
     const contacts = [.16, .493333, .826667];
     while (cast.hits < contacts.length && phase >= contacts[cast.hits]!) {
       cast.hits++; cast.fired = true;
@@ -322,6 +325,7 @@ export function strikeNewHero(game: Game, enemy: Enemy): void {
   else if (def.id === 'doni') fireHeroMissile(game, 'hook', enemy.pos, def.damage, enemy.id);
   else if (def.id === 'bob') {
     applyDamage(game, enemy, def.damage * game.mods.jeffDamage, 'heat', 'jeff');
+    onBuildAttack(game, enemy, def.damage * game.mods.jeffDamage);
     visual(game, 'laser', { x: h.pos.x + h.facing * 18, y: h.pos.y - 25 }, { x: enemy.pos.x, y: enemy.pos.y - 10 }, 4, def.color, .22);
   } else if (def.id === 'becbec' || def.id === 'jayjay') {
     h.tapCount++;
@@ -334,6 +338,7 @@ export function strikeNewHero(game: Game, enemy: Enemy): void {
     if ((h.lifesteal ?? 0) > 0) h.hp = Math.min(h.maxHp, h.hp + dealt * .45);
     visual(game, 'saw', h.pos, enemy.pos, 32, '#ffcc84', .2);
   }
+  if (['mike', 'cbj', 'doni'].includes(def.id)) { const missile = game.heroMissiles.at(-1); if (missile) missile.basic = true; }
 }
 
 export function updateHeroZones(game: Game, dt: number): void {
@@ -385,7 +390,7 @@ export function updateHeroMissiles(game: Game, dt: number): void {
     p.pos = step.pos;
     if (!step.arrived) { keep.push(p); continue; }
     if (p.splash > 0) for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, 'physical', 'jeff');
-    else if (target) applyDamage(game, target, p.damage, 'physical', 'jeff');
+    else if (target) { applyDamage(game, target, p.damage, 'physical', 'jeff'); if (p.basic) onBuildAttack(game, target, p.damage); }
     if (target && !target.dead && (p.pull ?? 0) > 0 && !target.def.flying) {
       shove(target, p.pull!); target.stun = Math.max(target.stun, p.stun ?? 0);
       visual(game, 'hook', p.from, p.goal, 25, '#71d5ce', .3);
@@ -413,10 +418,10 @@ export function releaseSummon(game: Game, id: number): void {
 
 /** Shared companion — available to every hero via the D reinforcement slot. */
 export function summonLogan(game: Game, pos: Vec): void {
-  for (const old of game.heroSummons) releaseSummon(game, old.id);
+  for (const old of game.heroSummons.filter(s => !s.buildHelper)) releaseSummon(game, old.id);
   const facing = game.heroEnabled ? game.hero.facing : 1;
   const start = { x: pos.x, y: pos.y };
-  game.heroSummons = [{
+  game.heroSummons = [...game.heroSummons.filter(s => s.buildHelper), {
     id: game.nextEntityId(),
     anchor: { ...start },
     pos: { ...start },
@@ -444,7 +449,7 @@ export function updateHeroSummons(game: Game, dt: number): void {
       if (s.pendingTarget !== undefined && s.swing <= .46 * .52) {
         const e = game.enemies.find(e => e.id === s.pendingTarget && isTargetable(e)); s.pendingTarget = undefined;
         if (e && dist(e.pos, s.pos) <= 30 + e.def.radius) {
-          applyDamage(game, e, 14 * game.mods.jeffDamage * friendlyDamageBuff(game, s.pos), 'physical', 'crew');
+          applyDamage(game, e, (s.damage ?? 14) * game.mods.jeffDamage * friendlyDamageBuff(game, s.pos), 'physical', 'crew');
           game.addEffect({ kind: 'hit', pos: { x: e.pos.x, y: e.pos.y - 8 }, color: '#d2e397', ttl: .16, max: .16 });
         }
       }
@@ -469,7 +474,7 @@ export function updateHeroSummons(game: Game, dt: number): void {
 /** Jeff's five kit skills. Same timing as before — fire on press, not after a wind-up. */
 export function fireJeffAbility(game: Game, slot: AbilitySlot): boolean {
   if (game.heroDef.id !== 'jeff') return useHeroAbility(game, slot);
-  if (!heroOnYard(game) || game.status !== 'playing') return false;
+  if (!heroOnYard(game) || game.status !== 'playing' || game.hero.cast) return false;
   const h = game.hero;
   switch (slot) {
     case 0: {

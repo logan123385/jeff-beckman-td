@@ -1,0 +1,126 @@
+{
+  "allTowers": [
+    {
+      "id": "torch",
+      "animated": true
+    },
+    {
+      "id": "washer",
+      "animated": true
+    },
+    {
+      "id": "barricade",
+      "animated": true
+    },
+    {
+      "id": "vent",
+      "animated": true
+    },
+    {
+      "id": "radiant",
+      "animated": true
+    },
+    {
+      "id": "expansion",
+      "animated": true
+    },
+    {
+      "id": "pipeSnake",
+      "animated": true
+    },
+    {
+      "id": "backflow",
+      "animated": true
+    },
+    {
+      "id": "descaler",
+      "animated": true
+    },
+    {
+      "id": "circulator",
+      "animated": true
+    },
+    {
+      "id": "prv",
+      "animated": true
+    },
+    {
+      "id": "boiler",
+      "animated": true
+    },
+    {
+      "id": "hammerDrill",
+      "animated": true
+    },
+    {
+      "id": "glycol",
+      "animated": true
+    },
+    {
+      "id": "sump",
+      "animated": true
+    },
+    {
+      "id": "camera",
+      "animated": true
+    },
+    {
+      "id": "manifold",
+      "animated": true
+    },
+    {
+      "id": "mixingValve",
+      "animated": true
+    },
+    {
+      "id": "airSeparator",
+      "animated": true
+    },
+    {
+      "id": "thermostat",
+      "animated": true
+    },
+    {
+      "id": "heatExchanger",
+      "animated": true
+    },
+    {
+      "id": "dirtSep",
+      "animated": true
+    },
+    {
+      "id": "steamTrap",
+      "animated": true
+    },
+    {
+      "id": "zoneValve",
+      "animated": true
+    }
+  ],
+  "frames": 955,
+  "pixelsStable": true,
+  "friendlies": [
+    {
+      "slot": 0,
+      "hp": 48,
+      "respawn": 0
+    },
+    {
+      "slot": 1,
+      "hp": 48,
+      "respawn": 0
+    },
+    {
+      "slot": 2,
+      "hp": 48,
+      "respawn": 0
+    },
+    {
+      "slot": 3,
+      "hp": 48,
+      "respawn": 0
+    }
+  ],
+  "p95": 5.799999952316284,
+  "errors": []
+}

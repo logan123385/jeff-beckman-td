@@ -133,8 +133,9 @@ const e = g.spawnEnemy('sludge', 0, 280); step(g, 0.1);
   });
   it('bounds rally orders and releases enemies before moving a barricade crew', () => {
     const g = game(); g.placeTower(0, 'barricade'); const t = g.towers[0]!;
+    finishBuild(g); for (const f of g.friendlies) f.pos = { ...t.rally };
     const e = g.spawnEnemy('sludge', 0, 280); step(g, 0.1);
-    expect(e.heldBy?.kind).toBe('tower'); const old = { ...t.rally };
+    expect(e.heldBy?.kind).toBe('friendly'); const old = { ...t.rally };
     expect(g.setRally(t.id, { x: 800, y: 200 })).toBe(false); expect(t.rally).toEqual(old);
     expect(g.setRally(t.id, { x: 400, y: 210 })).toBe(true);
     expect(t.rally).toEqual({ x: 400, y: 200 }); expect(e.heldBy).toBeNull();

@@ -42,6 +42,7 @@ export function updateFriendlies(game: Game, dt: number): void {
   for (const f of game.friendlies) {
     const tower = game.towerById(f.towerId);
     if (!tower) continue;
+    f.range = game.effectiveRange(tower);
     f.moveBlend = Math.max(0,Math.min(1,(f.moveBlend??0)+(f.moving?1:-1)*dt*8));
     f.moving = false;
     f.fall = Math.max(0,(f.fall??0)-dt);
@@ -90,8 +91,11 @@ export function updateFriendlies(game: Game, dt: number): void {
       let best: Enemy | null = null;
       let bestRem = Infinity;
       for (const e of game.enemies) {
-        if (!isTargetable(e) || e.def.flying || e.heldBy || dist(e.pos, f.home) > leash) continue;
-        const rem = (game.paths[e.pathIdx]?.length ?? 0) - e.progress;
+        if (!isTargetable(e) || e.def.flying || dist(e.pos, f.home) > leash) continue;
+        // Intercept loose leaks first; otherwise help the ally holding a tough target.
+        // A lone regenerating enemy must not lock one apprentice in an endless duel
+        // while the other three stand idle next to it.
+        const rem = (game.paths[e.pathIdx]?.length ?? 0) - e.progress + (e.heldBy ? 10_000 : 0);
         if (!best || rem < bestRem) { best = e; bestRem = rem; }
       }
       target = best;

@@ -1,5 +1,7 @@
+import { buildBudget, normalizeHeroBuild, type HeroBuild } from '../data/heroBuilds';
+import { STARTER_TOWERS, TOWER_PRICES, WELCOME_POINTS } from '../data/store';
 import { COMMENDATIONS, commendationKey, type CommendationId } from '../data/commendations';
-import { isHeroId, type HeroId } from '../data/heroes';
+import { HERO_ORDER, isHeroId, type HeroId } from '../data/heroes';
 import { CORE_MAPS, MAPS } from '../data/maps';
 import { ENEMY_ORDER } from '../data/enemies';
 import { gearScore } from '../data/loot';
@@ -18,6 +20,9 @@ export interface CrewPreset { hero: HeroId; towers: TowerId[] }
 export interface SaveData {
   version: 1;
   selectedHero: HeroId;
+  servicePoints: number;
+  ownedTowers: TowerId[];
+  heroBuilds: Partial<Record<HeroId, HeroBuild>>;
   /** mapId -> difficulty -> best stars (0–3). */
   stars: Record<string, Partial<Record<DifficultyId, number>>>;
   /** First-clear remaster badges (1 star each). Never required. */
@@ -63,6 +68,9 @@ function blank(): SaveData {
   return {
     version: 1,
     selectedHero: 'jeff',
+    servicePoints: WELCOME_POINTS,
+    ownedTowers: [...STARTER_TOWERS],
+    heroBuilds: {},
     stars: {},
     remasters: {},
     serviceCallBest: 0,
@@ -209,9 +217,18 @@ export function normalizeSave(parsed: Partial<SaveData> & Record<string, unknown
     const value = parsed.commendations && typeof parsed.commendations === 'object' ? parsed.commendations[key] : null;
     if (Array.isArray(value)) commendations[key] = COMMENDATIONS.filter(goal => value.includes(goal.id)).map(goal => goal.id);
   }
+  // Grandfather tools from previously unlocked maps when migrating a pre-shop save.
+  const legacy = MAPS.filter((_, i) => i === 0 || Object.values(stars[MAPS[i - 1]!.id] ?? {}).some(n => (n ?? 0) > 0)).flatMap(map => map.allowedTowers);
+  const purchased = Array.isArray(parsed.ownedTowers) ? parsed.ownedTowers : legacy;
+  const ownedTowers = TOWER_ORDER.filter(id => STARTER_TOWERS.includes(id) || purchased.includes(id));
+  const heroBuilds: Partial<Record<HeroId, HeroBuild>> = {};
+  for (const hero of HERO_ORDER) heroBuilds[hero] = normalizeHeroBuild(hero, parsed.heroBuilds?.[hero], buildBudget(finiteNumber(parsed.jeffXp, 0, 0, 5_000_000)));
   const data: SaveData = {
     ...base,
     selectedHero: isHeroId(parsed.selectedHero) ? parsed.selectedHero : 'jeff',
+    servicePoints: Math.round(finiteNumber(parsed.servicePoints, WELCOME_POINTS, 0, 1_000_000)),
+    ownedTowers,
+    heroBuilds,
     stars,
     remasters,
     serviceCallBest: Math.round(finiteNumber(parsed.serviceCallBest ?? parsed.nightShiftBest, 0, 0, 10_000)),
@@ -564,6 +581,33 @@ export class SaveStore {
   setHero(id: HeroId): void {
     if (!isHeroId(id)) return;
     this.data.selectedHero = id; this.save();
+  }
+
+  heroBuild(hero: HeroId = this.data.selectedHero): HeroBuild {
+    return normalizeHeroBuild(hero, this.data.heroBuilds[hero], buildBudget(this.data.jeffXp));
+  }
+
+  unlockBuildNode(hero: HeroId, id: string): boolean {
+    const before = this.heroBuild(hero);
+    const after = normalizeHeroBuild(hero, { ...before, nodes: [...before.nodes, id] }, buildBudget(this.data.jeffXp));
+    if (after.nodes.length !== before.nodes.length + 1) return false;
+    this.data.heroBuilds[hero] = after; this.save(); return true;
+  }
+
+  equipTechnique(hero: HeroId, technique: HeroBuild['technique']): void {
+    this.data.heroBuilds[hero] = normalizeHeroBuild(hero, { ...this.heroBuild(hero), technique }, buildBudget(this.data.jeffXp)); this.save();
+  }
+
+  resetBuild(hero: HeroId): void { this.data.heroBuilds[hero] = { nodes: [], technique: 'signature' }; this.save(); }
+
+  buyTower(id: TowerId): boolean {
+    if (!TOWER_ORDER.includes(id) || this.data.ownedTowers.includes(id) || this.data.servicePoints < TOWER_PRICES[id]) return false;
+    this.data.servicePoints -= TOWER_PRICES[id]; this.data.ownedTowers.push(id); this.save(); return true;
+  }
+
+  addServicePoints(points: number): void {
+    if (!Number.isFinite(points) || points <= 0) return;
+    this.data.servicePoints = Math.min(1_000_000, this.data.servicePoints + Math.floor(points)); this.save();
   }
 
   saveCrew(slot: number, towers: readonly TowerId[]): void {

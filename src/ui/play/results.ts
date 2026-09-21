@@ -45,13 +45,16 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
         ? 'Clean sheet.'
         : 'Customer’s happy.'
       : 'The basement flooded.';
-  const blurb = retired
-    ? `Soft exit from The Neverending Service Call on ${game.difficulty.name}. XP and crates bank. Same kit — no exclusive power.`
-    : won
-      ? `${game.map.name} · ${remasterTitle(game.remaster)} · ${game.difficulty.name}.`
-      : game.endless
-        ? `Made it to wave ${game.waveIdx}. Clock out next time if you want to keep a cleaner record — XP still banks.`
-        : `Made it to wave ${game.waveIdx} of ${game.map.waves.length}. No harm done — you still bank a little XP. Take the callback.`;
+  const idleExit = retired && !!reward && reward.servicePoints === 0 && reward.xp === 0;
+  const blurb = idleExit
+    ? `Soft exit from The Neverending Service Call on ${game.difficulty.name} before any work landed. No service points this time.`
+    : retired
+      ? `Soft exit from The Neverending Service Call on ${game.difficulty.name}. XP and crates bank. Same kit — no exclusive power.`
+      : won
+        ? `${game.map.name} · ${remasterTitle(game.remaster)} · ${game.difficulty.name}.`
+        : game.endless
+          ? `Made it to wave ${game.waveIdx}. Clock out next time if you want to keep a cleaner record — XP still banks.`
+          : `Made it to wave ${game.waveIdx} of ${game.map.waves.length}. No harm done — you still bank a little XP. Take the callback.`;
 
   return h(
     'div',
@@ -62,6 +65,7 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
       h('div', { class: 'eyebrow', text: eyebrow }),
       h('h2', { text: headline }),
       h('p', { class: 'muted', text: blurb }),
+      reward ? serviceRewardCard(reward.servicePoints, won) : null,
       won && !game.endless ? h('section', { class: 'mission-goals result-goals' }, h('h3', { text: 'Mission commendations' }),
         ...COMMENDATIONS.map(goal => h('div', { class: 'goal-card', attrs: { 'data-earned': String(earnedCommendations(game).includes(goal.id)) } },
           h('b', { text: `${earnedCommendations(game).includes(goal.id) ? '◆ Earned · ' : '◇ '}${goal.name}` }), h('span', { text: goal.description })))) : null,
@@ -135,6 +139,24 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
       ),
     ),
   );
+}
+
+/** Paid work gets the gold card. Zero points must not look like completed work. */
+export function serviceRewardCopy(points: number, won: boolean): { paid: true; title: string; detail: string } | { paid: false; text: string } {
+  if (points > 0) {
+    return {
+      paid: true,
+      title: `+${points} service points`,
+      detail: won ? 'Full job payment · spend in the Supply Store' : 'Work completed still counts · spend in the Supply Store',
+    };
+  }
+  return { paid: false, text: 'No service points — nothing finished this call.' };
+}
+
+function serviceRewardCard(points: number, won: boolean): HTMLElement {
+  const copy = serviceRewardCopy(points, won);
+  if (!copy.paid) return h('p', { class: 'small muted', text: copy.text });
+  return h('div', { class: 'service-reward' }, h('b', { text: copy.title }), h('span', { text: copy.detail }));
 }
 
 function stat(label: string, value: string): HTMLElement {

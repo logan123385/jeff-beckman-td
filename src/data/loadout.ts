@@ -1,4 +1,3 @@
-import { MAPS } from './maps';
 import { TOWER_ORDER } from './towers';
 import type { RemasterId, TowerId } from './types';
 import type { MapDef } from './types';
@@ -7,21 +6,16 @@ import type { SaveStore } from '../save/save';
 /** Kingdom Rush-style kit size. Early jobs with fewer tools just fill the bag. */
 export const LOADOUT_SIZE = 5;
 
-/** Tools Jeff has on the truck — anything listed on a job he can already take. */
+/** Tools Jeff has on the truck — permanent licenses bought from the Supply Store. */
 export function unlockedTowers(save: SaveStore): TowerId[] {
-  const ids = new Set<TowerId>();
-  MAPS.forEach((map, i) => {
-    if (!save.isUnlocked(i)) return;
-    for (const id of map.allowedTowers) ids.add(id);
-  });
-  return TOWER_ORDER.filter((id) => ids.has(id));
+  return TOWER_ORDER.filter(id => save.data.ownedTowers.includes(id));
 }
 
-/** What you may pack for this specific call (unlocked ∩ map, minus inspection bans). */
+/** What you may pack for this specific call (owned licenses, minus inspection bans). */
 export function availableTowers(save: SaveStore, map: MapDef, remaster: RemasterId): TowerId[] {
   const banned = remaster === 'codeInspection' ? (map.inspectionBan ?? []) : [];
   const unlocked = new Set(unlockedTowers(save));
-  return map.allowedTowers.filter((id) => unlocked.has(id) && !banned.includes(id));
+  return TOWER_ORDER.filter((id) => unlocked.has(id) && !banned.includes(id));
 }
 
 export function loadoutCap(available: readonly TowerId[]): number {

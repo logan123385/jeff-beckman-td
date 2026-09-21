@@ -46,7 +46,7 @@ test('Bob respawns faster than Jeff', () => {
   expect(HEROES.bob.respawn).toBeLessThan(HEROES.jeff.respawn);
 });
 
-test('stock shutoff valve holds a spike during BUILD_TIME', () => {
+test('apprentices deploy during installation and cannot block before it finishes', () => {
   const game = play({ heroEnabled: false });
   expect(game.placeTower(0, 'barricade')).toBe(true);
   const t = game.towers[0]!;
@@ -56,14 +56,16 @@ test('stock shutoff valve holds a spike during BUILD_TIME', () => {
   game.update(0.08);
   expect(t.build ?? 0).toBeGreaterThan(0);
   expect(t.build ?? 0).toBeLessThan(BUILD_TIME);
-  expect(spike.heldBy).toEqual({ kind: 'tower', id: t.id });
+  expect(spike.heldBy).toBeNull();
+  expect(game.friendlies).toHaveLength(4);
+  expect(game.friendlies.some(f => f.moving)).toBe(true);
 });
 
 test('stock barricades accept a rally order', () => {
   const game = play({ heroEnabled: false });
   expect(game.placeTower(0, 'barricade')).toBe(true);
   const t = game.towers[0]!;
-  expect(t.def.recruits).toBeUndefined();
+  expect(t.def.recruits).toBe('apprentices');
   const path = game.paths[0]!;
   const here = path.nearestPoint(t.pos);
   const pos = path.pointAt(Math.min(path.length - 8, here.progress + 28));

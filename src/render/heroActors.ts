@@ -1,3 +1,4 @@
+import { buildRank } from '../data/heroBuilds';
 import { HEROES } from '../data/heroes';
 import type { Game } from '../sim/game';
 import type { Hero, HeroSummon } from '../sim/state';
@@ -26,8 +27,8 @@ export function drawNewHero(ctx: Ctx, h: Hero, time: number, showBar = true): bo
     phase = 1 - h.cast.left / h.cast.duration;
     row = id === 'mike' ? (h.cast.slot === 0 || h.cast.slot === 4 ? 1 : 2) : id === 'chris' ? (h.cast.slot === 1 ? 2 : 1) : id === 'becbec' ? (h.cast.slot === 1 ? 2 : 1) : 2;
     if (id === 'chris' && h.cast.slot === 2) phase = Math.min(.999, phase * 3 % 1);
-    if (id === 'becbec' && h.cast.slot === 4) phase = Math.min(.999, phase * 5 % 1);
-    if (id === 'jayjay' && h.cast.slot === 4) phase = Math.min(.999, phase * 3 % 1);
+    if (id === 'becbec' && h.cast.slot === 4 && !h.cast.buildTechnique) phase = Math.min(.999, phase * 5 % 1);
+    if (id === 'jayjay' && h.cast.slot === 4 && !h.cast.buildTechnique) phase = Math.min(.999, phase * 3 % 1);
   } else if (h.swing > 0) {
     row = 1; phase = 1 - h.swing / (h.swingDuration ?? def.swingTime);
   } else if (h.moving || (h.moveBlend ?? 0) > .05) {
@@ -94,6 +95,14 @@ export function drawNewHero(ctx: Ctx, h: Hero, time: number, showBar = true): bo
 }
 
 export function drawLogan(ctx: Ctx, s: HeroSummon, time: number): void {
+  if (s.buildHelper) {
+    castShadow(ctx, s.pos.x, s.pos.y + 7, 12, 4, .25);
+    ctx.save(); ctx.globalAlpha = Math.min(1, s.left * 2, (s.duration - s.left) * 4 + .1); ctx.translate(s.pos.x, s.pos.y + 10); ctx.scale(s.facing, 1);
+    humanoid(ctx, 'recruits', s.id % 4, 44, { time, walk: s.walkPhase, moving: s.moving, phase: 1 - s.swing / .46, attacking: s.swing > 0 }); ctx.restore();
+    bar(ctx, s.pos.x, s.pos.y - 35, 23, s.hp / s.maxHp, '#9dc4ed');
+    ctx.fillStyle = '#eed38f'; ctx.fillRect(s.pos.x - 11, s.pos.y - 29, 22 * s.left / s.duration, 2);
+    return;
+  }
   const fade = Math.min(1, s.left * 2, (s.duration - s.left) * 4 + .1);
   castShadow(ctx, s.pos.x, s.pos.y + 8, 12, 4, fade * .25);
   ctx.save(); ctx.globalAlpha = fade; ctx.translate(s.pos.x, s.pos.y + 11); ctx.scale(s.facing, 1);
@@ -114,6 +123,10 @@ export function drawHeroAura(ctx: Ctx, game: Game, selected: boolean): void {
   if (!game.heroEnabled || !game.hero.deployed || game.hero.downed > 0) return;
   const h = game.hero, def = game.heroDef, r = def.aura.radius, time = game.time;
   ctx.save(); ctx.translate(h.pos.x, h.pos.y);
+  if (buildRank(game.heroBuild, 'engineer') || game.buildState.overtime > 0) {
+    ctx.strokeStyle = '#f0c77999'; ctx.lineWidth = game.buildState.overtime > 0 ? 2 : 1; ctx.setLineDash([8, 10]); ctx.lineDashOffset = -time * 9;
+    ctx.beginPath(); ctx.arc(0, 0, game.buildState.overtime > 0 ? 200 : 175, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+  }
   ctx.globalCompositeOperation = 'lighter';
   const glowGrad = ctx.createRadialGradient(0, 0, r * .08, 0, 0, r);
   glowGrad.addColorStop(0, rgba(def.color, .08));
@@ -152,6 +165,12 @@ export function drawHeroAura(ctx: Ctx, game: Game, selected: boolean): void {
 }
 
 export function drawHeroZones(ctx: Ctx, game: Game): void {
+  for (const zone of game.buildZones) {
+    ctx.save(); ctx.globalAlpha = Math.min(1, zone.left * 2); radial(ctx, zone.pos.x, zone.pos.y, 15, zone.radius, '#abd968', .22);
+    ctx.strokeStyle = '#bddf7899'; ctx.lineWidth = 2; ctx.setLineDash([5, 9]); ctx.lineDashOffset = -game.time * 15; ctx.beginPath(); ctx.arc(zone.pos.x, zone.pos.y, zone.radius, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    for (let i = 0; i < 10; i++) { const phase = (game.time * .4 + i * .1) % 1, angle = i * 2.4; ctx.globalAlpha = Math.sin(phase * Math.PI) * .25 * Math.min(1, zone.left); disc(ctx, zone.pos.x + Math.cos(angle) * zone.radius * .6, zone.pos.y + Math.sin(angle) * zone.radius * .5 - phase * 24, 5 + phase * 8, '#bddf78'); }
+    ctx.restore();
+  }
   for (const z of game.heroZones) {
     const color = z.kind === 'gas' ? '#a5bb64' : z.kind === 'net' ? '#71d5ce' : z.kind === 'rain' || z.kind === 'taterRain' ? '#e0bd8a' : z.kind === 'review' ? '#f39882' : z.kind === 'sand' ? '#d2b48c' : '#e9d69f';
     ctx.save(); ctx.globalAlpha = Math.min(1, z.left * 2); ctx.strokeStyle = rgba(color, .55); ctx.lineWidth = 2;

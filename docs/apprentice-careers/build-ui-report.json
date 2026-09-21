@@ -1,0 +1,47 @@
+{
+  "fixture": "5000 career XP, isolated profile; all unlocks and selections through real controls",
+  "checks": [
+    {
+      "hero": "jeff",
+      "paths": 3,
+      "technique": "All Hands on Deck"
+    },
+    {
+      "hero": "mike",
+      "paths": 3,
+      "technique": "Pinpoint Plunger"
+    },
+    {
+      "hero": "bob",
+      "paths": 3,
+      "technique": "Contractor Deployment"
+    },
+    {
+      "hero": "chris",
+      "paths": 3,
+      "technique": "Bring the Caddies"
+    },
+    {
+      "hero": "becbec",
+      "paths": 3,
+      "technique": "Strongest Shift"
+    },
+    {
+      "hero": "cbj",
+      "paths": 3,
+      "technique": "Convoy Incoming"
+    },
+    {
+      "hero": "doni",
+      "paths": 3,
+      "technique": "Premium Guided Tour"
+    },
+    {
+      "hero": "jayjay",
+      "paths": 3,
+      "technique": "Send in the Corner"
+    }
+  ],
+  "mobileWidth": 390,
+  "errors": []
+}

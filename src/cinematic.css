@@ -172,3 +172,26 @@ body { -webkit-font-smoothing:antialiased; }
 .kr-compact .kr-investment { position:static; grid-column:1/-1; transform:none; width:auto; max-width:none; margin-top:1px; padding:5px; border:0; border-top:1px solid #bda77155; border-radius:0; box-shadow:none; font-size:9px; }
 .kr-compact .kr-hp { position:static; grid-column:1/-1; transform:none; }
 @media (max-width:760px) { .rank-call { font-size:9px; padding:4px 6px; }.flow-state { top:3px; min-width:160px; max-width:62%; padding:3px 7px 4px; gap:1px; }.flow-phase { font-size:8px; }.flow-detail { font-size:8px; }.flow-reward { bottom:5px; font-size:8px; padding:4px 7px; }.flow-warning { top:45px; right:4px; font-size:8px; padding:4px 6px; }.play .banner { top:45px; }.play .banner .banner-title { font-size:12px; }.kr-investment { font-size:9px; width:190px; } }
+
+/* Career progression: illustrated dossiers, connected paths, and supply shelves. */
+.build-roster { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:8px; }
+.build-hero { display:flex; flex-direction:column; align-items:center; justify-content:end; padding:12px 5px; border:1px solid #71888866; border-radius:10px; background:linear-gradient(#2c444a,#182e37); color:#eadfbd; cursor:pointer; }
+.build-hero.selected { border-color:#e5c584; background:linear-gradient(#475955,#263c42); box-shadow:inset 0 0 0 2px #e5c58433; }
+.build-hero b { font-size:13px; margin-top:8px; }
+.build-dossier { display:flex; align-items:center; gap:22px; padding:20px 30px; border-left:4px solid var(--hero-color); }
+.build-paths { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+.build-path { padding:22px; border-top:3px solid var(--path-color); }
+.build-path h2 { margin:8px 0 20px; font-size:25px; }.build-path>.eyebrow { color:var(--path-color); }
+.build-node { position:relative; display:flex; align-items:start; gap:10px; width:100%; min-height:130px; padding:14px; margin:0 0 18px; border:1px solid #c5b78b44; border-radius:8px; text-align:left; background:#102a3288; color:#d9dfd2; }
+.build-node:not(:last-child)::after { content:''; position:absolute; width:2px; height:20px; left:28px; top:100%; background:var(--path-color); opacity:.5; }
+.build-node.owned { border-color:var(--path-color); background:color-mix(in srgb,var(--path-color) 13%,#152e35); }
+.build-node.available { border-color:#e8cc88; cursor:pointer; }.build-node.available:hover { background:#354f4f; }
+.build-node.locked { opacity:.88; cursor:default; }.build-node.locked p { color:#b3c5bf; }.build-node b { display:block; font-size:15px; }.build-node p { font-size:13px; line-height:1.5; margin:8px 0; }.build-node small { color:var(--path-color); }
+.node-number { display:grid; place-items:center; flex:0 0 26px; height:26px; border:1px solid var(--path-color); border-radius:50%; color:var(--path-color); }
+.technique-picker { padding:22px; }.technique-picker .btn[aria-pressed=true] { outline:2px solid #e3c487; outline-offset:3px; }
+.store-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px; }
+.store-card { display:flex; flex-direction:column; gap:10px; padding:20px; border-top:3px solid var(--tower-color); }.store-card h2 { font-size:21px; margin:0; }.store-card>p { flex:1; font-size:14px; line-height:1.6; margin:0; }.store-card .btn { margin-top:8px; }
+.store-art { display:grid; place-items:center; height:140px; background:radial-gradient(ellipse,color-mix(in srgb,var(--tower-color) 18%,transparent),transparent 70%); }
+.store-card.owned { border-top-color:#9cbb96; }.service-reward { display:flex; flex-direction:column; padding:14px; margin:10px 0; border:1px solid #d8b773; background:#796e3533; border-radius:8px; }.service-reward b { color:#f1d493; font-size:23px; }.service-reward span { font-size:12px; color:#c3d0bc; }
+@media(max-width:1050px) { .store-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }.build-path { padding:14px; }.build-node { padding:10px; } }
+@media(max-width:760px) { .build-roster { grid-template-columns:repeat(4,minmax(0,1fr)); }.build-paths { grid-template-columns:1fr; }.build-dossier { padding:14px; gap:10px; }.build-dossier h2 { font-size:22px; }.store-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }.store-card { padding:12px; }.store-card h2 { font-size:17px; }.store-card .btn { font-size:12px; padding:8px; }.hero-builds .screen-header,.supply-store .screen-header { flex-wrap:wrap; }.build-hero b { font-size:11px; }.build-node { min-height:100px; }.technique-picker .btn { white-space:normal; } }

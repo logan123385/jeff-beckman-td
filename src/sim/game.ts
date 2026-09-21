@@ -1,8 +1,9 @@
+import { normalizeHeroBuild, heroForBuild, type HeroBuild } from '../data/heroBuilds';
 import { Rng } from '../core/rng';
 import { clamp, dist, type Vec } from '../core/vec';
 import { enemyForMap } from '../data/bosses';
 import { JEFF } from '../data/jeff';
-import { COOLDOWN_FIELDS, HEROES, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
+import { COOLDOWN_FIELDS, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
 import { updateHeroMissiles, updateHeroSummons, summonLogan, useHeroAbility, fireJeffAbility } from './heroPowers';
 import type { HeroMissile, HeroSummon, HeroVisual, HeroZone } from './state';
 import { TOWERS, TOWER_ORDER } from '../data/towers';
@@ -29,8 +30,9 @@ export interface GameOptions {
   seed?: number;
   heroEnabled?: boolean;
   heroId?: HeroId;
+  heroBuild?: HeroBuild;
   remaster?: RemasterId;
-  /** If set, only these tools can be built (already intersected with the job). */
+  /** If set, only these owned tools can be built; inspection bans are applied below. */
   loadout?: TowerId[];
   /** Player-facing games wait for the first call; headless simulations may keep timed starts. */
   manualStart?: boolean;
@@ -56,6 +58,10 @@ export class Game {
   readonly rng: Rng;
   readonly heroEnabled: boolean;
   readonly heroDef: HeroDef;
+  readonly heroBuild: HeroBuild;
+  buildState = { focusId: 0, focusHits: 0, helperTimer: 3, overtime: 0 };
+  buildZones: { pos: Vec; radius: number; left: number; duration: number; dps: number }[] = [];
+  rewardsClaimed = false;
   readonly remaster: RemasterId;
   readonly endless: boolean;
   readonly allowedTowers: TowerId[];
@@ -142,14 +148,16 @@ export class Game {
     this.mods = opts.mods;
     this.rng = new Rng(opts.seed ?? 1);
     this.heroEnabled = opts.heroEnabled ?? true;
-    this.heroDef = HEROES[isHeroId(opts.heroId) ? opts.heroId : 'jeff'];
+    const heroId = isHeroId(opts.heroId) ? opts.heroId : 'jeff';
+    this.heroBuild = normalizeHeroBuild(heroId, opts.heroBuild);
+    this.heroDef = heroForBuild(heroId, this.heroBuild);
     this.manualStart = opts.manualStart ?? false;
     this.remaster = opts.remaster ?? 'classic';
     this.endless = map.endless === true;
     const banned = this.remaster === 'codeInspection' ? (map.inspectionBan ?? []) : [];
-    const pool = map.allowedTowers.filter((id) => !banned.includes(id));
+    const pool = TOWER_ORDER.filter((id) => !banned.includes(id));
     const kit = [...new Set((opts.loadout ?? []).filter((id) => pool.includes(id)))];
-    this.allowedTowers = kit.length > 0 ? kit : pool;
+    this.allowedTowers = kit.length > 0 ? kit : map.allowedTowers.filter(id => !banned.includes(id));
     this.freezeDurationMult = this.remaster === 'frozenMain' ? 1.75 : 1;
     this.nightMutator = null;
     this.money = isTruckMoney(this.remaster) ? map.startMoney : map.startMoney + opts.mods.startMoney;
@@ -677,7 +685,7 @@ export class Game {
 
   useAbility(slot: AbilitySlot, aim?: { pos: { x: number; y: number }; enemyId?: number }): boolean {
     if (![0, 1, 2, 3, 4].includes(slot)) return false;
-    if (this.heroDef.id === 'jeff') return fireJeffAbility(this, slot);
+    if (this.heroDef.id === 'jeff' && !(slot === 4 && this.heroBuild.technique !== 'signature')) return fireJeffAbility(this, slot);
     return useHeroAbility(this, slot, aim);
   }
 

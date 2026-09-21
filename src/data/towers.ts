@@ -34,17 +34,18 @@ export const TOWERS: Record<TowerId, TowerDef> = {
   },
   barricade: {
     id: 'barricade',
-    name: 'Shutoff Valve Barricade',
+    name: 'Apprentice Barricade',
     role: 'Block / stall',
-    blurb: 'Holds ground threats in place so your DPS can work. Low damage, self-repairs when idle.',
+    blurb: 'Four distinct apprentices block one ground leak each. Fragile individually; rally them together, support them, and let the tools do the heavy work. Fallen apprentices return after 9 seconds.',
     damageType: 'physical',
     targets: 'ground',
     kind: 'barricade',
-    color: '#e74c3c',
+    color: '#e7b75c',
+    recruits: 'apprentices',
     levels: [
-      { cost: 60, damage: 6, range: 34, fireRate: 1.2, hp: 260, holds: 2 },
-      { cost: 60, damage: 9, range: 36, fireRate: 1.2, hp: 420, holds: 3 },
-      { cost: 90, damage: 13, range: 38, fireRate: 1.4, hp: 640, holds: 4 },
+      { cost: 60, damage: 3, range: 25, fireRate: 1.0, hp: 48, holds: 1, recruits: 4 },
+      { cost: 60, damage: 4, range: 27, fireRate: 1.05, hp: 64, holds: 1, recruits: 4 },
+      { cost: 90, damage: 5.5, range: 29, fireRate: 1.1, hp: 88, holds: 1, recruits: 4 },
     ],
   },
   vent: {
@@ -391,7 +392,7 @@ for (const def of Object.values(TOWERS)) {
     if (base.shieldCooldown) l.shieldCooldown = base.shieldCooldown / (1 + step * 0.3);
     if (base.slow) l.slow = Math.min(0.8, base.slow * (1 + step * 0.08));
     if (base.shred) l.shred = Math.min(0.8, base.shred * (1 + step * 0.15));
-    if (def.recruits === 'apprentices') l.recruits = tier === 5 ? 6 : 5;
+    if (def.recruits === 'apprentices') { l.recruits = 4; l.hp = [116, 150, 194][step - 1]!; }
     def.levels.push(l);
   }
 }

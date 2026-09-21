@@ -1,3 +1,4 @@
+import { onBuildAttack } from './heroBuilds';
 import { dist, moveToward } from '../core/vec';
 import { JEFF } from '../data/jeff';
 import { advanceHeroCast, heroAttackSpeed, strikeNewHero } from './heroPowers';
@@ -75,7 +76,7 @@ export function updateHero(game: Game, dt: number): void {
   if (h.pendingStrike !== undefined && h.swing <= (h.swingDuration ?? def.swingTime) * 0.52) {
     const target = game.enemies.find(e => e.id === h.pendingStrike && isTargetable(e));
     h.pendingStrike = undefined;
-    if (target && (def.ranged || !target.def.flying) && !h.dest && dist(h.pos, target.pos) <= game.heroDef.reach * game.mods.jeffReach + target.def.radius + 10) { h.combatIdle = 0; if (def.id === 'jeff') strike(game, target); else strikeNewHero(game, target); }
+    if (target && (def.ranged || !target.def.flying) && !h.dest && dist(h.pos, target.pos) <= game.heroDef.reach * game.mods.jeffReach + target.def.radius + 10) { h.combatIdle = 0; if (def.id === 'jeff') strike(game, target); else strikeNewHero(game, target); if (!def.ranged) onBuildAttack(game, target, def.damage * game.mods.jeffDamage); }
   }
 
   if (h.swing > 0 && !h.dest) { holdNearby(game); repairNearby(game, dt); return; }
@@ -247,6 +248,9 @@ function holdNearby(game: Game): void {
 function repairNearby(game: Game, dt: number): void {
   if (game.heroDef.id !== 'jeff') return;
   const h = game.hero;
+  for (const f of game.friendlies) if (f.respawn <= 0 && f.hp > 0 && dist(f.pos, h.pos) <= JEFF.toolBelt.radius) {
+    f.hp = Math.min(f.maxHp, f.hp + JEFF.toolBelt.repairPerSec * game.mods.jeffRepair * .25 * dt);
+  }
   for (const t of game.towers) {
     if (t.def.kind !== 'barricade' || t.rebuild > 0 || t.hp >= t.maxHp) continue;
     if (dist(t.pos, h.pos) > JEFF.toolBelt.radius) continue;

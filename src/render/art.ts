@@ -1,8 +1,10 @@
+import { apprenticeFrames } from './apprenticeAtlas';
 import type { EnemyId, TowerId } from '../data/types';
 import { extractHeroFrames } from './heroAtlas';
 
 /** Original painted atlases. All simulation coordinates remain independent of art. */
 const urls = {
+  apprenticeMotion: new URL('../../assets/remaster/apprentice-motion.png', import.meta.url).href,
   landscapes: new URL('../../assets/cinematic/environments.jpg', import.meta.url).href,
   heroMike: new URL('../../assets/remaster/hero-mike.webp', import.meta.url).href,
   heroBob: new URL('../../assets/remaster/hero-bob.webp', import.meta.url).href,
@@ -69,6 +71,7 @@ export async function preloadArt(): Promise<void> {
     img.onload = () => {
       try {
         images.set(name as Sheet, img);
+        if (name === 'apprenticeMotion') heroFrames.set('apprenticeMotion', apprenticeFrames(img));
         if (name.startsWith('hero')) heroFrames.set(name as Sheet, extractHeroFrames(img));
       } catch {
         // Keep the procedural fallback.
@@ -189,6 +192,9 @@ export function actorArt(sheet: ActorSheet, index: number, height: number): { wi
 export function meshActor(ctx: CanvasRenderingContext2D, sheet: ActorSheet, index: number, height: number, warp: (x: number, y: number) => [number, number]): boolean {
   if (sheet === 'units' && index >= 16) { sheet = 'unitsAdvanced'; index -= 16; }
   const img = images.get(sheet), rect = crop(sheet, index); if (!img || !rect) return false;
+  return meshImage(ctx, img, rect, height, warp);
+}
+function meshImage(ctx: CanvasRenderingContext2D, img: CanvasImageSource, rect: [number, number, number, number], height: number, warp: (x: number, y: number) => [number, number]): boolean {
   const w=height*rect[2]/rect[3], h=height, cols=6, rows=10;
   const vertices: {sx:number;sy:number;x:number;y:number}[][]=[];
   for(let j=0;j<=rows;j++) { const row=[];for(let i=0;i<=cols;i++){const x=i/cols,y=j/rows,p=warp(x,y);row.push({sx:x*w,sy:y*h,x:(p[0]-.5)*w,y:(p[1]-1)*h});}vertices.push(row); }
@@ -232,5 +238,45 @@ export function walkSprite(ctx: CanvasRenderingContext2D, row: number, phase: nu
   const w=img.width/8,h=img.height/4,scale=height/h;
   const at=((phase/(Math.PI*2)%1)+1)%1*8,frame=Math.floor(at),t=at-frame,blend=t*t*(3-2*t);
   blendPoses(ctx,height,blend,(c,next)=>{const n=next?(frame+1)%8:frame;c.drawImage(img,n*w,row*h,w,h,-w/2*scale,-height,w*scale,height);});
+  return true;
+}
+
+/** Fixed-anchor illustrated motion, smoothly mixed through gait and contact. */
+const apprenticeGaits = new Map<string, HTMLCanvasElement>();
+export function apprenticeSprite(ctx: CanvasRenderingContext2D, variant: number, height: number, walk: number, phase: number, attacking: boolean, moving: boolean, walkWeight = 1): boolean {
+  const frames = heroFrames.get('apprenticeMotion'); if (!frames) return false;
+  if (moving && !attacking && walkWeight < .998) {
+    blendPoses(ctx, height, walkWeight, (c, next) => { apprenticeSprite(c, variant, height, walk, phase, false, next); });
+    return true;
+  }
+  if (moving && !attacking) {
+    const f = frames[(variant % 4) * 8]!, cycle = ((walk / (Math.PI * 2) % 1) + 1) % 1;
+    const frame = Math.round(cycle * 64) % 64, key = `${variant}:${height}:${frame}`;
+    let c = apprenticeGaits.get(key);
+    if (!c) {
+      c = document.createElement('canvas'); c.width = Math.ceil(height * 4); c.height = Math.ceil(height * 2.5);
+      const q = c.getContext('2d')!; q.scale(2, 2); q.translate(height, height * 1.15);
+      const stride = Math.sin(frame / 64 * Math.PI * 2);
+      meshImage(q, f, [0, 0, f.width, f.height], height, (x, y) => {
+        const lower = Math.max(0, Math.min(1, (y - .57) / .33)), side = x < .5 ? 1 : -1;
+        const weight = lower * lower * (3 - 2 * lower);
+        const arms = Math.max(0, 1 - Math.abs(y - .43) / .18);
+        return [x + stride * side * .04 * weight - stride * side * .009 * arms, y - Math.max(0, stride * side) * .045 * weight];
+      });
+      apprenticeGaits.set(key, c);
+      if (apprenticeGaits.size > 600) apprenticeGaits.delete(apprenticeGaits.keys().next().value!);
+    }
+    ctx.drawImage(c, -height, -height * 1.15, c.width / 2, c.height / 2); return true;
+  }
+  const keys = attacking ? [0, 4, 5, 6, 7, 0] : moving ? [1, 2, 3, 2] : [0, 0];
+  const times = attacking ? [0, .28, .48, .65, .84, 1] : moving ? [0, .25, .5, .75, 1] : [0, 1];
+  const t = attacking ? Math.max(0, Math.min(.9999, phase)) : moving ? ((walk / (Math.PI * 2) % 1) + 1) % 1 : 0;
+  let at = 0; while (at < times.length - 2 && t >= times[at + 1]!) at++;
+  const fraction = (t - times[at]!) / (times[at + 1]! - times[at]!);
+  blendPoses(ctx, height, fraction * fraction * (3 - 2 * fraction), (c, next) => {
+    const index = keys[(at + (next ? 1 : 0)) % keys.length]!;
+    const f = frames[(variant % 4) * 8 + index]!, scale = height / f.height;
+    c.drawImage(f, -f.width * scale / 2, -height, f.width * scale, height);
+  });
   return true;
 }

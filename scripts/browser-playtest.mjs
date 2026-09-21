@@ -110,7 +110,7 @@ try {
   };
   let trained = false, abilityActivated = false, activeUsed = false, ranksPicked = 0, extra = 0, previousWave = '', nextReport = 0;
   await build('washer', 225, 250, 'Pressure Washer');
-  await build('barricade', 100, 250, 'Shutoff Valve');
+  await build('barricade', 100, 250, 'Apprentice Barricade');
   await press('j'); await world(170, 275);
   assert(await read(`!document.querySelector('.jeff-card').classList.contains('ready-deploy')`), 'Hero must deploy from the truck.');
   await press(' '); await press('f'); await press('f');
