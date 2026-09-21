@@ -160,6 +160,20 @@ function resolveAbility(game: Game, slot: AbilitySlot, point: Vec, targetId?: nu
   const pwr = abilityPower(game, slot);
   const rng = abilityRangeFactor(game, slot);
   const prey = game.enemies.find(e => e.id === targetId && isTargetable(e)) ?? targets(game, 280 * rng)[0];
+  // Revalidate at contact: the clicked leak may die, phase, escape, or leave reach
+  // during the wind-up. Hooks can hit air; a punch still requires a ground target.
+  let contact: Enemy | undefined;
+  if ((def.id === 'doni' && (slot === 0 || slot === 4)) || (def.id === 'jayjay' && slot === 0)) {
+    const pool = targets(game, scaledCastRange(game, slot)).filter(e => def.id !== 'jayjay' || !e.def.flying);
+    contact = pool.find(e => e.id === targetId) ?? pool[0];
+    if (!contact) {
+      h[COOLDOWN_FIELDS[slot]] = 0;
+      h.cast = undefined; h.castTimer = 0;
+      game.heroNotice = { name: def.abilities[slot].name, detail: 'Target lost · ability ready', color: def.color, left: 1.6 };
+      return;
+    }
+    h.facing = contact.pos.x >= h.pos.x ? 1 : -1;
+  }
   if (def.id === 'cbj') switch (slot) {
     case 0: fireHeroMissile(game, 'tater', prey?.pos ?? point, 90 * pwr, prey?.id, 42 * rng); break;
     case 1:
@@ -174,7 +188,7 @@ function resolveAbility(game: Game, slot: AbilitySlot, point: Vec, targetId?: nu
   }
   if (def.id === 'doni') switch (slot) {
     case 0: case 4:
-      fireHeroMissile(game, 'hook', prey?.pos ?? point, (slot === 0 ? 85 : 150) * pwr, prey?.id, 0, slot === 4 ? 2 : 0, undefined, { pull: 60, stun: 1.2 * pwr * game.mods.stunDuration }); break;
+      fireHeroMissile(game, 'hook', contact!.pos, (slot === 0 ? 85 : 150) * pwr, contact!.id, 0, slot === 4 ? 2 : 0, undefined, { pull: 60, stun: 1.2 * pwr * game.mods.stunDuration }); break;
     case 1: zone(game, 'net', point, 100 * rng, 6 * pwr); break;
     case 2:
       h.hp = Math.min(h.maxHp, h.hp + 130 * pwr); h.shield = Math.max(h.shield ?? 0, 5 * pwr);
@@ -188,7 +202,7 @@ function resolveAbility(game: Game, slot: AbilitySlot, point: Vec, targetId?: nu
   }
   if (def.id === 'jayjay') switch (slot) {
     case 0: {
-      const victim = targets(game, 80 * rng).find(e => !e.def.flying && e.id === targetId);
+      const victim = contact;
       if (victim) {
         applyDamage(game, victim, 115 * pwr * game.mods.jeffDamage, 'physical', 'jeff');
         victim.stun = Math.max(victim.stun, 1.4 * pwr * game.mods.stunDuration);

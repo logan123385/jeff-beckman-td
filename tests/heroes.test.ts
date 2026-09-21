@@ -13,6 +13,7 @@ import { applyDamage } from '../src/sim/combat';
 import { updateHeroAura, updateHeroMissiles, updateHeroSummons, friendlyDamageBuff, friendlyMitigation } from '../src/sim/heroPowers';
 import type { EnemyId } from '../src/data/types';
 import { runHeadless } from './harness';
+import { createBossVisualGame } from './fixtures/bossVisual';
 
 function field(heroId: HeroId) {
   const g = new Game({ ...CRAWLSPACE, paths: [[{ x: 20, y: 250 }, { x: 940, y: 250 }]],
@@ -53,6 +54,43 @@ describe('Playable hero selection and legacy saves', () => {
 });
 
 describe('Attack and cast timing', () => {
+  it.each([
+    ['doni', 0], ['doni', 4], ['jayjay', 0],
+  ] as const)('%s slot %s reacquires at contact or refunds when every legal target is lost', (id, slot) => {
+    for (const loss of ['dead', 'escaped', 'phased', 'outOfRange'] as const) {
+      for (const replacement of [false, true]) {
+        const g = field(id), original = enemy(g, 340);
+        g.hero.attackTimer = 100;
+        expect(fire(g, slot)).toBe(true);
+        if (loss === 'outOfRange') original.pos.x = 900;
+        else original[loss] = true;
+        const next = replacement ? enemy(g, 355) : undefined;
+        const distant = enemy(g, 930);
+        const phased = enemy(g, 320); phased.phased = true;
+        const air = id === 'jayjay' ? enemy(g, 325, 'steamWisp') : undefined;
+        updateHero(g, g.heroDef.abilities[slot].cast * .5);
+        if (next) {
+          expect(g.hero[COOLDOWN_FIELDS[slot]]).toBeGreaterThan(0);
+          if (id === 'doni') expect(g.heroMissiles[0]?.targetId).toBe(next.id);
+          else expect(next.hp).toBeLessThan(next.maxHp);
+        } else {
+          expect(g.hero[COOLDOWN_FIELDS[slot]]).toBe(0);
+          expect(g.hero.cast).toBeUndefined();
+          expect(g.heroMissiles).toHaveLength(0);
+          expect(g.heroNotice?.detail).toContain('ability ready');
+        }
+        expect(original.hp).toBe(original.maxHp);
+        expect(distant.hp).toBe(distant.maxHp);
+        expect(phased.hp).toBe(phased.maxHp);
+        if (air) expect(air.hp).toBe(air.maxHp);
+      }
+    }
+  });
+  it('the boss visual fixture trains a supported washer ability', () => {
+    const g = createBossVisualGame();
+    expect(g.towers[0]!.def.id).toBe('washer');
+    expect(g.towers[0]!.abilities?.barrage?.rank).toBe(1);
+  });
   it.each(['mike', 'bob', 'chris', 'becbec', 'cbj', 'doni', 'jayjay'] as HeroId[])('%s winds up, connects, and completes recovery', id => {
     const g = field(id), e = enemy(g); const before = e.hp;
     updateHero(g, .01); expect(g.hero.swing).toBeGreaterThan(0); expect(e.hp).toBe(before);
