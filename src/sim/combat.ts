@@ -178,11 +178,11 @@ export function applyDamage(
       game.stats.partsEarned += parts;
     }
     game.stats.kills++;
+    game.recordKill(enemy, bounty);
     game.combo += 1;
     game.comboTimer = 1.85;
     game.grantHeroXp(Math.round(6 + enemy.def.bounty * 0.4 + leakMax(enemy) * 0.012));
-    if (game.combo >= 8) game.requestHitstop(0.05);
-    else if (game.combo >= 3) game.requestHitstop(0.028);
+    if (enemy.def.traits.includes('boss')) game.requestHitstop(.065);
     game.addEffect({ kind: 'death', pos: { ...enemy.pos }, enemy: enemy.def.id, radius: enemy.def.radius, ttl: 0.48, max: 0.48 });
     if (source === 'jeff') game.stats.jeffKills++;
     game.addEffect({ kind: 'text', pos: { x: enemy.pos.x, y: enemy.pos.y - 14 }, text: `+$${bounty}`, color: '#ffe082', ttl: 0.9, max: 0.9 });
@@ -206,11 +206,10 @@ function spawnChildren(game: Game, enemy: Enemy): void {
   for (let i = 0; i < n; i++) {
     const back = 8 + i * 16;
     const at = Math.max(0, Math.min(enemy.progress - back, pathLen - 4));
-    const child = game.spawnEnemy(def.child, enemy.pathIdx, at, kids);
+    const child = game.spawnEnemy(def.child, enemy.pathIdx, at, kids, enemy.waveId);
     child.hitFlash = Math.max(child.hitFlash, 0.28);
     child.wobble += 3 + i;
   }
-  game.requestHitstop(n >= 3 ? 0.055 : 0.04);
   game.addEffect({ kind: 'splash', pos: { ...enemy.pos }, radius: Math.max(28, enemy.def.radius * 3.2), color: enemy.def.color, ttl: 0.36, max: 0.36 });
   game.addEffect({ kind: 'ring', pos: { ...enemy.pos }, radius: Math.max(40, enemy.def.radius * 4.2), color: '#ffe082', ttl: 0.42, max: 0.42 });
   game.addEffect({
@@ -230,7 +229,7 @@ function checkBossPhase(game: Game, boss: Enemy): void {
   boss.bossPhase++;
   boss.speedMult += BOSS_PHASE_SPEED_BONUS;
   for (let i = 0; i < BOSS_SUMMON_COUNT; i++) {
-    game.spawnEnemy('drip', boss.pathIdx, Math.max(0, boss.progress - 12 * (i + 1)), inheritProperties(boss.properties));
+    game.spawnEnemy('drip', boss.pathIdx, Math.max(0, boss.progress - 12 * (i + 1)), inheritProperties(boss.properties), boss.waveId);
   }
   game.addEffect({ kind: 'ring', pos: { ...boss.pos }, radius: 90, color: '#ff7043', ttl: 0.6, max: 0.6 });
   game.addEffect({ kind: 'text', pos: { x: boss.pos.x, y: boss.pos.y - 40 }, text: 'PRESSURE RISING', color: '#ff7043', ttl: 1.4, max: 1.4 });
@@ -274,8 +273,22 @@ export function predictedPos(game: Game, e: Enemy, lead: number): { x: number; y
   return { x: base.x - dir.y * e.lane, y: base.y + dir.x * e.lane };
 }
 
+/** Shooters skip immune victims instead of spending every shot on an invulnerable front line. */
+export function canTowerDamage(game: Game, tower: Tower, enemy: Enemy): boolean {
+  return estimateDamage(game, enemy, game.effectiveDamage(tower), tower.def.damageType, tower.def.id,
+    { groundMult: tower.def.groundMult }) > 0;
+}
+
 /** Targetable enemy within range, ordered by the tower's aim priority. Default is First. */
 export function pickTarget(game: Game, tower: Tower, range: number): Enemy | null {
+  if (tower.focusTargetId !== undefined) {
+    const focus = game.enemies.find(e => e.id === tower.focusTargetId);
+    if (focus && isTargetable(focus) && matchesTargetMode(tower.def.targets, focus)
+      && dist(focus.pos, tower.pos) <= range + focus.def.radius) {
+      // Respect shots already in flight: focusing a doomed target should not waste ammunition.
+      if (focus.hp + focus.shellHp - focus.incoming > 0 && canTowerDamage(game, tower, focus)) return focus;
+    }
+  }
   let best: Enemy | null = null;
   let bestDist = Infinity;
   const aim = tower.aim ?? 'first';
@@ -284,6 +297,7 @@ export function pickTarget(game: Game, tower: Tower, range: number): Enemy | nul
     if (e.hp + e.shellHp - e.incoming <= 0) continue;
     const d = dist(e.pos, tower.pos);
     if (d > range + e.def.radius) continue;
+    if (!canTowerDamage(game, tower, e)) continue;
     if (!best || preferTarget(game, aim, e, best, d, bestDist)) {
       best = e;
       bestDist = d;

@@ -1,4 +1,4 @@
-import { TOWERS, TOWER_ORDER, TIER_NAMES } from '../../data/towers';
+import { TOWERS, TIER_NAMES } from '../../data/towers';
 import type { TowerId } from '../../data/types';
 import { specializationInfo, type Specialization } from '../../data/specializations';
 import { SPECIALIST_ABILITIES, SPECIALIST_KITS, specialistAbilityCost, type SpecialistAbilityId } from '../../data/specialistAbilities';
@@ -47,7 +47,7 @@ export class Popover {
     this.mode = { kind: 'build', slot };
     this.lastKey = '';
     this.rebuild();
-    const first = TOWER_ORDER.find((id) => this.game.allowedTowers.includes(id));
+    const first = this.game.allowedTowers[0];
     if (first) this.handlers.onPreview(first);
   }
 
@@ -83,12 +83,15 @@ export class Popover {
     const anchor = this.mode.kind === 'build' ? this.game.map.slots[this.mode.slot]! : this.game.towerById(this.mode.towerId)!.pos;
     const rect = canvas.getBoundingClientRect();
     const stageRect = stage.getBoundingClientRect();
+    const compact = stageRect.height < 360 || stageRect.width < 420;
+    this.el.classList.toggle('kr-compact', compact);
+    this.el.style.maxHeight = compact ? `${Math.max(80, stageRect.height - 12)}px` : '';
     const sx = rect.width / 960;
     const sy = rect.height / 600;
     const x = rect.left - stageRect.left + anchor.x * sx;
     const y = rect.top - stageRect.top + (anchor.y - 18) * sy;
     const w = this.el.offsetWidth || 240;
-    const hgt = this.el.offsetHeight || 240;
+    const hgt = (this.el.offsetHeight || 240) + (compact ? 0 : this.el.querySelector<HTMLElement>('.kr-investment')?.offsetHeight ?? 0);
     const left = Math.max(4, Math.min(stageRect.width - w - 4, x - w / 2));
     const top = Math.max(4, Math.min(stageRect.height - hgt - 4, y - hgt / 2));
     this.el.style.left = `${left}px`;
@@ -142,7 +145,7 @@ export class Popover {
 
   private renderBuild(slot: number): void {
     const g = this.game;
-    const kit = TOWER_ORDER.filter((id) => g.allowedTowers.includes(id));
+    const kit = g.allowedTowers;
     const n = kit.length || 1;
     this.el.append(
       h(
@@ -289,6 +292,16 @@ export class Popover {
         }));
       });
     }
+    const current = t.def.levels[t.level]!;
+    const range = Math.round(g.effectiveRange(t));
+    const damage = Math.round(g.effectiveDamage(t));
+    const damageRatio = current.damage > 0 ? g.effectiveDamage(t) / current.damage : g.mods.towerDamage;
+    const rangeRatio = current.range > 0 ? g.effectiveRange(t) / current.range : g.mods.towerRange;
+    const comparison = t.def.kind === 'barricade'
+      ? `${Math.round(current.hp ?? 0)}${next?.hp ? ` → ${Math.round(next.hp)}` : ''} health · ${current.holds ?? 0}${next ? ` → ${next.holds ?? 0}` : ''} holds`
+      : `${damage}${next ? ` → ${Math.round(next.damage * damageRatio)}` : ''} damage · ${range}${next ? ` → ${Math.round(next.range * rangeRatio)}` : ''} reach`;
+    this.el.append(h('aside', { class: 'kr-investment' }, h('b', { text: next ? 'NEXT UPGRADE' : 'FULLY EQUIPPED' }),
+      h('span', { text: comparison }), h('span', { text: t.def.kind === 'shooter' && t.def.id !== 'pipeSnake' ? 'Click a leak to focus this tower · A for aim' : t.def.role })));
   }
   private renderSpecialists(t: Tower): void {
     const g = this.game;

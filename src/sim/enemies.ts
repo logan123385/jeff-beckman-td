@@ -47,7 +47,7 @@ export function updateEnemies(game: Game, dt: number): void {
       game.lives -= cost;
       game.stats.escaped++;
       game.stats.escapedByType[e.def.id] = (game.stats.escapedByType[e.def.id] ?? 0) + 1;
-      game.waveLeaks++;
+      game.recordLeak(e, cost);
       game.requestHitstop(0.06);
       game.addEffect({ kind: 'text', pos: { x: e.pos.x - 30, y: e.pos.y - 20 }, text: e.def.traits.includes('boss') ? 'BOSS BREACHED THE LINE' : `-${cost} life`, color: '#ff5252', ttl: 1.2, max: 1.2 });
       continue;

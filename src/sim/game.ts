@@ -2,7 +2,7 @@ import { Rng } from '../core/rng';
 import { clamp, dist, type Vec } from '../core/vec';
 import { enemyForMap } from '../data/bosses';
 import { JEFF } from '../data/jeff';
-import { HEROES, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
+import { COOLDOWN_FIELDS, HEROES, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
 import { updateHeroMissiles, updateHeroSummons, summonLogan, useHeroAbility, fireJeffAbility } from './heroPowers';
 import type { HeroMissile, HeroSummon, HeroVisual, HeroZone } from './state';
 import { TOWERS, TOWER_ORDER } from '../data/towers';
@@ -13,11 +13,11 @@ import { propertiesFor } from '../data/leakProperties';
 import { isNoPowers, isNoSell, isOneLife, isTruckMoney } from '../data/remasters';
 import { fieldRbe } from '../data/splits';
 import type { Difficulty, EnemyId, LeakProperty, MapDef, Modifiers, RemasterId, TowerId, WaveDef } from '../data/types';
-import { AIM_ORDER, applyDamage, heroOnYard, isTargetable, missionXpToNext, predictedPos, abilityRangeFactor, abilityRank } from './combat';
+import { AIM_ORDER, applyDamage, canTowerDamage, heroOnYard, isTargetable, matchesTargetMode, missionXpToNext, predictedPos, abilityRangeFactor, abilityRank } from './combat';
 import { updateEnemies } from './enemies';
 import { updateHero } from './hero';
 import { Path } from './path';
-import type { ActiveSpawn, AimPriority, Clamp, Crew, Friendly, Effect, Enemy, GameStatus, Hero, Projectile, RunStats, StrikeDrop, Tower } from './state';
+import type { ActiveSpawn, AimPriority, Clamp, Crew, Friendly, Effect, Enemy, GameStatus, Hero, Projectile, RunStats, StrikeDrop, Tower, WaveReport } from './state';
 import { releaseFriendly, syncRecruits, updateFriendlies } from './friendlies';
 import { CREW_COOLDOWN, updateCrew } from './crew';
 import { applyDescaler, updateAuras, updateTowers } from './towers';
@@ -38,6 +38,7 @@ export interface GameOptions {
 
 export const FIRST_WAVE_COUNTDOWN = 16;
 export const BETWEEN_WAVE_GRACE = 12;
+export const CLEAR_BREATHER = 6;
 export const EARLY_CALL_BONUS_PER_SECOND = 1.5;
 export const STRIKE_COOLDOWN = 62;
 export const STRIKE_RADIUS = 80;
@@ -81,7 +82,13 @@ export class Game {
   crew: Crew[] = [];
   friendlies: Friendly[] = [];
   completedWaves = 0;
-  private clearedWave = 0;
+  private activeWaves = new Map<number, { started: number; kills: number; leaks: number; livesLost: number; bounty: number }>();
+  readonly waveReports: WaveReport[] = [];
+  cleanWaves = 0;
+  cleanStreak = 0;
+  bestCleanStreak = 0;
+  callRecovery = 0;
+  lastEarlyCall: { bonus: number; recovery: number; left: number } | null = null;
   crewCooldown = 0;
   strikeCooldown = 0;
   strikes: StrikeDrop[] = [];
@@ -117,6 +124,7 @@ export class Game {
   pendingRankUps = 0;
   /** Brief presentation freeze; ticks down in update and skips sim. */
   hitstop = 0;
+  private impactRest = 0;
   combo = 0;
   comboTimer = 0;
   /** Set when a wave just cleared so the HUD can auto-pause. */
@@ -195,8 +203,9 @@ export class Game {
   }
 
   requestHitstop(seconds: number): void {
-    if (seconds <= 0) return;
-    this.hitstop = Math.min(0.14, Math.max(this.hitstop, seconds));
+    if (seconds <= 0 || this.impactRest > 0) return;
+    this.hitstop = Math.min(0.065, Math.max(this.hitstop, seconds));
+    this.impactRest = .45;
   }
 
   grantHeroXp(amount: number): void {
@@ -220,7 +229,6 @@ export class Game {
         ttl: 1.6,
         max: 1.6,
       });
-      this.requestHitstop(0.07);
     }
   }
 
@@ -243,7 +251,6 @@ export class Game {
       ttl: 1.3,
       max: 1.3,
     });
-    this.requestHitstop(0.05);
     return true;
   }
 
@@ -259,6 +266,40 @@ export class Game {
 
   get waveActive(): boolean {
     return this.spawns.length > 0 || this.enemies.some((e) => !e.dead && !e.escaped);
+  }
+
+  /** Calling is a deliberate overlap, never a stack of unspawned waves. */
+  get canCallWave(): boolean {
+    return this.status === 'playing' && !this.allWavesStarted && this.waveCountdown >= 0
+      && this.spawns.length === 0 && this.activeWaves.size < 2 && !(this.endless && this.waveActive);
+  }
+
+  get callBlockReason(): string {
+    return this.allWavesStarted ? 'Final wave — hold the line.'
+      : this.spawns.length > 0 ? 'Let the current group finish entering.'
+        : 'Clear a wave before calling another.';
+  }
+
+  get callBonus(): number {
+    if (!this.canCallWave) return 0;
+    return Math.floor(Math.min(this.waveIdx === 0 ? FIRST_WAVE_COUNTDOWN : BETWEEN_WAVE_GRACE,
+      Math.max(0, this.waveCountdown)) * EARLY_CALL_BONUS_PER_SECOND);
+  }
+
+  get callCooldownRecovery(): number {
+    return this.canCallWave && this.waveIdx > 0 && !isNoPowers(this.remaster)
+      ? Math.min(8, Math.max(0, this.waveCountdown)) : 0;
+  }
+
+  recordKill(enemy: Enemy, bounty: number): void {
+    const wave = this.activeWaves.get(enemy.waveId ?? this.waveIdx);
+    if (wave) { wave.kills++; wave.bounty += bounty; }
+  }
+
+  recordLeak(enemy: Enemy, livesLost: number): void {
+    this.waveLeaks++;
+    const wave = this.activeWaves.get(enemy.waveId ?? this.waveIdx);
+    if (wave) { wave.leaks++; wave.livesLost += livesLost; }
   }
 
   nextWaveEnemies(): EnemyId[] {
@@ -498,9 +539,20 @@ export class Game {
   cycleAim(towerId: number): AimPriority | null {
     const t = this.towerById(towerId);
     if (!t || t.def.kind !== 'shooter') return null;
+    t.focusTargetId = undefined;
     const i = AIM_ORDER.indexOf(t.aim);
     t.aim = AIM_ORDER[(i + 1) % AIM_ORDER.length]!;
     return t.aim;
+  }
+
+  focusTower(towerId: number, enemyId: number): boolean {
+    const t = this.towerById(towerId), e = this.enemies.find(e => e.id === enemyId);
+    if (this.status !== 'playing' || !t || t.def.kind !== 'shooter' || t.def.id === 'pipeSnake'
+      || !e || !isTargetable(e) || !matchesTargetMode(t.def.targets, e)
+      || dist(t.pos, e.pos) > this.effectiveRange(t) + e.def.radius || !canTowerDamage(this, t, e)) return false;
+    t.focusTargetId = e.id;
+    this.addEffect({ kind: 'ring', pos: { ...e.pos }, radius: e.def.radius + 10, color: '#edc285', ttl: .6, max: .6 });
+    return true;
   }
 
   useTowerAbility(towerId: number): boolean {
@@ -525,9 +577,15 @@ export class Game {
   /** Move-only order. Clears any attack lock — Diablo right-click / ground click. */
   commandHero(pos: Vec): boolean {
     if (!heroOnYard(this) || this.status !== 'playing') return false;
-    if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || this.hero.cast) return false;
+    if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
     const x = Math.max(10, Math.min(950, pos.x));
     const y = Math.max(10, Math.min(590, pos.y));
+    if (this.hero.cast) {
+      this.hero.queuedOrder = { kind: 'move', pos: { x, y } };
+      this.addEffect({ kind: 'ring', pos: { x, y }, radius: 18, color: '#a5d6a7', ttl: .6, max: .6 });
+      return true;
+    }
+    this.hero.queuedOrder = undefined;
     this.hero.dest = { x, y };
     this.hero.pendingStrike = undefined; this.hero.swing = 0;
     this.hero.anchor = { x, y };
@@ -541,9 +599,10 @@ export class Game {
   /** First wrench click starts a hunt. Jeff stays on leaks until a move order. */
   commandHeroAttack(enemyId: number): boolean {
     if (!heroOnYard(this) || this.status !== 'playing') return false;
-    if (this.hero.cast) return false;
     const enemy = this.enemies.find((e) => e.id === enemyId);
-    if (!enemy || enemy.dead || enemy.escaped) return false;
+    if (!enemy || enemy.dead || enemy.escaped || (!this.heroDef.ranged && enemy.def.flying)) return false;
+    if (this.hero.cast) { this.hero.queuedOrder = { kind: 'attack', enemyId }; return true; }
+    this.hero.queuedOrder = undefined;
     this.hero.dest = null;
     this.hero.engaged = true;
     this.hero.orderTargetId = enemy.id;
@@ -580,6 +639,7 @@ export class Game {
     h.engaged = false;
     h.targetId = null;
     h.cast = undefined;
+    h.queuedOrder = undefined; h.combatIdle = 0; h.recovering = false;
     h.swing = 0;
     this.addEffect({ kind: 'ring', pos: { x, y }, radius: 36, color: this.heroDef.color, ttl: 0.7, max: 0.7 });
     this.addEffect({ kind: 'splash', pos: { x, y }, radius: 28, color: '#ffe082', ttl: 0.4, max: 0.4 });
@@ -648,9 +708,17 @@ export class Game {
     return true;
   }
   callNextWave(): number {
-    if (this.status !== 'playing' || this.allWavesStarted || this.waveCountdown < 0 || (this.endless && this.waveActive)) return 0;
+    if (!this.canCallWave) return 0;
     this.recordClearedWave();
-    const bonus = Math.floor(Math.max(0, this.waveCountdown) * EARLY_CALL_BONUS_PER_SECOND);
+    const bonus = this.callBonus;
+    const recovery = this.callCooldownRecovery;
+    if (recovery > 0) {
+      for (const key of COOLDOWN_FIELDS) this.hero[key] = Math.max(0, this.hero[key] - recovery);
+      this.crewCooldown = Math.max(0, this.crewCooldown - recovery);
+      this.strikeCooldown = Math.max(0, this.strikeCooldown - recovery);
+      this.callRecovery += recovery;
+    }
+    this.lastEarlyCall = { bonus, recovery, left: 2.4 };
     if (bonus > 0) {
       this.money += bonus;
       this.stats.moneyEarned += bonus;
@@ -663,6 +731,7 @@ export class Game {
   damageHero(amount: number): void {
     const h = this.hero;
     if (!h.deployed || h.downed > 0) return;
+    h.combatIdle = 0; h.recovering = false;
     h.hp -= amount * (1 - this.heroDef.armor) * ((h.shield ?? 0) > 0 ? .65 : 1);
     if (h.hp <= 0) {
       h.hp = 0;
@@ -672,6 +741,7 @@ export class Game {
       h.orderTargetId = null;
       h.targetId = null;
       h.cast = undefined; h.castTimer = 0; h.pendingStrike = undefined; h.swing = 0;
+      h.queuedOrder = undefined;
       h.overdrive = 0; h.shield = 0; h.lifesteal = 0; h.taunt = 0;
       for (const e of this.enemies) if (e.heldBy?.kind === 'hero') e.heldBy = null;
       this.addEffect({ kind: 'text', pos: { x: h.pos.x, y: h.pos.y - 40 }, text: `${this.heroDef.name} is down`, color: '#ff8a80', ttl: 1.4, max: 1.4 });
@@ -691,7 +761,7 @@ export class Game {
     return false;
   }
 
-  spawnEnemy(id: EnemyId, pathIdx: number, progress = -SPAWN_LEAD, properties: readonly LeakProperty[] = []): Enemy {
+  spawnEnemy(id: EnemyId, pathIdx: number, progress = -SPAWN_LEAD, properties: readonly LeakProperty[] = [], waveId = this.waveIdx): Enemy {
     const def = enemyForMap(id, this.map.id);
     let hp = Math.round(def.hp * this.difficulty.hpMult * this.waveHpScale);
     if (properties.includes('pressurized')) hp = Math.round(hp * 1.45);
@@ -700,6 +770,7 @@ export class Game {
     const at = path.pointAt(progress);
     const e: Enemy = {
       id: this.nextEntityId(),
+      waveId,
       def,
       hp,
       maxHp: hp,
@@ -748,7 +819,9 @@ export class Game {
 
   update(dt: number): void {
     if (this.status !== 'playing') return;
+    this.impactRest = Math.max(0, this.impactRest - dt);
     if (this.hitstop > 0) {
+      this.snapshotMotion();
       this.hitstop = Math.max(0, this.hitstop - dt);
       this.tickPresentation(dt);
       return;
@@ -759,6 +832,7 @@ export class Game {
     }
     this.snapshotMotion();
     this.time += dt;
+    if (this.lastEarlyCall) { this.lastEarlyCall.left -= dt; if (this.lastEarlyCall.left <= 0) this.lastEarlyCall = null; }
     if (this.overtime > 0) this.overtime = Math.max(0, this.overtime - dt);
 
     if (this.globalSlowTimer > 0) this.globalSlowTimer -= dt;
@@ -842,36 +916,52 @@ export class Game {
   }
 
   private recordClearedWave(): void {
-    if (this.lives > 0 && this.waveIdx > this.clearedWave && !this.waveActive) {
-      this.completedWaves = this.waveIdx; this.clearedWave = this.waveIdx;
-      this.waveJustCleared = this.waveIdx > 0;
-      if (this.waveLeaks === 0 && this.waveIdx > 0) {
-        const bonus = 16 + this.waveIdx * 2;
-        this.money += bonus;
-        this.stats.moneyEarned += bonus;
-        this.addEffect({ kind: 'text', pos: { x: 480, y: 248 }, text: `CLEAN CALL · +$${bonus}`, color: '#b8ef9a', ttl: 1.8, max: 1.8 });
-      }
+    if (this.lives <= 0) return;
+    for (const [index, wave] of this.activeWaves) {
+      if (this.spawns.some(s => (s.waveId ?? this.waveIdx) === index && s.remaining > 0)
+        || this.enemies.some(e => (e.waveId ?? this.waveIdx) === index && !e.dead && !e.escaped)) continue;
+      this.activeWaves.delete(index);
+      this.completedWaves++;
+      const clean = wave.leaks === 0;
+      const bonus = clean ? 16 + index * 2 : 0;
+      this.money += bonus; this.stats.moneyEarned += bonus;
+      if (clean) this.cleanWaves++;
+      this.cleanStreak = clean ? this.cleanStreak + 1 : 0;
+      this.bestCleanStreak = Math.max(this.bestCleanStreak, this.cleanStreak);
+      const payout = this.endless ? 70 + index * 9 : 0;
+      this.money += payout; this.stats.moneyEarned += payout;
+      this.waveReports.push({ wave: index, kills: wave.kills, leaks: wave.leaks, livesLost: wave.livesLost,
+        bounty: wave.bounty, bonus: bonus + payout, seconds: this.time - wave.started, clean });
+      // A long endless session keeps bounded recent reports; aggregate counts remain exact.
+      if (this.waveReports.length > 30) this.waveReports.shift();
+      if (this.endless && this.completedWaves % 5 === 0) this.lives = Math.min(Math.round(this.map.lives * this.difficulty.livesMult), this.lives + 2);
+    }
+    if (this.waveIdx > 0 && this.activeWaves.size === 0 && !this.waveActive && !this.waveJustCleared) {
+      // Only the transition into a clear may start the breather. completedWaves is
+      // checked against the last report acknowledgement, not a timer that can pay twice.
+      if (this.announcedClear === this.completedWaves) return;
+      this.announcedClear = this.completedWaves;
+      this.waveJustCleared = true;
       this.waveLeaks = 0;
-      if (this.endless) {
-        const payout = 70 + this.waveIdx * 9;
-        this.money += payout; this.stats.moneyEarned += payout; this.waveCountdown = 10;
-        if (this.waveIdx % 5 === 0) this.lives = Math.min(Math.round(this.map.lives * this.difficulty.livesMult), this.lives + 2);
-        this.addEffect({ kind: 'text', pos: { x: 480, y: 300 }, text: `CALL ${this.waveIdx} CLEARED · +$${payout}`, color: '#f4d58e', ttl: 2, max: 2 });
-      }
+      if (!this.allWavesStarted) this.waveCountdown = this.endless ? 10 : CLEAR_BREATHER;
     }
   }
+  private announcedClear = 0;
 
   private updateWaves(dt: number): void {
     this.recordClearedWave();
     if (!this.allWavesStarted && this.waveCountdown >= 0 && !(this.manualStart && this.waveIdx === 0) && !(this.endless && this.waveActive)) {
-      this.waveCountdown -= dt;
-      if (this.waveCountdown <= 0) this.startWave();
+      this.waveCountdown = Math.max(0, this.waveCountdown - dt);
+      // Keep a steady cadence, but never bury a slow survivor under an unlimited
+      // backlog. At most two entered waves may overlap; endless remains one at a time.
+      if (this.waveCountdown <= 0 && this.spawns.length === 0 && this.activeWaves.size < 2
+        && !(this.endless && this.waveActive)) this.startWave();
     }
     if (this.spawnPause > 0) return;
     for (const s of this.spawns) {
       s.timer -= dt;
       while (s.timer <= 0 && s.remaining > 0) {
-        this.spawnEnemy(s.enemy, s.path, -SPAWN_LEAD, s.properties);
+        this.spawnEnemy(s.enemy, s.path, -SPAWN_LEAD, s.properties, s.waveId);
         s.remaining--;
         s.timer += Math.max(s.interval, 1 / 60);
       }
@@ -899,10 +989,12 @@ export class Game {
     this.waveHpScale = this.endless
       ? 1 + index * 0.03 + Math.pow(Math.max(0, index - 24), 1.4) * 0.006
       : 1 + Math.max(0, index - 4) * 0.012;
+    this.activeWaves.set(index + 1, { started: this.time, kills: 0, leaks: 0, livesLost: 0, bounty: 0 });
+    this.waveJustCleared = false;
     let duration = 0;
     for (const g of w.groups) {
       const properties = propertiesFor(g.enemy, index, this.mutatorFor(index), g.properties);
-      this.spawns.push({ enemy: g.enemy, remaining: g.count, interval: g.interval, timer: g.delay, path: g.path, properties });
+      this.spawns.push({ waveId: index + 1, enemy: g.enemy, remaining: g.count, interval: g.interval, timer: g.delay, path: g.path, properties });
       duration = Math.max(duration, g.delay + (g.count - 1) * g.interval);
     }
     this.waveIdx++;

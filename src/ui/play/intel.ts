@@ -3,7 +3,7 @@ import { PROPERTY_LABEL, PROPERTY_HINT } from '../../data/leakProperties';
 import { previewRbe, splitPreview } from '../../data/splits';
 import { enemyForMap } from '../../data/bosses';
 import { enemyTraits } from '../../data/intel';
-import { EARLY_CALL_BONUS_PER_SECOND, type Game } from '../../sim/game';
+import { type Game } from '../../sim/game';
 import { clear, h } from '../dom';
 import { enemyPortrait } from '../portraits';
 
@@ -30,7 +30,7 @@ export class BattleIntel {
   }
 
   open(route = 0): void {
-    if (this.game.allWavesStarted || this.game.status !== 'playing' || this.game.pendingRankUps > 0) return;
+    if (this.game.allWavesStarted || this.game.status !== 'playing') return;
     this.route = route;
     if (!this.isOpen) {
       this.focusedBefore = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -84,7 +84,7 @@ export class BattleIntel {
     this.handlers.onRoute(this.route);
     clear(this.el); this.el.classList.remove('hidden');
     const total = preview.reduce((sum, p) => sum + p.count, 0);
-    const bonus = Math.floor(Math.max(0, game.waveCountdown) * EARLY_CALL_BONUS_PER_SECOND);
+    const bonus = game.callBonus;
     this.el.append(h('header', { class: 'intel-header' },
       h('div', {}, h('span', { class: 'eyebrow', text: 'Field intelligence · time paused' }), h('h2', { text: `Wave ${game.waveIdx + 1}` })),
       h('button', { class: 'btn intel-close', text: '×', attrs: { 'aria-label': 'Close scouting' }, onClick: () => this.close() })),
@@ -104,6 +104,6 @@ export class BattleIntel {
           children ? h('p', { class: 'small', text: `When popped: ${children.count} ${ENEMIES[children.child].name}. Children keep moving down this route.` }) : null);
       })),
       h('footer', { class: 'intel-footer' }, h('button', { class: 'btn', text: 'Back to defenses', onClick: () => this.close() }),
-        h('button', { class: 'btn primary', text: `${game.waveIdx === 0 ? 'Start job' : 'Call wave'} +$${bonus}`, onClick: () => { this.close(); this.handlers.onCall(); } })));
+        h('button', { class: 'btn primary', text: `${game.waveIdx === 0 ? 'Start job' : 'Call wave'} +$${bonus}${game.callCooldownRecovery > 0 ? ` · −${Math.floor(game.callCooldownRecovery)}s skills` : ''}`, disabled: !game.canCallWave, title: game.canCallWave ? 'Call now for the displayed reward' : game.callBlockReason, onClick: () => { this.close(); this.handlers.onCall(); } })));
   }
 }

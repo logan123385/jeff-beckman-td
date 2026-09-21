@@ -8,7 +8,7 @@ import { NIGHT_MUTATORS, proceduralMutator } from '../../data/night';
 import type { TowerId } from '../../data/types';
 import { TOWERS } from '../../data/towers';
 import type { Game } from '../../sim/game';
-import { EARLY_CALL_BONUS_PER_SECOND, HERO_LEVEL_CAP, STRIKE_COOLDOWN } from '../../sim/game';
+import { HERO_LEVEL_CAP, STRIKE_COOLDOWN } from '../../sim/game';
 import { leakMax, leakRemaining, missionXpToNext, scaledAbilityCooldown } from '../../sim/combat';
 import { CREW_COOLDOWN } from '../../sim/crew';
 import { clear, h } from '../dom';
@@ -327,9 +327,9 @@ ability(this.crewBtn, this.crewCd, 'D', 'Summon Logan', 'Tiny gremlin · 18s', h
   private prevLevel = 1;
   private readyState = new Map<HTMLElement, boolean>();
 
-  private cooldownButton(btn: HTMLElement, cd: HTMLElement, remaining: number, max: number, downed: boolean): void {
+  private cooldownButton(btn: HTMLElement, cd: HTMLElement, remaining: number, max: number, downed: boolean, casting = false): void {
     cd.style.height = `${(Math.max(0, remaining) / max) * 100}%`;
-    const ready = remaining <= 0 && !downed;
+    const ready = remaining <= 0 && !downed && !casting;
     const was = this.readyState.get(btn);
     btn.classList.toggle('ready', ready);
     btn.classList.toggle('cooling', remaining > 0);
@@ -337,8 +337,8 @@ ability(this.crewBtn, this.crewCd, 'D', 'Summon Logan', 'Tiny gremlin · 18s', h
     this.readyState.set(btn, ready);
     let timer = btn.querySelector<HTMLElement>('.cooldown-number');
     if (!timer) { timer = h('span', { class: 'cooldown-number' }); btn.append(timer); }
-    this.set(timer, downed ? '—' : remaining > 0 ? `${Math.ceil(remaining)}` : '');
-    (btn as HTMLButtonElement).disabled = downed;
+    this.set(timer, downed ? '—' : remaining > 0 ? `${Math.ceil(remaining)}` : casting ? '…' : '');
+    (btn as HTMLButtonElement).disabled = downed || casting;
   }
 
   update(): void {
@@ -387,12 +387,12 @@ ability(this.crewBtn, this.crewCd, 'D', 'Summon Logan', 'Tiny gremlin · 18s', h
       const preview = g.nextWavePreview();
       const rushing = g.nextWaveIsRush();
       const secs = Math.max(0, Math.ceil(g.waveCountdown));
-      const key = `${secs}|${g.waveActive}|${rushing ? 'R' : ''}|${preview.map((p) => `${p.enemy}:${p.count}:${p.properties.join('.')}`).join(',')}`;
+      const key = `${secs}|${g.waveActive}|${g.spawns.length > 0}|${rushing ? 'R' : ''}|${preview.map((p) => `${p.enemy}:${p.count}:${p.properties.join('.')}`).join(',')}`;
       if (key !== this.nextKey) {
         this.nextKey = key;
         clear(this.next);
         this.next.classList.toggle('is-rush', rushing);
-        this.next.append(h('span', { class: 'next-label', text: g.manualStart && g.waveIdx === 0 ? 'Prepare your defense' : g.endless && g.waveActive ? 'Next after this call' : `Next in ${secs}s` }));
+        this.next.append(h('span', { class: 'next-label', text: g.manualStart && g.waveIdx === 0 ? 'Prepare your defense' : g.spawns.length > 0 ? 'Wave entering' : g.waveActive && secs === 0 ? 'Hold the line · next wave waiting' : g.endless && g.waveActive ? 'Next after this call' : `Next in ${secs}s` }));
         if (rushing) this.next.append(h('span', { class: 'rush-pill', text: 'RUSH', title: 'Tight pack — splash the children or they flood.' }));
         this.next.title = [
           rushing ? 'RUSH — packed parents. Splash the children.' : '',
@@ -422,8 +422,10 @@ ability(this.crewBtn, this.crewCd, 'D', 'Summon Logan', 'Tiny gremlin · 18s', h
           return kids ? `${p.count} ${enemyForMap(p.enemy, g.map.id).name} → ${kids.count} ${ENEMIES[kids.child].name}` : `${p.count} ${enemyForMap(p.enemy, g.map.id).name}`;
         }).join(' · ') }));
       }
-      const bonus = Math.floor(Math.max(0, g.waveCountdown) * EARLY_CALL_BONUS_PER_SECOND);
+      const bonus = g.callBonus;
       this.set(this.callBtn, g.waveIdx === 0 ? `Start job  (+$${bonus})` : rushing ? `Call rush  (+$${bonus})` : `Call wave  (+$${bonus})`);
+      this.callBtn.disabled = !g.canCallWave;
+      this.callBtn.title = g.canCallWave ? `+$${bonus}${g.callCooldownRecovery > 0 ? ` and ${g.callCooldownRecovery.toFixed(1)}s off hero, Logan, and torch rain cooldowns` : ''}` : g.callBlockReason;
       this.callBtn.classList.toggle('hidden', g.endless && g.waveActive);
     }
 
@@ -447,12 +449,15 @@ ability(this.crewBtn, this.crewCd, 'D', 'Summon Logan', 'Tiny gremlin · 18s', h
     if (this.prevHp !== -1 && hero.hp < this.prevHp - 0.5) this.replay(this.jeffCard, 'hurt');
     this.prevHp = hero.hp;
     this.jeffCard.classList.toggle('downed', hero.downed > 0);
+    this.jeffCard.classList.toggle('recovering', !!hero.recovering);
     this.jeffCard.classList.toggle('ready-deploy', g.heroEnabled && !hero.deployed && hero.downed <= 0);
     this.jeffCard.classList.toggle('rank-pending', g.pendingRankUps > 0);
     this.set(this.hpText, `${Math.ceil(hero.hp)} / ${hero.maxHp}`);
     let status = '· guarding';
     if (hero.downed > 0) status = `· down ${Math.ceil(hero.downed)}s`;
     else if (!hero.deployed) status = '· tap to deploy';
+    else if (hero.queuedOrder) status = '· order queued';
+    else if (hero.recovering) status = '· recovering';
     else if (hero.dest) status = '· moving';
     else if (hero.orderTargetId !== null) {
       const prey = g.enemies.find((e) => e.id === hero.orderTargetId);
@@ -466,7 +471,7 @@ ability(this.crewBtn, this.crewCd, 'D', 'Summon Logan', 'Tiny gremlin · 18s', h
     const fills = [this.clampCd, this.shutoffCd, this.pulseCd, this.sleeveCd, this.coffeeCd];
     g.heroDef.abilities.forEach((_a, i) => {
       const slot = i as AbilitySlot;
-      this.cooldownButton(buttons[i]!, fills[i]!, hero[COOLDOWN_FIELDS[i]!], scaledAbilityCooldown(g, slot), downed || !!hero.cast);
+      this.cooldownButton(buttons[i]!, fills[i]!, hero[COOLDOWN_FIELDS[i]!], scaledAbilityCooldown(g, slot), downed, !!hero.cast);
       const rank = g.abilityRanks[slot] ?? 0;
       this.rankPips[i]?.forEach((dot, n) => dot.classList.toggle('on', n < rank));
       buttons[i]!.classList.toggle('rank-pending', g.pendingRankUps > 0 && rank < 3);

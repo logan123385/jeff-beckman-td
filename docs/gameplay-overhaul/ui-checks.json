@@ -1,0 +1,108 @@
+{
+  "pass": true,
+  "viewport": [
+    390,
+    844
+  ],
+  "heroKits": [
+    {
+      "hero": "Jeff Beckman",
+      "aura": "Greatest Plumber to Ever Live",
+      "abilities": [
+        "Pipe Clamp",
+        "Emergency Shutoff",
+        "Manometer Pulse",
+        "Isolation Sleeve",
+        "Coffee"
+      ]
+    },
+    {
+      "hero": "Big Mike",
+      "aura": "The Truck King",
+      "abilities": [
+        "Plunger Volley",
+        "Make Way!",
+        "Tailgate Supply",
+        "Full Throttle",
+        "Plunger Rain"
+      ]
+    },
+    {
+      "hero": "Robo Bob",
+      "aura": "Orbs Aren't Real",
+      "abilities": [
+        "You're Fired",
+        "System Reboot",
+        "EMP Notice",
+        "Overclock",
+        "Performance Review"
+      ]
+    },
+    {
+      "hero": "Becbec",
+      "aura": "Stronger Together",
+      "abilities": [
+        "Haymaker",
+        "Seismic Slam",
+        "Bring It On",
+        "Iron Will",
+        "Knuckle Storm"
+      ]
+    },
+    {
+      "hero": "CBJ",
+      "aura": "trucks n taters",
+      "abilities": [
+        "Loaded Tater",
+        "Tailgate Slam",
+        "Lunch Break",
+        "Diesel Rush",
+        "Fully Loaded"
+      ]
+    },
+    {
+      "hero": "Doni",
+      "aura": "guided fishing tour",
+      "abilities": [
+        "Set the Hook",
+        "Cast a Wide Net",
+        "Shore Lunch",
+        "River Current",
+        "The Big One"
+      ]
+    },
+    {
+      "hero": "Jayjay",
+      "aura": "would beat ronda rousey in a 1v1 easily",
+      "abilities": [
+        "Opening Bell",
+        "Canvas Slam",
+        "Square Up",
+        "Second Round",
+        "Unanimous Decision"
+      ]
+    },
+    {
+      "hero": "Mr. Chris",
+      "aura": "Strongest Boy in the 8th Grade",
+      "abilities": [
+        "Sand Trap",
+        "FORE!",
+        "Reciprocating Rampage",
+        "Clear the Room",
+        "Second Wind"
+      ]
+    }
+  ],
+  "sandTrapCast": true,
+  "independentLogan": true,
+  "pauseRestored": true,
+  "desktop": {
+    "top": 12,
+    "bottom": 948,
+    "ratio": 1.6053811659192825,
+    "scrollHeight": 960
+  },
+  "reducedMotion": true,
+  "errors": []
+}

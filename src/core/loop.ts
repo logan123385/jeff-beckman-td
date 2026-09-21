@@ -34,11 +34,12 @@ export class GameLoop {
         this.acc += elapsed * this.speed;
         let steps = 0;
         const maxSteps = Math.min(36, Math.max(8, Math.ceil((this.speed * 0.25) / FIXED_DT)));
-        while (this.acc >= FIXED_DT && steps < maxSteps) {
+        while (!this.paused && this.acc >= FIXED_DT && steps < maxSteps) {
           this.handlers.update(FIXED_DT);
           this.acc -= FIXED_DT;
           steps++;
         }
+        if (this.paused) this.acc = 0;
         if (steps >= maxSteps) this.acc = Math.min(this.acc, FIXED_DT * 4);
       }
       this.handlers.render();
