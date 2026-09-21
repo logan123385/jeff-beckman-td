@@ -86,6 +86,10 @@ try {
   await press('i'); await shot('03-scout');
   assert(await read(`document.querySelector('.battle-intel').textContent.includes('×6')`));
   await textButton('Back to defenses');
+  await press('p'); await press('i'); await click('.intel-footer .btn.primary');
+  assert(await read(`!!document.querySelector('.pause-overlay:not(.hidden)')`), 'Calling a wave from Scout must preserve manual pause.');
+  assert.equal((await stats()).wave, '0 / 10', 'No wave starts while manually paused.');
+  await press('p');
   const build = async (id, x, y, name) => {
     for (let attempt = 0; attempt < 4; attempt++) {
       if (await read(`!!document.querySelector('.results')`)) return false;

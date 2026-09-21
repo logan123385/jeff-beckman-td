@@ -94,3 +94,12 @@ node scripts/browser-playtest.mjs <CDP_HTTP_PORT> /tmp/jeff-playtest
 
 No merge, hosted deployment, exhaustive campaign playthrough, or commercial-quality
 parity claim is part of this verification.
+
+## Scout pause review fix
+
+Greptile's PR #6 finding was reproduced in the production browser: Pause → Scout →
+Start job hid the pause overlay, started wave 1, and awarded $24. The implicit
+`setPaused(false)` was removed. The same sequence now keeps the pause panel open,
+wave 0 and $230 unchanged; the existing live-action guard explains that the player
+must resume. The ordinary unpaused Scout call behavior is unchanged. This exact
+interaction is now part of `scripts/browser-playtest.mjs`.

@@ -319,7 +319,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   const intel = new BattleIntel(game, {
     onOpen: () => { clearSelection(); banner.classList.add('hidden'); el.classList.add('scouting'); syncPause(); },
     onClose: () => { el.classList.remove('scouting'); syncPause(); },
-    onCall: () => { if (userPaused) setPaused(false); if (live()) { const bonus = game.callNextWave(); hud.setHint(`Wave called. +$${bonus}.`); } },
+    onCall: () => { if (live()) { const bonus = game.callNextWave(); hud.setHint(`Wave called. +$${bonus}.`); } },
     onRoute: route => { view.scoutedRoute = route; },
   });
   stage.append(intel.entries, intel.el, intel.inspection);
