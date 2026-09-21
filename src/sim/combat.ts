@@ -89,7 +89,7 @@ export function damageMultiplier(
     // Armor breakers skip the usual shrink and hit harder the thicker the shell.
     mult *= 1 + enemy.def.armor * armorBonus;
   } else if (type === 'physical' || type === 'water') {
-    mult *= 1 - clamp(enemy.def.armor - enemy.armorShred, 0, 1);
+    mult *= 1 - clamp(enemy.def.armor - Math.max(enemy.armorShred, enemy.auraArmorShred ?? 0), 0, 1);
   }
   mult *= enemy.def.damageMult?.[type] ?? 1;
   if (!enemy.def.flying && opts.groundMult !== undefined) mult *= opts.groundMult;

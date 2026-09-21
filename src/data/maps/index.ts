@@ -13,9 +13,6 @@ import { SNOWMELT } from './snowmelt';
 /** First four calls unlock The Neverending Service Call. Later jobs teach new tools and drop more gear. */
 export const CORE_MAPS: MapDef[] = [CRAWLSPACE, BOILER_ROOM, RADIANT_FLOOR, MUNICIPAL_MAIN];
 export const MAPS: MapDef[] = [...CORE_MAPS, SNOWMELT, ATTIC, LIFT_STATION, MECHANICAL_ROOM, HEAT_PLANT];
-for (const map of MAPS) for (const id of ['apprentices', 'jayjay', 'cbjDoni'] as const) {
-  if (!map.allowedTowers.includes(id)) map.allowedTowers.push(id);
-}
 export { SERVICE_CALL };
 
 export function mapById(id: string): MapDef | undefined {

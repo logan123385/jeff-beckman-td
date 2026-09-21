@@ -67,7 +67,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   const canvas = h('canvas', { class: 'stage-canvas' });
   const banner = h('div', { class: 'banner hidden' });
   const stage = h('div', { class: 'stage' }, canvas, banner);
-  const overlayHost = h('div');
+  const overlayHost = h('div', { class: 'play-overlays' });
   const el = h('div', { class: 'screen play' });
 
   const renderer = new Renderer(canvas);
@@ -128,8 +128,8 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       for (const fx of game.heroVisuals) if (!heardHitFx.has(fx)) {
         heardHitFx.add(fx); audio.heroImpact(fx.kind);
       }
-      for (const projectile of game.heroMissiles) if (projectile.kind === 'plunger' && !heardHitFx.has(projectile)) {
-        heardHitFx.add(projectile); audio.heroImpact('plunger');
+      for (const projectile of game.heroMissiles) if (projectile.kind !== 'golf' && !heardHitFx.has(projectile)) {
+        heardHitFx.add(projectile); audio.heroImpact(projectile.kind);
       }
       for (const t of game.towers) {
         const prev = lastRecoil.get(t.id) ?? 0;
@@ -820,8 +820,8 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         hud.setHint(`Click a leak within ${range}. Esc cancels.`);
         return;
       }
-      if (game.heroDef.id === 'becbec' && prey.def.flying) {
-        hud.setHint('Haymaker only hits ground leaks.');
+      if (['becbec', 'jayjay'].includes(game.heroDef.id) && prey.def.flying) {
+        hud.setHint(`${ability.name} only hits ground leaks.`);
         return;
       }
       if (dist(game.hero.pos, prey.pos) > range + prey.def.radius) {

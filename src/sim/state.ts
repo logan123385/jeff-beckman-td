@@ -28,6 +28,8 @@ export interface Enemy {
   phased: boolean;
   revealTimer?: number;
   armorShred: number;
+  /** Hero aura only; reset every simulation step independently of timed debuffs. */
+  auraArmorShred?: number;
   shredTimer: number;
   freezeTimer: number;
   bossPhase: number;
@@ -209,15 +211,16 @@ export interface Hero {
 }
 
 export interface HeroMissile {
-  id: number; kind: 'plunger' | 'golf'; from: Vec; pos: Vec; prev: Vec; goal: Vec; targetId?: number;
+  id: number; kind: 'plunger' | 'golf' | 'tater' | 'hook'; from: Vec; pos: Vec; prev: Vec; goal: Vec; targetId?: number;
   age: number; duration: number; damage: number; splash: number; bounces: number; hitIds: number[];
+  pull?: number; stun?: number;
 }
 export interface HeroZone {
-  id: number; kind: 'supply' | 'gas' | 'rain' | 'review' | 'sand'; pos: Vec; radius: number;
+  id: number; kind: 'supply' | 'gas' | 'rain' | 'review' | 'sand' | 'net' | 'taterRain'; pos: Vec; radius: number;
   left: number; duration: number; tick: number; ticks: number; targetIds?: number[];
 }
 export interface HeroVisual {
-  kind: 'laser' | 'emp' | 'horn' | 'saw' | 'summon' | 'buff' | 'golf' | 'punch' | 'slam';
+  kind: 'laser' | 'emp' | 'horn' | 'saw' | 'summon' | 'buff' | 'golf' | 'punch' | 'slam' | 'current' | 'hook';
   from: Vec; to: Vec; radius: number; color: string; left: number; duration: number;
 }
 export interface HeroSummon {

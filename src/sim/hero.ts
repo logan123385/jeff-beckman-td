@@ -64,7 +64,7 @@ export function updateHero(game: Game, dt: number): void {
   const coffee = h.coffeeTimer > 0 ? JEFF.coffee.speed * (1 + abilityRank(game, 4) * 0.08) : 1;
   const ramp = h.moveBlend ?? 0;
   const ease = ramp * ramp * (3 - 2 * ramp);
-  const speed = def.speed * game.mods.jeffSpeed * game.jeffSpeedAura * coffee * (def.id === 'mike' && (h.overdrive ?? 0) > 0 ? 1.65 : 1) * (0.48 + 0.52 * ease);
+  const speed = def.speed * game.mods.jeffSpeed * game.jeffSpeedAura * coffee * ((h.overdrive ?? 0) > 0 ? def.id === 'mike' ? 1.65 : def.id === 'cbj' ? 1.22 : 1 : 1) * (0.48 + 0.52 * ease);
 
   if (h.pendingStrike !== undefined && h.swing <= (h.swingDuration ?? def.swingTime) * 0.52) {
     const target = game.enemies.find(e => e.id === h.pendingStrike && isTargetable(e));

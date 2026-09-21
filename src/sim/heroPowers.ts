@@ -10,7 +10,8 @@ export function friendlyDamageBuff(game: Game, pos: Vec): number {
 }
 
 export function friendlyMitigation(game: Game, pos: Vec): number {
-  return heroOnYard(game) && game.heroDef.id === 'jeff' && dist(game.hero.pos, pos) <= game.heroDef.aura.radius ? .85 : 1;
+  if (!heroOnYard(game) || dist(game.hero.pos, pos) > game.heroDef.aura.radius) return 1;
+  return game.heroDef.id === 'jeff' ? .85 : game.heroDef.id === 'jayjay' ? .8 : 1;
 }
 
 /** Runs after tower aura reset and before any attacks, so buffs never linger after leaving range. */
@@ -37,6 +38,21 @@ export function updateHeroAura(game: Game, dt: number): void {
       }
       break;
     case 'becbec': break; // Applied at each NPC's actual strike position.
+    case 'cbj':
+      for (const t of game.towers) if (nearby(t.pos)) {
+        const buff = game.buffs.get(t.id) ?? { dmg: 0, range: 0, rate: 0 };
+        game.buffs.set(t.id, { ...buff, dmg: buff.dmg + .1 });
+      }
+      for (const f of [...game.friendlies, ...game.crew, ...game.heroSummons]) if (f.hp > 0 && nearby(f.pos)) f.hp = Math.min(f.maxHp, f.hp + 6 * dt);
+      break;
+    case 'doni':
+      for (const e of game.enemies) if (isTargetable(e) && !e.def.flying && nearby(e.pos)) {
+        e.slow = Math.max(e.slow, .12); e.marked = true; e.markBonus = Math.max(e.markBonus ?? 0, .1);
+      }
+      break;
+    case 'jayjay':
+      for (const e of game.enemies) if (isTargetable(e) && !e.def.flying && nearby(e.pos)) e.auraArmorShred = .15;
+      break;
     case 'chris':
       for (const e of game.enemies) if (isTargetable(e) && !e.def.flying && nearby(e.pos)) {
         e.slow = Math.max(e.slow, .15);
@@ -63,12 +79,12 @@ export function useHeroAbility(game: Game, slot: AbilitySlot, aim?: { pos: Vec; 
     point = { ...aim.pos };
     if (ability.aim === 'enemy') {
       prey = game.enemies.find(e => e.id === aim.enemyId && isTargetable(e));
-      if (!prey || (game.heroDef.id === 'becbec' && prey.def.flying)) return false;
+      if (!prey || ((game.heroDef.id === 'becbec' || game.heroDef.id === 'jayjay') && prey.def.flying)) return false;
       point = { ...prey.pos };
     }
     if (dist(h.pos, point) > castRange + (prey?.def.radius ?? 8)) return false;
   } else {
-    prey = targets(game, castRange).find(e => game.heroDef.id !== 'becbec' || !e.def.flying);
+    prey = targets(game, castRange).find(e => !['becbec', 'jayjay'].includes(game.heroDef.id) || !e.def.flying);
     if (prey) point = { ...prey.pos };
   }
   h[COOLDOWN_FIELDS[slot]] = scaledAbilityCooldown(game, slot);
@@ -107,6 +123,16 @@ export function advanceHeroCast(game: Game, dt: number): boolean {
       }
       visual(game, 'punch', h.pos, cast.target, 55, game.heroDef.color, .25);
     }
+  } else if (game.heroDef.id === 'jayjay' && cast.slot === 4) {
+    const contacts = [.16, .493333, .826667];
+    while (cast.hits < contacts.length && phase >= contacts[cast.hits]!) {
+      cast.hits++; cast.fired = true;
+      for (const e of targets(game, 75).filter(e => !e.def.flying)) {
+        applyDamage(game, e, 75 * abilityPower(game, 4) * game.mods.jeffDamage, 'physical', 'jeff');
+        if (cast.hits === 3) e.stun = Math.max(e.stun, 1.7 * abilityPower(game, 4) * game.mods.stunDuration);
+      }
+      visual(game, 'punch', h.pos, cast.target, 65, game.heroDef.color, .3);
+    }
   } else if (!cast.fired && phase >= .48) {
     cast.fired = true; resolveAbility(game, cast.slot, cast.target, cast.targetId);
   }
@@ -121,12 +147,12 @@ function visual(game: Game, kind: HeroVisual['kind'], from: Vec, to: Vec, radius
 function zone(game: Game, kind: HeroZone['kind'], pos: Vec, radius: number, duration: number, targetIds?: number[]): void {
   game.heroZones.push({ id: game.nextEntityId(), kind, pos: { ...pos }, radius, left: duration, duration, tick: 0, ticks: 0, targetIds });
 }
-export function fireHeroMissile(game: Game, kind: HeroMissile['kind'], goal: Vec, damage: number, targetId?: number, splash = 0, bounces = 0, from?: Vec): void {
+export function fireHeroMissile(game: Game, kind: HeroMissile['kind'], goal: Vec, damage: number, targetId?: number, splash = 0, bounces = 0, from?: Vec, control?: { pull: number; stun: number }): void {
   const origin = from ?? (kind === 'golf'
     ? { x: game.hero.pos.x + game.hero.facing * 26, y: game.hero.pos.y + 8 }
     : { x: game.hero.pos.x + game.hero.facing * (game.heroDef.id === 'mike' ? 32 : 18), y: game.hero.pos.y - (game.heroDef.id === 'mike' ? 53 : 20) });
   game.heroMissiles.push({ id: game.nextEntityId(), kind, from: { ...origin }, pos: { ...origin }, prev: { ...origin }, goal: { ...goal },
-    targetId, age: 0, duration: Math.max(.18, dist(origin, goal) / (kind === 'golf' ? 470 : 325)), damage: damage * game.mods.jeffDamage, splash, bounces, hitIds: [] });
+    targetId, age: 0, duration: Math.max(.18, dist(origin, goal) / (kind === 'golf' ? 470 : 325)), damage: damage * game.mods.jeffDamage, splash, bounces, hitIds: [], ...control });
 }
 
 function resolveAbility(game: Game, slot: AbilitySlot, point: Vec, targetId?: number): void {
@@ -134,6 +160,51 @@ function resolveAbility(game: Game, slot: AbilitySlot, point: Vec, targetId?: nu
   const pwr = abilityPower(game, slot);
   const rng = abilityRangeFactor(game, slot);
   const prey = game.enemies.find(e => e.id === targetId && isTargetable(e)) ?? targets(game, 280 * rng)[0];
+  if (def.id === 'cbj') switch (slot) {
+    case 0: fireHeroMissile(game, 'tater', prey?.pos ?? point, 90 * pwr, prey?.id, 42 * rng); break;
+    case 1:
+      for (const e of targets(game, 110 * rng).filter(e => !e.def.flying)) {
+        applyDamage(game, e, 55 * pwr * game.mods.jeffDamage, 'physical', 'jeff');
+        shove(e, 35 * rng); e.stun = Math.max(e.stun, .8 * pwr * game.mods.stunDuration);
+      }
+      visual(game, 'slam', h.pos, h.pos, 110 * rng, def.color, .8); break;
+    case 2: zone(game, 'supply', h.pos, 110 * rng, 9 * pwr); visual(game, 'buff', h.pos, h.pos, 60, def.color, .8); break;
+    case 3: h.overdrive = 8 * pwr; visual(game, 'buff', h.pos, h.pos, 50, def.color, .7); break;
+    case 4: zone(game, 'taterRain', point, 90 * rng, 4.5 * pwr); break;
+  }
+  if (def.id === 'doni') switch (slot) {
+    case 0: case 4:
+      fireHeroMissile(game, 'hook', prey?.pos ?? point, (slot === 0 ? 85 : 150) * pwr, prey?.id, 0, slot === 4 ? 2 : 0, undefined, { pull: 60, stun: 1.2 * pwr * game.mods.stunDuration }); break;
+    case 1: zone(game, 'net', point, 100 * rng, 6 * pwr); break;
+    case 2:
+      h.hp = Math.min(h.maxHp, h.hp + 130 * pwr); h.shield = Math.max(h.shield ?? 0, 5 * pwr);
+      for (const f of [...game.friendlies, ...game.crew, ...game.heroSummons]) if (f.hp > 0 && dist(f.pos, h.pos) <= 120 * rng) f.hp = Math.min(f.maxHp, f.hp + 60 * pwr);
+      visual(game, 'buff', h.pos, h.pos, 120 * rng, def.color, .8); break;
+    case 3:
+      for (const e of targets(game, 130 * rng).filter(e => !e.def.flying)) {
+        applyDamage(game, e, 50 * pwr * game.mods.jeffDamage, 'water', 'jeff'); shove(e, 45 * rng);
+      }
+      visual(game, 'current', h.pos, h.pos, 130 * rng, def.color, 1); break;
+  }
+  if (def.id === 'jayjay') switch (slot) {
+    case 0: {
+      const victim = targets(game, 80 * rng).find(e => !e.def.flying && e.id === targetId);
+      if (victim) {
+        applyDamage(game, victim, 115 * pwr * game.mods.jeffDamage, 'physical', 'jeff');
+        victim.stun = Math.max(victim.stun, 1.4 * pwr * game.mods.stunDuration);
+        visual(game, 'punch', h.pos, victim.pos, 65, def.color, .5);
+      }
+      break;
+    }
+    case 1:
+      for (const e of targets(game, 115 * rng).filter(e => !e.def.flying)) {
+        applyDamage(game, e, 70 * pwr * game.mods.jeffDamage, 'physical', 'jeff'); e.stun = Math.max(e.stun, pwr * game.mods.stunDuration);
+      }
+      visual(game, 'slam', h.pos, h.pos, 115 * rng, def.color, 1); break;
+    case 2: h.taunt = 8 * pwr; h.shield = Math.max(h.shield ?? 0, 8 * pwr); visual(game, 'buff', h.pos, h.pos, 70, def.color, .8); break;
+    case 3: h.hp = Math.min(h.maxHp, h.hp + 190 * pwr); h.overdrive = 8 * pwr; visual(game, 'buff', h.pos, h.pos, 55, def.color, .8); break;
+    case 4: break; // Three separate animation contacts, handled above.
+  }
   if (def.id === 'mike') switch (slot) {
     case 0: {
       const pool = targets(game, 280 * rng);
@@ -227,16 +298,18 @@ function resolveAbility(game: Game, slot: AbilitySlot, point: Vec, targetId?: nu
 
 export function heroAttackSpeed(game: Game): number {
   if ((game.hero.overdrive ?? 0) <= 0) return 1;
-  return game.heroDef.id === 'bob' ? 1.65 : game.heroDef.id === 'mike' ? 1.5 : 1.3;
+  return game.heroDef.id === 'bob' ? 1.65 : ['mike', 'cbj'].includes(game.heroDef.id) ? 1.5 : 1.3;
 }
 
 export function strikeNewHero(game: Game, enemy: Enemy): void {
   const h = game.hero, def = game.heroDef;
   if (def.id === 'mike') fireHeroMissile(game, 'plunger', enemy.pos, def.damage, enemy.id);
+  else if (def.id === 'cbj') fireHeroMissile(game, 'tater', enemy.pos, def.damage, enemy.id);
+  else if (def.id === 'doni') fireHeroMissile(game, 'hook', enemy.pos, def.damage, enemy.id);
   else if (def.id === 'bob') {
     applyDamage(game, enemy, def.damage * game.mods.jeffDamage, 'heat', 'jeff');
     visual(game, 'laser', { x: h.pos.x + h.facing * 18, y: h.pos.y - 25 }, { x: enemy.pos.x, y: enemy.pos.y - 10 }, 4, def.color, .22);
-  } else if (def.id === 'becbec') {
+  } else if (def.id === 'becbec' || def.id === 'jayjay') {
     h.tapCount++;
     applyDamage(game, enemy, def.damage * game.mods.jeffDamage, 'physical', 'jeff');
     if (h.tapCount % 3 === 0) enemy.stun = Math.max(enemy.stun, .35 * game.mods.stunDuration);
@@ -266,16 +339,20 @@ export function updateHeroZones(game: Game, dt: number): void {
       for (const e of targets(game, z.radius, z.pos).filter(e => !e.def.flying)) {
         e.slow = Math.max(e.slow, .55); applyDamage(game, e, 10 * game.mods.jeffDamage * elapsed, 'physical', 'jeff');
       }
-    } else if (z.kind === 'rain') {
+    } else if (z.kind === 'net') {
+      for (const e of targets(game, z.radius, z.pos).filter(e => !e.def.flying)) {
+        e.slow = Math.max(e.slow, .55); applyDamage(game, e, 8 * abilityPower(game, 1) * game.mods.jeffDamage * elapsed, 'physical', 'jeff');
+      }
+    } else if (z.kind === 'rain' || z.kind === 'taterRain') {
       z.tick -= elapsed;
       const rainPwr = abilityPower(game, 4);
       while (z.tick <= 0 && z.ticks < 9) {
-        const angle = z.ticks * 2.4, radius = z.ticks % 3 === 0 ? 0 : 45;
+        const angle = z.ticks * 2.4, radius = z.ticks % 3 === 0 ? 0 : z.radius * .5;
         const point = { x: z.pos.x + Math.cos(angle) * radius, y: z.pos.y + Math.sin(angle) * radius };
-        fireHeroMissile(game, 'plunger', point, 32 * rainPwr, undefined, 48, 0, { x: point.x - 40, y: point.y - 220 });
+        fireHeroMissile(game, z.kind === 'rain' ? 'plunger' : 'tater', point, (z.kind === 'rain' ? 32 : 34) * rainPwr, undefined, 48, 0, { x: point.x - 40, y: point.y - 220 });
         z.tick += .5; z.ticks++;
       }
-    } else {
+    } else if (z.kind === 'review') {
       const mark = 0.3 * abilityPower(game, 4);
       for (const e of game.enemies) if (z.targetIds?.includes(e.id) && isTargetable(e)) { e.marked = true; e.markBonus = Math.max(e.markBonus ?? 0, mark); }
     }
@@ -295,7 +372,11 @@ export function updateHeroMissiles(game: Game, dt: number): void {
     if (!step.arrived) { keep.push(p); continue; }
     if (p.splash > 0) for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, 'physical', 'jeff');
     else if (target) applyDamage(game, target, p.damage, 'physical', 'jeff');
-    game.addEffect({ kind: 'hit', pos: { ...p.goal }, color: p.kind === 'golf' ? '#fffde7' : '#e1a886', ttl: .24, max: .24 });
+    if (target && !target.dead && (p.pull ?? 0) > 0 && !target.def.flying) {
+      shove(target, p.pull!); target.stun = Math.max(target.stun, p.stun ?? 0);
+      visual(game, 'hook', p.from, p.goal, 25, '#71d5ce', .3);
+    }
+    game.addEffect({ kind: 'hit', pos: { ...p.goal }, color: p.kind === 'golf' ? '#fffde7' : p.kind === 'hook' ? '#71d5ce' : p.kind === 'tater' ? '#efbb68' : '#e1a886', ttl: .24, max: .24 });
     if (p.splash > 0) game.addEffect({ kind: 'ring', pos: { ...p.goal }, radius: p.splash, color: '#eab982', ttl: .35, max: .35 });
     if (p.targetId !== undefined) p.hitIds.push(p.targetId);
     const next = p.bounces > 0 ? targets(game, 135, p.goal).find(e => !p.hitIds.includes(e.id)) : undefined;
@@ -305,6 +386,11 @@ export function updateHeroMissiles(game: Game, dt: number): void {
     }
   }
   game.heroMissiles = keep;
+}
+
+function shove(enemy: Enemy, distance: number): void {
+  enemy.progress = Math.max(0, enemy.progress - distance * (enemy.def.traits.includes('boss') ? .2 : 1));
+  enemy.heldBy = null; enemy.attackSwing = 0;
 }
 
 export function releaseSummon(game: Game, id: number): void {

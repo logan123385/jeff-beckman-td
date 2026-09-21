@@ -4,7 +4,7 @@ import { artReady, backgroundArt } from './art';
 import { blotch, disc, mix, stampText } from './ink';
 
 export function usesPaintedYard(map: MapDef): boolean {
-  return artReady(biomeFor(map) === undefined ? 'waterworks' : 'biomes');
+  return artReady('landscapes') || artReady(biomeFor(map) === undefined ? 'waterworks' : 'biomes');
 }
 
 function biomeFor(map: MapDef): number | undefined {
@@ -18,12 +18,13 @@ function biomeFor(map: MapDef): number | undefined {
 export function paintLandscape(ctx: CanvasRenderingContext2D, map: MapDef): boolean {
   if (!usesPaintedYard(map)) return false;
   ctx.save();
-  if (map.id === 'serviceCall') ctx.filter = 'brightness(0.48) saturate(0.75) hue-rotate(25deg)';
-  else if (map.id === 'heatPlant') ctx.filter = 'saturate(1.3) brightness(0.86)';
-  else if (map.id === 'mechanicalRoom') ctx.filter = 'saturate(0.65)';
-  else if (map.id === 'attic') ctx.filter = 'brightness(0.85)';
-  else if (map.id === 'municipalMain') ctx.filter = 'sepia(0.25) saturate(0.7)';
-  backgroundArt(ctx, biomeFor(map));
+  if (map.id === 'serviceCall') ctx.filter = 'brightness(.8) saturate(.88)';
+  else if (map.id === 'heatPlant') ctx.filter = 'saturate(1.08)';
+  else if (map.id === 'mechanicalRoom') ctx.filter = 'saturate(.68) brightness(.94)';
+  else if (map.id === 'attic') ctx.filter = 'sepia(.16) brightness(1.12)';
+  else if (map.id === 'radiantFloor') ctx.filter = 'sepia(.2) saturate(.8) brightness(1.18)';
+  else if (map.id === 'municipalMain') ctx.filter = 'saturate(.85) hue-rotate(8deg)';
+  backgroundArt(ctx, map.id === 'serviceCall' ? 3 : biomeFor(map));
   ctx.restore();
   return true;
 }
@@ -32,12 +33,12 @@ export function paintLandscape(ctx: CanvasRenderingContext2D, map: MapDef): bool
 export function paintRoutes(ctx: CanvasRenderingContext2D, map: MapDef): void {
   const snow = map.id === 'snowmelt', night = map.id === 'serviceCall';
   const interior = [0, 1].includes(biomeFor(map) ?? -1);
-  const road = snow ? '#bfcede' : night ? '#7d8070' : interior ? '#aa916d' : '#ccae73';
+  const road = snow ? '#b7ccdc' : night || map.id === 'liftStation' ? '#566f70' : interior ? '#716756' : '#b2a180';
   ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   for (const points of map.paths) {
     const path = new Path2D();
     points.forEach((p, i) => i ? path.lineTo(p.x, p.y) : path.moveTo(p.x, p.y));
-    for (const [width, color] of [[62, '#283f3045'], [55, '#5e643b'], [51, '#907348'], [46, road], [30, mix(road, '#fff0bc', 0.12)]] as const) {
+    for (const [width, color] of [[62, '#14252e40'], [55, interior ? '#252e32' : '#435145'], [51, snow ? '#edf7fa' : '#b2a381'], [47, '#3e4542'], [44, road]] as const) {
       ctx.lineWidth = width; ctx.strokeStyle = color; ctx.stroke(path);
     }
     for (let i = 1; i < points.length; i++) {
@@ -48,6 +49,19 @@ export function paintRoutes(ctx: CanvasRenderingContext2D, map: MapDef): void {
         const lateral = (random - 0.5) * 38;
         const x = a.x + ux * j - uy * lateral, y = a.y + uy * j + ux * lateral;
         blotch(ctx, x, y, 1.4 + random * 2, 0.8 + random, 0.3, '#69573838');
+        if (j % 24 === 8) {
+          // Individually laid slabs follow the route's true tangent.
+          ctx.save(); ctx.translate(a.x + ux * j, a.y + uy * j); ctx.rotate(Math.atan2(uy, ux));
+          for (const lane of [-1, 0]) {
+            const offset = lane === -1 ? 0 : 9;
+            ctx.fillStyle = mix(road, random > .5 ? '#e9debc' : '#364a4c', .05 + random * .07);
+            ctx.strokeStyle = '#273e4338'; ctx.lineWidth = .7;
+            ctx.beginPath(); ctx.roundRect(offset - 10, lane * 20, 23, 19, 2); ctx.fill(); ctx.stroke();
+            ctx.strokeStyle = '#fff2d323'; ctx.beginPath(); ctx.moveTo(offset - 7, lane * 20 + 1); ctx.lineTo(offset + 10, lane * 20 + 1); ctx.stroke();
+          }
+          if (interior) { ctx.fillStyle = '#ceb38688'; ctx.fillRect(-1, -20, 2, 2); ctx.fillRect(-1, 18, 2, 2); }
+          ctx.restore();
+        }
         if (j % 36 === 8) for (const side of [-1, 1]) {
           const px = a.x + ux * j - uy * (26 + random * 2) * side;
           const py = a.y + uy * j + ux * (26 + random * 2) * side;

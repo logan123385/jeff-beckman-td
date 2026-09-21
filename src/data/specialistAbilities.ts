@@ -44,7 +44,6 @@ export const SPECIALIST_KITS: Record<TowerId, readonly [SpecialistAbilityId, Spe
   camera: ['expose', 'deadeye'], manifold: ['chain', 'barrage'], mixingValve: ['freeze', 'mend'],
   airSeparator: ['chain', 'expose'], thermostat: ['overclock', 'expose'], heatExchanger: ['chain', 'incinerate'],
   dirtSep: ['corrode', 'barrage'], steamTrap: ['deadeye', 'freeze'], zoneValve: ['freeze', 'overclock'],
-  apprentices: ['mend', 'overclock'], jayjay: ['shockwave', 'mend'], cbjDoni: ['shockwave', 'corrode'],
 };
 
 export function specialistAbilityCost(id: SpecialistAbilityId, currentRank: number, costMultiplier = 1): number {

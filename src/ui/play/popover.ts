@@ -353,9 +353,6 @@ function statLine(id: TowerId, damage: number, range: number, rate: number, lvl:
     case 'washer':
       parts.push(`${Math.round(damage)} splash`, `radius ${number(lvl.splash)}`, `${attacks}/s`, `range ${Math.round(range)}`);
       break;
-    case 'apprentices': case 'jayjay': case 'cbjDoni':
-      parts.push(`${lvl.recruits} field recruits`, `${Math.round(lvl.hp ?? 0)} base hp each`, `${Math.round(damage)} dmg`, `${Math.round((lvl.armor ?? 0) * 100)}% armor`);
-      break;
     case 'barricade':
       parts.push(`holds ${lvl.holds}`, `${lvl.hp} hp`, `${Math.round(damage)} dmg`);
       break;

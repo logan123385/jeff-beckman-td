@@ -632,18 +632,18 @@ export function paintPipeFlow(ctx: CanvasRenderingContext2D, paths: readonly (re
   ctx.lineCap = 'round';
   for (const path of paths) {
     ctx.strokeStyle = mix(accent, '#ffffff', 0.55);
-    ctx.globalAlpha = 0.48;
-    ctx.lineWidth = 7;
-    ctx.setLineDash([18, 22]);
+    ctx.globalAlpha = 0.14;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 38]);
     ctx.lineDashOffset = -time * 52;
     ctx.beginPath();
     path.forEach((pt, i) => (i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
     ctx.stroke();
     // specular glint dashes
     ctx.strokeStyle = rgba('#fff8e1', 0.7);
-    ctx.globalAlpha = 0.85;
-    ctx.lineWidth = 2.6;
-    ctx.setLineDash([6, 26]);
+    ctx.globalAlpha = 0.28;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 44]);
     ctx.lineDashOffset = -time * 78;
     ctx.beginPath();
     path.forEach((pt, i) => (i === 0 ? ctx.moveTo(pt.x, pt.y - 3.5) : ctx.lineTo(pt.x, pt.y - 3.5)));
@@ -661,8 +661,8 @@ export function paintPipeFlow(ctx: CanvasRenderingContext2D, paths: readonly (re
         const t = ((time * 0.55 + i * 0.31 + k * 0.48) % 1);
         const bx = a.x + dx * t - uy * 3;
         const by = a.y + dy * t + ux * 2;
-        ctx.globalAlpha = 0.35 + Math.sin(time * 6 + i + k) * 0.12;
-        disc(ctx, bx, by, 2.2 + (k % 2), rgba('#e1f5fe', 0.85));
+        ctx.globalAlpha = 0.16 + Math.sin(time * 6 + i + k) * 0.05;
+        disc(ctx, bx, by, 1.3 + (k % 2), rgba('#e1f5fe', 0.65));
         disc(ctx, bx - 0.6, by - 0.6, 0.9, rgba('#ffffff', 0.7));
       }
     }

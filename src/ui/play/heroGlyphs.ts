@@ -1,5 +1,9 @@
 /** Small vector HUD emblems; the characters themselves use painted animation atlases. */
 export const heroGlyphs: Record<string, string> = {
+  tater: '<ellipse cx="20" cy="21" rx="16" ry="11" transform="rotate(-25 20 21)" fill="#bf864b"/><path d="M9 22l4-3m7-4l4-2m-4 13l4-3m4-3l3-2"/>',
+  hook: '<path d="M20 3v20c0 15 17 15 17 3v-7l-7 8M14 6h12" stroke="#a8e5df"/><circle cx="20" cy="9" r="4" fill="#dc8c69"/>',
+  net: '<path d="M5 8h30v25H5z" fill="#366c65"/><path d="M5 8l25 25M15 8l20 20M5 18l15 15M35 8L10 33M25 8L5 28M35 18L20 33"/>',
+  current: '<path d="M3 12q7-9 14 0t20 0M3 22q7-9 14 0t20 0M3 32q7-9 14 0t20 0" stroke="#89ddd5"/>',
   volley: '<path d="M6 33L27 12m-16 25l21-21M4 24L22 6"/><path d="M20 5q10-4 11 6l-8 3zM25 13q10-4 11 6l-8 3z" fill="#b7614d"/>',
   horn: '<path d="M5 17h10L31 7v26L15 23H5z" fill="#a7cce4"/><path d="M14 23l-2 10H6l2-10m27-12l3-3m-2 12h3m-4 9l3 3"/>',
   crate: '<path d="M5 12h30v24H5zM5 12l7-7h16l7 7" fill="#ae8d58"/><path d="M20 17v14m-7-7h14M5 12h30"/>',

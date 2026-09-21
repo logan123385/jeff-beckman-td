@@ -2,7 +2,6 @@ import type { TowerDef, TowerId, TowerLevel } from './types';
 
 export type Specialization = 'power' | 'control';
 const NAMES: Record<TowerId, [string, string]> = {
-  apprentices: ['Master Apprentices', 'First Aid Academy'], jayjay: ['Iron Fists', 'Unbreakable Jayjay'], cbjDoni: ['Demolition Duo', 'Union Veterans'],
   torch: ['Dragonfire Forge', 'Ember Sentinel'], washer: ['Tidal Artillery', 'Frostjet Battery'],
   barricade: ['Ironclad Workshop', 'Field Medic Lodge'], vent: ['Stormwatch Spire', 'Skybreaker Array'],
   radiant: ['Sunfire Crucible', 'Winter Ward'], expansion: ['Overpressure Shrine', 'Guardian Reservoir'],

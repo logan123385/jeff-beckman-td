@@ -1,0 +1,112 @@
+{
+  "pass": true,
+  "purpose": "Funded renderer fixtures; not campaign balance evidence",
+  "opaquePoseBlend": [
+    128,
+    0,
+    128,
+    255
+  ],
+  "projectileMaterials": [
+    "PRESSURE / WATER",
+    "COMBUSTION / FIRE",
+    "KINETIC / METAL",
+    "CRYSTAL / FROST",
+    "CORROSION / ACID",
+    "RADIANT / HEAT"
+  ],
+  "maps": [
+    {
+      "map": "crawlspace",
+      "hero": "jeff",
+      "pausedPixelsStable": true,
+      "simulationUnchanged": true,
+      "enemies": 28,
+      "projectiles": 0,
+      "renderMedianMs": 3,
+      "renderP95Ms": 42.799999952316284
+    },
+    {
+      "map": "heatPlant",
+      "hero": "bob",
+      "pausedPixelsStable": true,
+      "simulationUnchanged": true,
+      "enemies": 28,
+      "projectiles": 0,
+      "renderMedianMs": 4.8999998569488525,
+      "renderP95Ms": 13.399999856948853
+    },
+    {
+      "map": "snowmelt",
+      "hero": "mike",
+      "pausedPixelsStable": true,
+      "simulationUnchanged": true,
+      "enemies": 28,
+      "projectiles": 1,
+      "renderMedianMs": 3.200000047683716,
+      "renderP95Ms": 7.900000095367432
+    },
+    {
+      "map": "liftStation",
+      "hero": "chris",
+      "pausedPixelsStable": true,
+      "simulationUnchanged": true,
+      "enemies": 28,
+      "projectiles": 1,
+      "renderMedianMs": 4.700000047683716,
+      "renderP95Ms": 10.099999904632568
+    },
+    {
+      "map": "serviceCall",
+      "hero": "becbec",
+      "pausedPixelsStable": true,
+      "simulationUnchanged": true,
+      "enemies": 28,
+      "projectiles": 0,
+      "renderMedianMs": 4.299999952316284,
+      "renderP95Ms": 13.099999904632568
+    },
+    {
+      "map": "crawlspace",
+      "hero": "cbj",
+      "pausedPixelsStable": true,
+      "simulationUnchanged": true,
+      "enemies": 28,
+      "projectiles": 0,
+      "renderMedianMs": 3.6999998092651367,
+      "renderP95Ms": 5.5
+    },
+    {
+      "map": "liftStation",
+      "hero": "doni",
+      "pausedPixelsStable": true,
+      "simulationUnchanged": true,
+      "enemies": 28,
+      "projectiles": 1,
+      "renderMedianMs": 3.9000000953674316,
+      "renderP95Ms": 5.199999809265137
+    },
+    {
+      "map": "heatPlant",
+      "hero": "jayjay",
+      "pausedPixelsStable": true,
+      "simulationUnchanged": true,
+      "enemies": 28,
+      "projectiles": 0,
+      "renderMedianMs": 5.5,
+      "renderP95Ms": 12.899999856948853
+    }
+  ],
+  "realTimeCombat": {
+    "frames": 546,
+    "renderMedianMs": 6.900000095367432,
+    "renderP95Ms": 10.299999952316284,
+    "enemies": 50
+  },
+  "crewMotion": [
+    "CBJ",
+    "Doni",
+    "Jayjay"
+  ],
+  "errors": []
+}

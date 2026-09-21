@@ -19,12 +19,15 @@ function makeCanvas(w: number, hgt: number): { canvas: HTMLCanvasElement; ctx: C
   return { canvas, ctx };
 }
 
-/** Static Jeff portrait for menus and the HUD. */
+/** Static hero portrait for menus and the HUD. */
 export function heroPortrait(id: HeroId, size = 72): HTMLCanvasElement {
   if (id === 'jeff') return jeffPortrait(size, size > 90);
   const { canvas, ctx } = makeCanvas(size, size);
   ctx.translate(size / 2, size - 3);
-  if (!heroFrame(ctx, id, 0, 0, size - 6)) {
+  const painted = id === 'cbj' || id === 'doni' || id === 'jayjay'
+    ? paintedSprite(ctx, 'recruits', id === 'jayjay' ? 4 : id === 'cbj' ? 5 : 6, 0, 0, size - 6, size - 6)
+    : heroFrame(ctx, id, 0, 0, size - 6);
+  if (!painted) {
     ctx.fillStyle = HEROES[id].color; ctx.font = `bold ${size * .5}px serif`; ctx.textAlign = 'center'; ctx.fillText(HEROES[id].name[0]!, 0, -size * .2);
   }
   return canvas;
@@ -139,9 +142,6 @@ export function towerPortrait(id: TowerId, size = 72): HTMLCanvasElement {
   if (TOWER_ART[id] !== undefined && artReady(TOWER_ART[id]! >= 12 ? 'towersAdvanced' : 'towers')) {
     paintedSprite(ctx, 'towers', TOWER_ART[id]!, size / 2, size - 3, size - 6, size - 4);
     return canvas;
-  }
-  if (['apprentices','jayjay','cbjDoni'].includes(id) && artReady('recruitTowers')) {
-    paintedSprite(ctx, 'recruitTowers', (id === 'apprentices' ? 0 : id === 'jayjay' ? 4 : 8), size / 2, size - 3, size - 6, size - 4); return canvas;
   }
   const def = TOWERS[id];
   const t: Tower = {

@@ -3,6 +3,7 @@ import { extractHeroFrames } from './heroAtlas';
 
 /** Original painted atlases. All simulation coordinates remain independent of art. */
 const urls = {
+  landscapes: new URL('../../assets/cinematic/environments.jpg', import.meta.url).href,
   heroMike: new URL('../../assets/remaster/hero-mike.webp', import.meta.url).href,
   heroBob: new URL('../../assets/remaster/hero-bob.webp', import.meta.url).href,
   heroChris: new URL('../../assets/remaster/hero-chris.webp', import.meta.url).href,
@@ -12,7 +13,6 @@ const urls = {
   crewWalk: new URL('../../assets/remaster/crew-walk.webp', import.meta.url).href,
   crewAttacks: new URL('../../assets/remaster/crew-attacks.webp', import.meta.url).href,
   recruits: new URL('../../assets/remaster/recruits.webp', import.meta.url).href,
-  recruitTowers: new URL('../../assets/remaster/recruit-towers.webp', import.meta.url).href,
   units: new URL('../../assets/remaster/units.webp', import.meta.url).href,
   towers: new URL('../../assets/remaster/towers.webp', import.meta.url).href,
   unitsAdvanced: new URL('../../assets/remaster/units-advanced.webp', import.meta.url).href,
@@ -26,6 +26,34 @@ const heroFrames = new Map<Sheet, HTMLCanvasElement[]>();
 const crops = new Map<string, [number, number, number, number]>();
 
 export const WATERWORKS_ART = urls.waterworks;
+export const LANDSCAPE_ART = urls.landscapes;
+export const TITLE_ART = new URL('../../assets/cinematic/waterworks-keyart.jpg', import.meta.url).href;
+
+const poseSurfaces = new Map<string, HTMLCanvasElement>();
+let poseDepth = 0;
+/** Premultiplied pose mixing. Overlapping pixels retain their opacity between frames. */
+export function blendPoses(ctx: CanvasRenderingContext2D, height: number, blend: number, paint: (c: CanvasRenderingContext2D, next: boolean) => void): void {
+  const b = Math.max(0, Math.min(1, blend));
+  if (b < .002 || b > .998) { paint(ctx, b > .5); return; }
+  const density = Math.min(2, window.devicePixelRatio || 1);
+  const size = Math.max(128, 2 ** Math.ceil(Math.log2(height * 2 * density)));
+  const depth = poseDepth++;
+  const key = `${depth}:${size}`;
+  let poseSurface = poseSurfaces.get(key);
+  if (!poseSurface) {
+    poseSurface = document.createElement('canvas'); poseSurface.width = poseSurface.height = size;
+    poseSurfaces.set(key, poseSurface);
+  }
+  const c = poseSurface.getContext('2d')!, side = poseSurface.width;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, side, side);
+  c.save();
+  try {
+    c.translate(side / 2, side * .75); c.scale(density, density);
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1 - b; paint(c, false);
+    c.globalCompositeOperation = 'lighter'; c.globalAlpha = b; paint(c, true);
+    ctx.drawImage(poseSurface, -side / (2 * density), -side * .75 / density, side / density, side / density);
+  } finally { c.restore(); poseDepth--; }
+}
 
 export async function preloadArt(): Promise<void> {
   await Promise.all(Object.entries(urls).map(([name, url]) => new Promise<void>((resolve) => {
@@ -68,19 +96,23 @@ export function heroFrame(ctx: CanvasRenderingContext2D, id: HeroAtlasId, row: n
   if (!loop) while (frame < 6 && at > times[frame + 1]!) frame++;
   const fraction = loop ? at - frame : (at - times[frame]!) / (times[frame + 1]! - times[frame]!);
   // Crossfade across most of the cell so painted poses don't hard-hold then pop.
-  const ease = Math.max(0, Math.min(1, (fraction - 0.12) / 0.76));
+  const ease = Math.max(0, Math.min(1, fraction));
   const blend = ease * ease * (3 - 2 * ease);
-  for (const [n, opacity] of [[frame, 1 - blend], [loop ? (frame + 1) % 8 : frame + 1, blend]]) {
-    if (opacity! < .005) continue;
-    ctx.save(); ctx.globalAlpha *= opacity!;
-    const frameImage = frames[row * 8 + n!]!;
-    ctx.drawImage(frameImage, -frameImage.width * scale / 2, -frameImage.height * scale, frameImage.width * scale, frameImage.height * scale);
-    ctx.restore();
-  }
+  blendPoses(ctx, height, blend, (c, next) => {
+    const n = next ? loop ? (frame + 1) % 8 : frame + 1 : frame;
+    const frameImage = frames[row * 8 + n]!;
+    c.drawImage(frameImage, -frameImage.width * scale / 2, -frameImage.height * scale, frameImage.width * scale, frameImage.height * scale);
+  });
   return true;
 }
 
 export function backgroundArt(ctx: CanvasRenderingContext2D, biome?: number): boolean {
+  const modern = images.get('landscapes');
+  if (modern) {
+    const tile = biome === undefined ? 0 : biome <= 1 ? 1 : biome;
+    ctx.drawImage(modern, tile % 2 * modern.width / 2, Math.floor(tile / 2) * modern.height / 2, modern.width / 2, modern.height / 2, 0, 0, 960, 600);
+    return true;
+  }
   const img = images.get(biome === undefined ? 'waterworks' : 'biomes');
   if (!img) return false;
   if (biome === undefined) ctx.drawImage(img, 0, 0, 960, 600);
@@ -95,7 +127,7 @@ function crop(sheet: Sheet, index: number): [number, number, number, number] | n
   const img = images.get(sheet);
   if (!img) return null;
   // Rows follow the actual delivered illustrations, not the requested pixel size.
-  const rows = sheet === 'recruits' ? [0, 0.485, 1] : sheet === 'recruitTowers' ? [0, 1/3, 2/3, 1] : sheet === 'units' ? [0, 0.268, 0.504, 0.772, 1] : sheet === 'towersAdvanced' ? [0, 0.34, 0.675, 1] : sheet === 'unitsAdvanced' ? [0, 0.34, 0.659, 1] : [0, 0.337, 0.659, 1];
+  const rows = sheet === 'recruits' ? [0, 0.485, 1] : sheet === 'units' ? [0, 0.268, 0.504, 0.772, 1] : sheet === 'towersAdvanced' ? [0, 0.34, 0.675, 1] : sheet === 'unitsAdvanced' ? [0, 0.34, 0.659, 1] : [0, 0.337, 0.659, 1];
   const col = index % 4, row = Math.floor(index / 4);
   const cols = sheet === 'recruits' ? [0, .27, .5, .75, 1] : [0, .25, .5, .75, 1];
   const x = Math.round(cols[col]! * img.width), y = Math.round(rows[row]! * img.height);
@@ -116,7 +148,7 @@ function crop(sheet: Sheet, index: number): [number, number, number, number] | n
 }
 
 /** Draw with a bottom-center anchor and a fixed height; preserve the painted proportions. */
-export function paintedSprite(ctx: CanvasRenderingContext2D, sheet: Exclude<Sheet, 'waterworks' | 'biomes'>, index: number, x: number, y: number, height: number, widthLimit = height * 1.3): boolean {
+export function paintedSprite(ctx: CanvasRenderingContext2D, sheet: Exclude<Sheet, 'waterworks' | 'biomes' | 'landscapes'>, index: number, x: number, y: number, height: number, widthLimit = height * 1.3): boolean {
   if (sheet === 'units' && index >= 16) { sheet = 'unitsAdvanced'; index -= 16; }
   if (sheet === 'towers' && index >= 12) { sheet = 'towersAdvanced'; index -= 12; }
   const img = images.get(sheet), c = crop(sheet, index);
@@ -185,21 +217,20 @@ export function attackSprite(ctx: CanvasRenderingContext2D, row: number, phase: 
   const rows=apprenticeVariant>0?[0,1/3,2/3,1]:[0,.213,.406,.608,.794,1];const y=rows[row]!*img.height,h=(rows[row+1]!-rows[row]!)*img.height,w=img.width/8;
   const times=[0,.1,.24,.36,.48,.63,.80,1];let frame=0;while(frame<6&&phase>times[frame+1]!)frame++;
   const fraction=Math.max(0,Math.min(1,(phase-times[frame]!)/(times[frame+1]!-times[frame]!)));
-  const transition=Math.max(0,(fraction-.18)/.7),blend=transition*transition*(3-2*transition),scale=height/h;
-  const draw=(n:number,opacity:number)=>{
-    if(opacity<.005)return;ctx.save();ctx.globalAlpha*=opacity;
+  const blend=fraction*fraction*(3-2*fraction),scale=height/h;
+  blendPoses(ctx,height,blend,(ctx,next)=>{
+    const n=frame+(next?1:0);ctx.save();
     const band=apprenticeVariant>0?[.16,.64]:row===0||row===4?[.43,.76]:[.14,.46];
     if(n===5){ctx.beginPath();ctx.rect(-w/2*scale,-height,w*scale,height);ctx.rect(-w/2*scale,-height+band[0]!*height,55*scale,(band[1]!-band[0]!)*height);ctx.clip('evenodd');}
     ctx.drawImage(img,n*w,y,w,h,-w/2*scale,-height,w*scale,height);ctx.restore();
-    if(n===4){ctx.save();ctx.globalAlpha*=opacity;ctx.drawImage(img,(n+1)*w,y+band[0]!*h,60,(band[1]!-band[0]!)*h,w/2*scale,-height+band[0]!*height,60*scale,(band[1]!-band[0]!)*height);ctx.restore();}
-  };
-  draw(frame,1-blend);draw(frame+1,blend);return true;
+    if(n===4){ctx.save();ctx.drawImage(img,(n+1)*w,y+band[0]!*h,60,(band[1]!-band[0]!)*h,w/2*scale,-height+band[0]!*height,60*scale,(band[1]!-band[0]!)*height);ctx.restore();}
+  });return true;
 }
 
 export function walkSprite(ctx: CanvasRenderingContext2D, row: number, phase: number, height: number): boolean {
   const img=images.get('crewWalk');if(!img)return false;
   const w=img.width/8,h=img.height/4,scale=height/h;
-  const at=((phase/(Math.PI*2)%1)+1)%1*8,frame=Math.floor(at),t=Math.max(0,((at-frame)-.18)/.7),blend=t*t*(3-2*t);
-  for(const[n,alpha]of[[frame,1-blend],[(frame+1)%8,blend]]){if(alpha!<.005)continue;ctx.save();ctx.globalAlpha*=alpha!;ctx.drawImage(img,n!*w,row*h,w,h,-w/2*scale,-height,w*scale,height);ctx.restore();}
+  const at=((phase/(Math.PI*2)%1)+1)%1*8,frame=Math.floor(at),t=at-frame,blend=t*t*(3-2*t);
+  blendPoses(ctx,height,blend,(c,next)=>{const n=next?(frame+1)%8:frame;c.drawImage(img,n*w,row*h,w,h,-w/2*scale,-height,w*scale,height);});
   return true;
 }

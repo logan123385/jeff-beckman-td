@@ -8,6 +8,8 @@ import { SaveStore } from '../src/save/save';
 import { Game } from '../src/sim/game';
 import { updateHero } from '../src/sim/hero';
 import { updateAuras } from '../src/sim/towers';
+import { updateEnemies } from '../src/sim/enemies';
+import { applyDamage } from '../src/sim/combat';
 import { updateHeroAura, updateHeroMissiles, updateHeroSummons, friendlyDamageBuff, friendlyMitigation } from '../src/sim/heroPowers';
 import type { EnemyId } from '../src/data/types';
 import { runHeadless } from './harness';
@@ -51,15 +53,15 @@ describe('Playable hero selection and legacy saves', () => {
 });
 
 describe('Attack and cast timing', () => {
-  it.each(['mike', 'bob', 'chris', 'becbec'] as HeroId[])('%s winds up, connects, and completes recovery', id => {
+  it.each(['mike', 'bob', 'chris', 'becbec', 'cbj', 'doni', 'jayjay'] as HeroId[])('%s winds up, connects, and completes recovery', id => {
     const g = field(id), e = enemy(g); const before = e.hp;
     updateHero(g, .01); expect(g.hero.swing).toBeGreaterThan(0); expect(e.hp).toBe(before);
     updateHero(g, g.heroDef.swingTime * .2); expect(e.hp).toBe(before); expect(g.heroMissiles).toHaveLength(0);
     updateHero(g, g.heroDef.swingTime * .3);
-    if (id === 'mike') { expect(e.hp).toBe(before); expect(g.heroMissiles).toHaveLength(1); updateHeroMissiles(g, 2); }
+    if (['mike', 'cbj', 'doni'].includes(id)) { expect(e.hp).toBe(before); expect(g.heroMissiles).toHaveLength(1); updateHeroMissiles(g, 2); }
     expect(e.hp).toBeLessThan(before); expect(g.hero.swing).toBeGreaterThan(0);
   });
-  it.each(['mike', 'bob'] as HeroId[])('%s attacks from range without blocking distant enemies', id => {
+  it.each(['mike', 'bob', 'cbj', 'doni'] as HeroId[])('%s attacks from range without blocking distant enemies', id => {
     const g = field(id), e = enemy(g, 450); step(g, 1.6);
     expect(e.hp).toBeLessThan(e.maxHp); expect(e.heldBy).toBeNull(); expect(g.hero.pos.x).toBe(300);
   });
@@ -67,7 +69,7 @@ describe('Attack and cast timing', () => {
     const g = field('becbec'), e = enemy(g); updateHero(g, .01); g.commandHero({ x: 100, y: 150 }); step(g, .8);
     expect(e.hp).toBe(e.maxHp); expect(g.hero.pendingStrike).toBeUndefined(); expect(g.hero.pos.x).toBeLessThan(300);
   });
-  it.each(['mike', 'bob', 'chris', 'becbec'] as HeroId[])('%s cannot cast without a target or while downed', id => {
+  it.each(['mike', 'bob', 'chris', 'becbec', 'cbj', 'doni', 'jayjay'] as HeroId[])('%s cannot cast without a target or while downed', id => {
     const g = field(id), slot = (id === 'chris' ? 1 : 0) as AbilitySlot;
     expect(g.useAbility(slot)).toBe(false); expect(g.hero[COOLDOWN_FIELDS[slot]]).toBe(0);
     enemy(g); g.damageHero(100000); expect(g.useAbility(slot)).toBe(false); expect(g.hero.cast).toBeUndefined();
@@ -151,7 +153,7 @@ describe('Distinct active abilities', () => {
 
 describe('Auras use their owners and real range', () => {
   it('Jeff heals and protects friendly NPCs only while alive and nearby', () => {
-    const g = field('jeff'); g.placeTower(0, 'jayjay'); const f = g.friendlies[0]!; f.hp = 100;
+    const g = field('jeff'); g.reinforce({ x: 320, y: 250 }); const f = g.heroSummons[0]!; f.hp = 100;
     updateHeroAura(g, 1); expect(f.hp).toBeGreaterThan(100); expect(friendlyMitigation(g, f.pos)).toBe(.85);
     g.hero.pos.x = 900; expect(friendlyMitigation(g, f.pos)).toBe(1); const before = f.hp; updateHeroAura(g, 1); expect(f.hp).toBe(before);
   });
@@ -184,5 +186,84 @@ describe('Campaign integration', () => {
     const result = runHeadless(CRAWLSPACE, { heroId: id, difficulty: 'apprentice', microJeff: true, maxSeconds: 1000 });
     expect(result.won).toBe(true); expect(result.game.stats.jeffDamage).toBeGreaterThan(0);
     expect(result.game.hero.id).toBe(id); expect(result.livesLeft).toBeGreaterThan(0);
+  });
+});
+
+describe('CBJ, Doni and Jayjay playable kits', () => {
+  it('keeps the requested aura names verbatim', () => {
+    expect(HEROES.cbj.aura.name).toBe('trucks n taters');
+    expect(HEROES.doni.aura.name).toBe('guided fishing tour');
+    expect(HEROES.jayjay.aura.name).toBe('would beat ronda rousey in a 1v1 easily');
+  });
+  it('CBJ buffs nearby towers once per frame, heals living crew, and loses the aura when downed', () => {
+    const g = field('cbj'); g.placeTower(0, 'torch'); g.placeTower(1, 'torch');
+    g.reinforce({ x: 320, y: 250 }); const s = g.heroSummons[0]!; s.hp = 100;
+    updateAuras(g, 1); expect(s.hp).toBe(106); expect(g.buffs.get(g.towers[0]!.id)?.dmg).toBe(.1);
+    expect(g.buffs.get(g.towers[1]!.id)).toBeUndefined();
+    updateAuras(g, 1); expect(g.buffs.get(g.towers[0]!.id)?.dmg).toBe(.1);
+    g.hero.pos.x = 900; updateAuras(g, 1); expect(s.hp).toBe(112); expect(g.buffs.get(g.towers[0]!.id)).toBeUndefined();
+    g.hero.pos.x = 300; s.hp = 0; updateAuras(g, 1); expect(s.hp).toBe(0);
+    g.damageHero(100000); updateAuras(g, 1); expect(g.buffs.size).toBe(0);
+  });
+  it('Loaded Tater waits for contact, splashes nearby targets, and Fully Loaded delivers nine shots', () => {
+    const g = field('cbj'), a = enemy(g, 480), b = enemy(g, 500), far = enemy(g, 700); g.hero.attackTimer = 100;
+    expect(fire(g, 0)).toBe(true); updateHero(g, .4);
+    expect(g.heroMissiles[0]?.kind).toBe('tater'); expect(a.hp).toBe(a.maxHp);
+    updateHeroMissiles(g, 1); expect(a.maxHp - a.hp).toBe(90); expect(b.maxHp - b.hp).toBe(90); expect(far.hp).toBe(far.maxHp);
+    step(g, .5); cast(g, 4); const rain = g.heroZones.find(z => z.kind === 'taterRain')!;
+    expect(rain).toBeDefined(); step(g, 4); expect(rain.ticks).toBe(9); expect(g.heroZones).toHaveLength(0);
+    step(g, 2); expect(g.heroMissiles).toHaveLength(0);
+  });
+  it('Doni aura affects ground targets only and immediately stops after leaving range', () => {
+    const g = field('doni'), ground = enemy(g), air = enemy(g, 350, 'steamWisp');
+    updateAuras(g, .01); expect(ground.slow).toBe(.12); expect(ground.markBonus).toBe(.1); expect(air.slow).toBe(0);
+    expect(applyDamage(g, ground, 100, 'physical', 'jeff')).toBeCloseTo(110);
+    g.hero.pos.x = 900; updateAuras(g, .01); expect(ground.slow).toBe(0); expect(ground.marked).toBe(false); expect(ground.markBonus).toBe(0);
+    g.hero.pos.x = 300; g.damageHero(100000); updateAuras(g, .01); expect(ground.marked).toBe(false);
+  });
+  it('Set the Hook pulls only at impact, with boss resistance and no airborne displacement', () => {
+    for (const [id, pull] of [['sludge', 60], ['rogueBoiler', 12], ['steamWisp', 0]] as const) {
+      const g = field('doni'), e = enemy(g, 560, id); g.hero.attackTimer = 100;
+      const before = e.progress; expect(fire(g, 0)).toBe(true); updateHero(g, .5);
+      expect(e.progress).toBe(before); expect(e.hp).toBe(e.maxHp); expect(g.heroMissiles[0]?.kind).toBe('hook');
+      updateHeroMissiles(g, 2); expect(e.progress).toBeCloseTo(before - pull); expect(e.hp).toBeLessThan(e.maxHp);
+      expect(e.stun).toBe(pull ? 1.2 : 0);
+    }
+  });
+  it('The Big One hooks three distinct targets and the net expires without lingering slows', () => {
+    const g = field('doni'), es = [enemy(g, 480), enemy(g, 530), enemy(g, 580)]; g.hero.attackTimer = 100;
+    expect(fire(g, 4)).toBe(true); updateHero(g, .6);
+    for (let i = 0; i < 3; i++) updateHeroMissiles(g, 1);
+    expect(es.map(e => e.maxHp - e.hp)).toEqual([150, 105, 73.5]); expect(g.heroMissiles).toHaveLength(0);
+    step(g, .7); cast(g, 1); updateAuras(g, .1); expect(es[0]!.slow).toBe(.55);
+    step(g, 7); expect(g.heroZones).toHaveLength(0); updateAuras(g, .01); expect(es[0]!.slow).toBe(.12);
+    g.hero.pos.x = 900; updateAuras(g, .01); expect(es[0]!.slow).toBe(0);
+  });
+  it('Jayjay aura does not extend stronger timed armor debuffs and protects nearby companions', () => {
+    const g = field('jayjay'), e = enemy(g, 340, 'scaleCrab'); e.armorShred = .45; e.shredTimer = .1;
+    updateAuras(g, .01); expect(e.auraArmorShred).toBe(.15);
+    updateEnemies(g, .2); expect(e.armorShred).toBe(0); expect(e.auraArmorShred).toBe(.15);
+    expect(friendlyMitigation(g, e.pos)).toBe(.8);
+    g.hero.pos.x = 900; updateAuras(g, .01); expect(e.auraArmorShred).toBe(0); expect(friendlyMitigation(g, e.pos)).toBe(1);
+    g.hero.pos.x = 300; g.damageHero(100000); updateAuras(g, .01); expect(e.auraArmorShred).toBe(0);
+  });
+  it('Unanimous Decision has three separate contacts, with no early or duplicate damage', () => {
+    const g = field('jayjay'), e = enemy(g); g.hero.attackTimer = 100;
+    expect(fire(g, 4)).toBe(true); updateHero(g, .2); expect(e.hp).toBe(e.maxHp);
+    updateHero(g, .1); expect(e.maxHp - e.hp).toBe(75);
+    updateHero(g, .5); expect(e.maxHp - e.hp).toBe(75);
+    updateHero(g, .1); expect(e.maxHp - e.hp).toBe(150);
+    updateHero(g, .6); expect(e.maxHp - e.hp).toBe(225); expect(e.stun).toBe(1.7);
+    updateHero(g, .31); expect(e.maxHp - e.hp).toBe(225); expect(g.hero.cast).toBeUndefined();
+  });
+  it('Jayjay rejects airborne punch targets without spending the cooldown', () => {
+    const g = field('jayjay'), e = enemy(g, 340, 'steamWisp');
+    expect(g.useAbility(0, { pos: e.pos, enemyId: e.id })).toBe(false); expect(g.hero.clampCooldown).toBe(0);
+  });
+  it.each(['cbj', 'doni', 'jayjay'] as const)('%s releases holds on defeat and can redeploy after recovery', id => {
+    const g = field(id), e = enemy(g, 325); step(g, .2); expect(e.heldBy?.kind).toBe('hero');
+    g.damageHero(100000); expect(e.heldBy).toBeNull(); expect(g.hero.downed).toBeGreaterThan(0);
+    step(g, HEROES[id].respawn + .1); expect(g.hero.downed).toBeLessThanOrEqual(0); expect(g.hero.deployed).toBe(false);
+    expect(g.deployHero(g.map.jeffStart)).toBe(true); expect(g.hero.hp).toBe(g.hero.maxHp);
   });
 });

@@ -7,6 +7,7 @@ import { artReady, ENEMY_ART, paintedSprite, TOWER_ART } from './art';
 import { PROPERTY_COLOR } from '../data/leakProperties';
 import { leakMax, leakRemaining } from '../sim/combat';
 import { BUILD_TIME } from '../sim/game';
+import { pointLight } from './spectacle';
 import { castShadow, celFill, disc, glow, metalFill, noGlow, pulseRing, radial, rgba, stampText } from './ink';
 
 type Ctx = CanvasRenderingContext2D;
@@ -69,7 +70,7 @@ export function paintedEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number
   const { x, y } = e.pos;
   const boss = e.def.traits.includes('boss');
   const height = Math.max(37, e.def.radius * (boss ? 3 : 2.8));
-  const moving = e.heldBy === null && e.stun <= 0;
+  const moving = e.heldBy === null && e.stun <= 0 && !e.ventCast && !e.dead;
   const stride = Math.sin(e.wobble * 1.7);
   const lift = e.def.flying ? 12 + Math.sin(time * 5 + e.id) * 3 : moving ? Math.abs(stride) * 2.2 : 0;
   castShadow(ctx, x, y + 7, height * 0.31, height * 0.1, 0.28);
@@ -77,6 +78,11 @@ export function paintedEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number
   if (!e.dead && e.properties.includes('regen') && e.burnTimer <= 0) pulseRing(ctx, x, y + 5, height * 0.48, '#81c784', 0.5, 1.6);
   if (!e.dead && e.properties.includes('mineral')) pulseRing(ctx, x, y + 5, height * 0.36, '#d7ccc8', 0.45, 1.2);
   ctx.save(); ctx.translate(x, y + 11 - lift);
+  if (!e.dead && e.hitFlash > 0) {
+    const flinch = Math.sin(Math.min(1, e.hitFlash / .16) * Math.PI);
+    ctx.translate((dir?.x ?? 1) > 0 ? -flinch * 2 : flinch * 2, flinch);
+    ctx.scale(1 + flinch * .035, 1 - flinch * .05);
+  }
   if (e.dead) {
     const k = Math.max(0, Math.min(1, e.deathAge / 0.46));
     ctx.globalAlpha = k * (e.phased ? 0.32 : 1);
@@ -89,6 +95,26 @@ export function paintedEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number
   const phase = 1 - (e.attackSwing ?? 0) / .64;
   monster(ctx, index, height, e.wobble * 1.7, moving, time + e.id, phase, (e.attackSwing ?? 0) > 0, e.def.flying, ['drip','sludge','steamWisp','airlock','biofilm','vacuumBreak'].includes(e.def.id));
   ctx.restore();
+  if (!e.dead && !e.phased) {
+    const fluid = ['drip', 'sludge', 'steamWisp', 'biofilm', 'vacuumBreak'].includes(e.def.id);
+    if (fluid || e.def.flying) {
+      const color = e.def.id === 'biofilm' ? '#bde78c' : e.def.flying ? '#d0bbff' : '#8ddfe9';
+      pointLight(ctx, x, y - height * .43 - lift, height * .55, color, .17);
+      for (let i = 0; i < 3; i++) {
+        const p = (time * .55 + e.id * .13 + i / 3) % 1;
+        ctx.save(); ctx.globalAlpha = Math.sin(p * Math.PI) * .5;
+        disc(ctx, x + Math.sin(i * 2.7 + e.id) * height * .3, y + 6 - p * height * .6 - lift, .7 + p, color); ctx.restore();
+      }
+    }
+    if (boss || e.burnTimer > 0) {
+      pointLight(ctx, x, y - height * .3, height * .65, '#ff985e', .2 + Math.sin(time * 8) * .06);
+      for (let i = 0; i < 4; i++) {
+        const age = (time * .8 + i / 4) % 1;
+        ctx.save(); ctx.globalAlpha = Math.sin(age * Math.PI) * .28;
+        disc(ctx, x + Math.sin(time + i * 1.7) * 8, y - height * .75 - age * 23, 3 + age * 5, '#c4aea1'); ctx.restore();
+      }
+    }
+  }
   if (!e.dead && (leakRemaining(e) < leakMax(e) || e.heldBy || boss || e.properties.length > 0)) {
     health(ctx, x, y - height - lift + 5, boss ? 65 : 23, leakRemaining(e) / leakMax(e), boss ? '#f27e55' : '#83ce5b');
     if (e.maxShell > 0) {
@@ -126,9 +152,8 @@ export function paintedEnemy(ctx: Ctx, e: Enemy, time: number, dir?: { x: number
 }
 
 export function paintedTower(ctx: Ctx, t: Tower, time: number): boolean {
-  const recruitRow = t.def.id === 'apprentices' ? 0 : t.def.id === 'jayjay' ? 1 : t.def.id === 'cbjDoni' ? 2 : -1;
-  const index = recruitRow >= 0 ? recruitRow * 4 + [0, 0, 1, 2, 2, 3][t.level]! : TOWER_ART[t.def.id];
-  if (index === undefined || !artReady(recruitRow >= 0 ? 'recruitTowers' : index >= 12 ? 'towersAdvanced' : 'towers')) return false;
+  const index = TOWER_ART[t.def.id];
+  if (index === undefined || !artReady(index >= 12 ? 'towersAdvanced' : 'towers')) return false;
   const { x, y } = t.pos;
   const elite = !!t.specialization;
   const height = 65 + t.level * 8 + (elite ? 10 : 0);
@@ -147,16 +172,15 @@ export function paintedTower(ctx: Ctx, t: Tower, time: number): boolean {
   const recoil = Math.sin(Math.PI * Math.min(1, Math.max(0, t.recoil) / .28));
   // Face left/right and lean toward the prey so painted buildings feel aimed.
   if (gun) {
-    const side = Math.cos(t.facing) >= 0 ? 1 : -1;
-    ctx.scale(side, 1);
-    ctx.rotate(Math.sin(t.facing) * 0.12);
+    // The heavy building stays planted; only the mechanism tracks the target.
+    ctx.rotate(-Math.cos(t.drawFacing ?? t.facing) * recoil * .015);
   }
   ctx.scale(1 + recoil * 0.025, 1 - recoil * 0.05);
   ctx.rotate(-Math.cos(t.facing) * recoil * 0.04);
   const windup = (t.windup ?? 0) / .16;
   ctx.translate(0, -Math.sin(windup * Math.PI) * 1.5);
   towerArmor(ctx, t, height, false);
-  paintedSprite(ctx, recruitRow >= 0 ? 'recruitTowers' : 'towers', index, 0, 0, height, height * 1.2);
+  paintedSprite(ctx, 'towers', index, 0, 0, height, height * 1.2);
   towerArmor(ctx, t, height, true);
   if (gun) drawPaintedTurret(ctx, t, height, recoil);
   ctx.restore();
@@ -188,9 +212,7 @@ export function paintedTower(ctx: Ctx, t: Tower, time: number): boolean {
 
 /** Rotating brass gun / nozzle drawn in local tower space (origin at feet). */
 function drawPaintedTurret(ctx: Ctx, t: Tower, height: number, recoil: number): void {
-  const side = Math.cos(t.facing) >= 0 ? 1 : -1;
-  // Undo the body flip so the barrel aims in world angle, not mirrored local space.
-  const aim = side > 0 ? t.facing : Math.PI - t.facing;
+  const aim = t.drawFacing ?? t.facing;
   const pivotY = -height * 0.48;
   const kick = recoil * 7;
   ctx.save();

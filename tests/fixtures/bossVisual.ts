@@ -11,9 +11,9 @@ import { Hud } from '../../src/ui/play/hud';
 
 export function mountBossVisual(root: HTMLElement): void {
   const game = new Game({ ...HEAT_PLANT, startMoney: 10000, allowedTowers: TOWER_ORDER }, {
-    difficulty: DIFFICULTIES.journeyman, mods: neutralModifiers(), manualStart: true, loadout: ['apprentices', 'torch', 'heatExchanger', 'vent', 'barricade'],
+    difficulty: DIFFICULTIES.journeyman, mods: neutralModifiers(), manualStart: true, loadout: ['washer', 'torch', 'heatExchanger', 'vent', 'barricade'],
   });
-  game.placeTower(9, 'apprentices');
+  game.placeTower(9, 'washer');
   const academy = game.towers[0]!;
   game.upgradeTower(academy.id); game.upgradeTower(academy.id); game.specializeTower(academy.id, 'power');
   game.buySpecialistAbility(academy.id, 'mend');

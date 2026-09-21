@@ -2,6 +2,8 @@ import { HEROES } from '../data/heroes';
 import type { Game } from '../sim/game';
 import type { Hero, HeroSummon } from '../sim/state';
 import { heroFrame } from './art';
+import { attackPose, humanoid } from './animation';
+import { pointLight } from './spectacle';
 import { shockwave, starBurst } from './fx';
 import { castShadow, disc, glow, noGlow, radial, rgba, stampText } from './ink';
 
@@ -14,7 +16,7 @@ function bar(ctx: Ctx, x: number, y: number, width: number, ratio: number, color
 
 export function drawNewHero(ctx: Ctx, h: Hero, time: number, showBar = true): boolean {
   const id = h.id; if (!id || id === 'jeff') return false;
-  const def = HEROES[id], size = id === 'mike' ? 88 : id === 'becbec' ? 82 : 74;
+  const def = HEROES[id], size = id === 'jayjay' ? 90 : id === 'mike' ? 88 : id === 'becbec' ? 82 : id === 'doni' ? 78 : 74;
   castShadow(ctx, h.pos.x, h.pos.y + 13, id === 'mike' ? 38 : id === 'becbec' ? 26 : 18, 6, .32);
   ctx.save(); ctx.translate(h.pos.x, h.pos.y + 18); ctx.scale(h.facing, 1);
   if (h.downed > 0) { ctx.globalAlpha = .4; ctx.rotate(-1.1); }
@@ -25,6 +27,7 @@ export function drawNewHero(ctx: Ctx, h: Hero, time: number, showBar = true): bo
     row = id === 'mike' ? (h.cast.slot === 0 || h.cast.slot === 4 ? 1 : 2) : id === 'chris' ? (h.cast.slot === 1 ? 2 : 1) : id === 'becbec' ? (h.cast.slot === 1 ? 2 : 1) : 2;
     if (id === 'chris' && h.cast.slot === 2) phase = Math.min(.999, phase * 3 % 1);
     if (id === 'becbec' && h.cast.slot === 4) phase = Math.min(.999, phase * 5 % 1);
+    if (id === 'jayjay' && h.cast.slot === 4) phase = Math.min(.999, phase * 3 % 1);
   } else if (h.swing > 0) {
     row = 1; phase = 1 - h.swing / (h.swingDuration ?? def.swingTime);
   } else if (h.moving || (h.moveBlend ?? 0) > .05) {
@@ -37,8 +40,32 @@ export function drawNewHero(ctx: Ctx, h: Hero, time: number, showBar = true): bo
     const breath = Math.sin(time * 2.5) * .009;
     ctx.scale(1 - breath * .2, 1 + breath);
   }
-  const painted = heroFrame(ctx, id, row, phase, size, loop);
+  if (h.cast || h.swing > 0) {
+    const weight = attackPose(phase);
+    ctx.translate(weight * (id === 'mike' ? 4 : 2.5), Math.abs(weight) * 1.4);
+    ctx.rotate(weight * (id === 'mike' ? -.025 : -.045));
+  }
+  const crewHero = id === 'cbj' || id === 'doni' || id === 'jayjay';
+  const painted = crewHero
+    ? humanoid(ctx, 'recruits', id === 'jayjay' ? 4 : id === 'cbj' ? 5 : 6, size, {
+      time, walk: h.walkPhase ?? 0, moving: h.downed <= 0 && !!h.moving, walkWeight: h.moveBlend ?? 0,
+      attacking: h.downed <= 0 && (!!h.cast || h.swing > 0), phase,
+    })
+    : heroFrame(ctx, id, row, phase, size, loop);
   if (!painted) { ctx.fillStyle = def.color; ctx.beginPath(); ctx.roundRect(-15, -45, 30, 40, 6); ctx.fill(); disc(ctx, 0, -50, 11, '#d6a27c'); }
+  if (id === 'doni') {
+    // The rod loads in anticipation, releases at contact, then settles with the full pose.
+    const load = h.cast || h.swing > 0 ? attackPose(phase) : Math.sin(time * 2) * .025;
+    ctx.save(); ctx.translate(13, -size * .44); ctx.rotate(-.5 + load * .95);
+    ctx.strokeStyle = '#563e2e'; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.moveTo(0, 9); ctx.quadraticCurveTo(4 - load * 6, -22, 1 - load * 12, -51); ctx.stroke();
+    ctx.strokeStyle = '#e9d59a'; ctx.lineWidth = 1.1; ctx.stroke();
+    ctx.strokeStyle = '#d3efea88'; ctx.lineWidth = .65; ctx.beginPath(); ctx.moveTo(1 - load * 12, -51); ctx.quadraticCurveTo(22, -20, 13, 0); ctx.stroke();
+    disc(ctx, 0, 5, 3.5, '#aabfc0'); ctx.restore();
+  }
+  if (id === 'cbj' && (h.cast || h.swing > 0) && phase < .48) {
+    ctx.save(); ctx.translate(18 - attackPose(phase) * 8, -size * .43); ctx.rotate(phase * 3);
+    tater(ctx, 6); ctx.restore();
+  }
   // Motion trails are attached to the real cast/attack phase, never a looping idle flash.
   if (h.cast && ['bob', 'becbec'].includes(id)) {
     const phase = 1 - h.cast.left / h.cast.duration;
@@ -126,7 +153,7 @@ export function drawHeroAura(ctx: Ctx, game: Game, selected: boolean): void {
 
 export function drawHeroZones(ctx: Ctx, game: Game): void {
   for (const z of game.heroZones) {
-    const color = z.kind === 'gas' ? '#a5bb64' : z.kind === 'rain' ? '#e0bd8a' : z.kind === 'review' ? '#f39882' : z.kind === 'sand' ? '#d2b48c' : '#e9d69f';
+    const color = z.kind === 'gas' ? '#a5bb64' : z.kind === 'net' ? '#71d5ce' : z.kind === 'rain' || z.kind === 'taterRain' ? '#e0bd8a' : z.kind === 'review' ? '#f39882' : z.kind === 'sand' ? '#d2b48c' : '#e9d69f';
     ctx.save(); ctx.globalAlpha = Math.min(1, z.left * 2); ctx.strokeStyle = rgba(color, .55); ctx.lineWidth = 2;
     if (z.kind === 'review') {
       for (const e of game.enemies) if (z.targetIds?.includes(e.id)) {
@@ -160,8 +187,20 @@ export function drawHeroZones(ctx: Ctx, game: Game): void {
         ctx.beginPath(); ctx.moveTo(z.pos.x, y - 17); ctx.lineTo(z.pos.x, y - 5); ctx.moveTo(z.pos.x - 6, y - 11); ctx.lineTo(z.pos.x + 6, y - 11); ctx.stroke();
         radial(ctx, z.pos.x, y - 10, 2, 28, '#ffe082', .25 * born);
       }
-      if (z.kind === 'rain') {
-        stampText(ctx, 'PLUNGER RAIN', z.pos.x, z.pos.y - z.radius - 6, { size: 10, color });
+      if (z.kind === 'net') {
+        ctx.save(); ctx.beginPath(); ctx.arc(z.pos.x, z.pos.y, z.radius * (.85 + born * .15), 0, TAU); ctx.clip();
+        ctx.translate(z.pos.x, z.pos.y); ctx.rotate(Math.PI / 4);
+        ctx.strokeStyle = '#9be0cb66'; ctx.lineWidth = 1;
+        for (let i = -z.radius; i <= z.radius; i += 17) {
+          const ripple = Math.sin(game.time * 2.2 + i * .045) * 2;
+          ctx.beginPath(); ctx.moveTo(i, -z.radius); ctx.quadraticCurveTo(i + ripple, 0, i, z.radius); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(-z.radius, i); ctx.quadraticCurveTo(0, i + ripple, z.radius, i); ctx.stroke();
+        }
+        ctx.restore();
+        stampText(ctx, 'CAST A WIDE NET', z.pos.x, z.pos.y - z.radius - 6, { size: 10, color });
+      }
+      if (z.kind === 'rain' || z.kind === 'taterRain') {
+        stampText(ctx, z.kind === 'rain' ? 'PLUNGER RAIN' : 'FULLY LOADED', z.pos.x, z.pos.y - z.radius - 6, { size: 10, color });
         for (let i = 0; i < 10; i++) {
           const p = (game.time * 1.2 + i * .1) % 1;
           ctx.globalAlpha = Math.sin(p * Math.PI) * .35;
@@ -176,26 +215,48 @@ export function drawHeroZones(ctx: Ctx, game: Game): void {
   }
 }
 
-export function drawHeroMissiles(ctx: Ctx, game: Game): void {
+export function drawHeroMissiles(ctx: Ctx, game: Game, alpha = 1): void {
   for (const p of game.heroMissiles) {
-    const phase = Math.min(1, p.age / p.duration), arc = Math.sin(phase * Math.PI) * (p.kind === 'golf' ? 17 : 26);
-    const x = p.pos.x, y = p.pos.y - arc;
+    const color = p.kind === 'hook' ? '#8be6dd' : p.kind === 'tater' ? '#efbb68' : p.kind === 'golf' ? '#ffedba' : '#edab82';
+    const age = Math.max(0, p.age - (1 - alpha) / 60), phase = Math.min(1, age / p.duration), arc = Math.sin(phase * Math.PI) * (p.kind === 'golf' ? 17 : 26);
+    const x = p.prev.x + (p.pos.x - p.prev.x) * alpha, groundY = p.prev.y + (p.pos.y - p.prev.y) * alpha, y = groundY - arc;
     const angle = Math.atan2(p.goal.y - p.from.y - Math.cos(phase * Math.PI) * 70, p.goal.x - p.from.x);
     ctx.save();
+    castShadow(ctx, x, groundY + 6, p.kind === 'golf' ? 5 : 9, 2.5, .23);
+    pointLight(ctx, x, y, 25, color, .6);
+    if (p.kind === 'hook') {
+      ctx.strokeStyle = '#c4eee18a'; ctx.lineWidth = .8;
+      ctx.beginPath(); ctx.moveTo(p.from.x, p.from.y);
+      ctx.quadraticCurveTo((p.from.x + x) / 2, (p.from.y + y) / 2 + 18 * (1 - phase), x, y); ctx.stroke();
+    }
+    ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.globalAlpha = .55;
+    ctx.beginPath();
+    for (let i = 0; i <= 10; i++) {
+      const t = Math.max(0, phase - .22 + i * .022);
+      const tx = p.from.x + (p.goal.x - p.from.x) * t, ty = p.from.y + (p.goal.y - p.from.y) * t - Math.sin(t * Math.PI) * (p.kind === 'golf' ? 17 : 26);
+      if (!i) ctx.moveTo(tx, ty); else ctx.lineTo(tx, ty);
+    }
+    ctx.stroke(); ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 1; i <= 6; i++) {
       ctx.globalAlpha = .28 - i * .035;
-      disc(ctx, x - Math.cos(angle) * i * 7, y - Math.sin(angle) * i * 7, (p.kind === 'golf' ? 4 : 3) * (1 - i * .1), p.kind === 'golf' ? '#fff9db' : '#e0b67a');
+      disc(ctx, x - Math.cos(angle) * i * 7, y - Math.sin(angle) * i * 7, (p.kind === 'golf' ? 4 : 3) * (1 - i * .1), color);
     }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = p.kind === 'golf' ? '#fff9dbb0' : '#e0b67a88'; ctx.lineWidth = p.kind === 'golf' ? 2.6 : 1.6;
+    ctx.strokeStyle = rgba(color, .6); ctx.lineWidth = p.kind === 'golf' ? 2.6 : 1.6;
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - Math.cos(angle) * 28, y - Math.sin(angle) * 28); ctx.stroke();
-    ctx.translate(x, y); ctx.rotate(angle);
+    ctx.translate(x, y); ctx.rotate(angle + (p.kind === 'plunger' ? Math.sin(phase * TAU) * .35 : 0));
     if (p.kind === 'golf') {
       glow(ctx, '#fff9e8', 12);
       disc(ctx, 0, 0, 4.4, '#fff9e8'); disc(ctx, -1, 1, .9, '#a7b7b7');
       noGlow(ctx);
+    } else if (p.kind === 'tater') {
+      ctx.rotate(age * 7); tater(ctx, p.splash > 0 ? 9 : 6);
+    } else if (p.kind === 'hook') {
+      ctx.strokeStyle = '#173d45'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(5, 0); ctx.bezierCurveTo(13, 0, 13, 11, 4, 11); ctx.lineTo(3, 6); ctx.stroke();
+      ctx.strokeStyle = '#edf9f1'; ctx.lineWidth = 2; ctx.stroke();
+      disc(ctx, -9, 0, 2.5, '#e38365');
     } else {
       ctx.strokeStyle = '#493929'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-16, 0); ctx.lineTo(6, 0); ctx.stroke();
       ctx.strokeStyle = '#d1aa69'; ctx.lineWidth = 2.5; ctx.stroke();
@@ -206,6 +267,13 @@ export function drawHeroMissiles(ctx: Ctx, game: Game): void {
     }
     ctx.restore();
   }
+}
+
+function tater(ctx: Ctx, size: number): void {
+  ctx.fillStyle = '#ca8747'; ctx.strokeStyle = '#6b462b'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.ellipse(0, 0, size, size * .68, -.2, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffe0a0'; ctx.beginPath(); ctx.ellipse(-size * .16, -size * .24, size * .63, size * .2, -.2, 0, TAU); ctx.fill();
+  for (let i = 0; i < 3; i++) disc(ctx, (i - 1) * size * .5, Math.sin(i * 2.4) * size * .3, .8, '#7f552f');
 }
 
 export function drawHeroVisuals(ctx: Ctx, game: Game): void {
@@ -220,6 +288,21 @@ export function drawHeroVisuals(ctx: Ctx, game: Game): void {
       }
       radial(ctx, fx.to.x, fx.to.y, 2, fx.radius + 18, fx.color, k * .75);
       starBurst(ctx, fx.to.x, fx.to.y, fx.color, k, 8, 14 + fx.radius);
+    } else if (fx.kind === 'current') {
+      const radius = fx.radius * (1 - k * k);
+      for (let i = 0; i < 3; i++) {
+        ctx.globalAlpha = k * (.5 - i * .12); ctx.lineWidth = 8 - i * 2; ctx.strokeStyle = i === 0 ? '#a7efe2' : '#419eae';
+        ctx.beginPath(); ctx.ellipse(fx.from.x, fx.from.y + 8, Math.max(1, radius - i * 11), Math.max(1, (radius - i * 11) * .56), 0, 0, TAU); ctx.stroke();
+      }
+      for (let i = 0; i < 22; i++) {
+        const angle = i * 2.4, r = radius * (.78 + (i % 3) * .1);
+        ctx.globalAlpha = k * .8;
+        disc(ctx, fx.from.x + Math.cos(angle) * r, fx.from.y + Math.sin(angle) * r * .56 - Math.sin(phase * Math.PI) * (8 + i % 4 * 5), 1.1 + k * 1.6, i % 2 ? '#ccfff1' : fx.color);
+      }
+    } else if (fx.kind === 'hook') {
+      ctx.globalAlpha = k * .7; ctx.strokeStyle = '#c4eee1'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(fx.from.x, fx.from.y); ctx.quadraticCurveTo((fx.from.x + fx.to.x) / 2, (fx.from.y + fx.to.y) / 2 + phase * 18, fx.to.x, fx.to.y); ctx.stroke();
+      for (let i = 0; i < 5; i++) { const a = i * TAU / 5; disc(ctx, fx.to.x + Math.cos(a) * phase * 20, fx.to.y + Math.sin(a) * phase * 12, k * 2, fx.color); }
     } else if (fx.kind === 'saw' || fx.kind === 'golf' || fx.kind === 'punch') {
       const side = fx.to.x >= fx.from.x ? 1 : -1;
       ctx.globalCompositeOperation = 'lighter';

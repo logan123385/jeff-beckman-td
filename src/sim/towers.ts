@@ -42,6 +42,7 @@ export function updateAuras(game: Game, dt: number): void {
     e.marked = e.markHold > 0;
     e.markBonus = e.markHold > 0 ? Math.max(e.markBonus ?? 0, 0.45) : 0;
     e.haste = 0;
+    e.auraArmorShred = 0;
   }
 
   for (const t of game.towers) {
@@ -95,7 +96,6 @@ function applySupportAura(game: Game, t: Tower): void {
     case 'zoneValve':
     case 'torch':
     case 'washer':
-    case 'apprentices': case 'jayjay': case 'cbjDoni':
     case 'barricade':
     case 'vent':
     case 'pipeSnake':
@@ -150,7 +150,6 @@ function applyZoneAura(game: Game, t: Tower, dt: number): void {
     case 'thermostat':
     case 'torch':
     case 'washer':
-    case 'apprentices': case 'jayjay': case 'cbjDoni':
     case 'barricade':
     case 'vent':
     case 'pipeSnake':

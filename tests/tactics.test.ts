@@ -86,8 +86,10 @@ describe('Abilities produce distinct combat outcomes', () => {
     expect(strong.hp).toBeLessThan(strong.maxHp); expect(t.abilities!.deadeye!.cooldown).toBe(SPECIALIST_ABILITIES.deadeye.cooldown);
   });
   it('healing is capped and does not resurrect fallen crew or hero', () => {
-    const g = field(), t = specialist(g, 'apprentices'); g.buySpecialistAbility(t.id, 'mend');
-    const healthy = g.friendlies[0]!, dead = g.friendlies[1]!; healthy.hp -= 20; dead.hp = 0; dead.respawn = 9;
+    const g = field(), t = specialist(g, 'barricade'); g.buySpecialistAbility(t.id, 'mend');
+    g.reinforce({ ...t.pos });
+    const healthy = g.heroSummons[0]!, dead = { ...healthy, id: g.nextEntityId(), hp: 0 };
+    g.heroSummons.push(dead); healthy.hp -= 20;
     g.hero.hp = 0; g.hero.downed = 10; updateSpecialistAbilities(g, t, .01);
     expect(healthy.hp).toBe(healthy.maxHp); expect(dead.hp).toBe(0); expect(g.hero.hp).toBe(0);
   });
@@ -113,7 +115,7 @@ describe('Abilities produce distinct combat outcomes', () => {
     updateEnemies(g, 5); expect(foe.exposed).toBeUndefined();
   });
   it('groundbreaker displaces ground targets but never bosses or fliers', () => {
-    const g = field(), t = specialist(g, 'jayjay'); g.buySpecialistAbility(t.id, 'shockwave');
+    const g = field(), t = specialist(g, 'barricade'); g.buySpecialistAbility(t.id, 'shockwave');
     const ground = target(g), boss = target(g, 'rogueBoiler'), air = target(g, 'steamWisp');
     updateSpecialistAbilities(g, t, .01); expect(ground.progress).toBe(270); expect(boss.progress).toBe(285); expect(air.hp).toBe(air.maxHp);
   });

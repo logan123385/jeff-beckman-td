@@ -31,9 +31,6 @@ export const TOWER_ABILITIES: Partial<Record<TowerId, TowerAbilityDef>> = {
   thermostat: { name: 'Kick', blurb: 'Call for heat. Fire-rate pulse on the pad.', cooldown: 34, parts: 4, minLevel: 1 },
   dirtSep: { name: 'Grit Dump', blurb: 'Mineral splash across the ground run.', cooldown: 28, parts: 3, minLevel: 1 },
   zoneValve: { name: 'Lock', blurb: 'Stun the zone for a beat.', cooldown: 26, parts: 3, minLevel: 1 },
-  apprentices: { name: 'Overtime', blurb: 'Recruits swing faster and patch up.', cooldown: 36, parts: 4, minLevel: 1 },
-  jayjay: { name: 'Overtime', blurb: 'Jayjay patches up and holds harder.', cooldown: 36, parts: 4, minLevel: 1 },
-  cbjDoni: { name: 'Overtime', blurb: 'The garage goes double-time.', cooldown: 36, parts: 4, minLevel: 1 },
 };
 
 export function towerAbility(id: TowerId): TowerAbilityDef | undefined {

@@ -1,4 +1,6 @@
-import { actorArt, meshActor, attackSprite, walkSprite, artReady, type ActorSheet } from './art';
+import { actorArt, meshActor, attackSprite, walkSprite, artReady, blendPoses, type ActorSheet } from './art';
+import { ENEMIES } from '../data/enemies';
+import { ENEMY_ART } from './art';
 type Ctx = CanvasRenderingContext2D;
 const ease = (x: number) => x * x * (3 - 2 * x);
 /** Continuous anticipation, contact, follow-through and recovery, sampled at render time. */
@@ -18,21 +20,21 @@ export function humanoid(ctx: Ctx, sheet: ActorSheet, index: number, height: num
   const art=actorArt(sheet,index,height);if(!art)return false;
   if((m.cast??0)>.02&&sheet==='units'&&artReady('crewAttacks')){
     const amount=m.cast!;
-    ctx.save();ctx.globalAlpha*=1-amount;humanoid(ctx,sheet,index,height,{...m,cast:0,attacking:false,moving:false});ctx.restore();
-    ctx.save();ctx.globalAlpha*=amount;attackSprite(ctx,0,amount*.26,height);ctx.restore();return true;
+    blendPoses(ctx,height,amount,(c,next)=>{if(next)attackSprite(c,0,amount*.26,height);else humanoid(c,sheet,index,height,{...m,cast:0,attacking:false,moving:false});});return true;
   }
   if(m.attacking&&artReady('crewAttacks')){
     const opacity=Math.min(1,m.phase/.2,(1-m.phase)/.22);
-    if(opacity<1){ctx.save();ctx.globalAlpha*=1-opacity;humanoid(ctx,sheet,index,height,{...m,attacking:false,moving:false,tier:0});ctx.restore();}
-    ctx.save();ctx.globalAlpha*=Math.max(0,opacity);
-    attackSprite(ctx,sheet==='units'?0:index===4?1:index===5?2:index===6?3:4,m.phase,height,sheet==='recruits'&&index<4?index:0);
-    ctx.restore();if((m.tier??0)>0)equipment(ctx,art.width,height,m.tier!,attackPose(m.phase));return true;
+    ctx.save(); const strike=attackPose(m.phase); ctx.translate(strike*1.7,Math.abs(strike)*.8); ctx.rotate(-strike*.025);
+    blendPoses(ctx,height,opacity,(c,next)=>{
+      if(next)attackSprite(c,sheet==='units'?0:index===4?1:index===5?2:index===6?3:4,m.phase,height,sheet==='recruits'&&index<4?index:0);
+      else humanoid(c,sheet,index,height,{...m,attacking:false,moving:false,tier:0});
+    });
+    ctx.restore();if((m.tier??0)>0)equipment(ctx,art.width,height,m.tier!,strike);return true;
   }
 
   if(m.moving&&artReady('crewWalk')&&(sheet==='units'||index>=4&&index<=6)){
     const weight=m.walkWeight??1;
-    if(weight<1){ctx.save();ctx.globalAlpha*=1-weight;humanoid(ctx,sheet,index,height,{...m,moving:false,tier:0});ctx.restore();}
-    ctx.save();ctx.globalAlpha*=weight;walkSprite(ctx,sheet==='units'?0:index-3,m.walk,height);ctx.restore();
+    blendPoses(ctx,height,weight,(c,next)=>{if(next)walkSprite(c,sheet==='units'?0:index-3,m.walk,height);else humanoid(c,sheet,index,height,{...m,moving:false,tier:0});});
     if((m.tier??0)>0)equipment(ctx,art.width,height,m.tier!,0);return true;
   }
   const frame=m.attacking?Math.round(m.phase*48):m.moving?Math.round(((m.walk%(Math.PI*2)+Math.PI*2)%(Math.PI*2))/(Math.PI*2)*48):0;
@@ -85,36 +87,69 @@ function equipment(ctx: Ctx, w: number, h: number, tier: number, hit: number): v
   if (tier >= 5) { ctx.fillStyle = '#ffd36d'; ctx.beginPath();ctx.arc(0,-h*.55,2.4,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0; }
   void hit;
 }
-/** Monsters use a continuous deforming mesh: independent feet/claws and traveling body motion. */
+const creatureCache = new Map<string, HTMLCanvasElement>();
+/** Connected, skinned silhouettes: gaits never split into independently sliding strips. */
 export function monster(ctx: Ctx, index: number, height: number, walk: number, moving: boolean, time: number, phase: number, attacking: boolean, flying: boolean, fluid: boolean): void {
   const art = actorArt('units', index, height); if (!art) return;
+  const density = Math.min(2, window.devicePixelRatio || 1);
   const strike = attacking ? attackPose(phase) : 0;
-  const strips = 18;
-  for (let i = 0; i < strips; i++) {
-    const y = i / strips, amount = Math.sin(y * Math.PI);
-    const wave = Math.sin(time * (flying ? 9 : 4) + y * 5);
-    ctx.save();
-    ctx.translate(strike * height * .13 * (1-y) + (fluid ? wave * 2.5 * amount : 0), 0);
-    const stretch = 1 + (fluid ? wave * .06 : flying ? Math.sin(time*18)*.045*amount : 0);
-    ctx.scale(stretch,1);
-    if (y > .63 && !fluid && !flying) {
-      const stride = moving ? Math.sin(walk) * height * .04 : 0;
-      ctx.save(); ctx.translate(stride, -Math.max(0, stride)*.4); art.part(ctx,0,y,.51,Math.min(1/strips+.002,1-y)); ctx.restore();
-      ctx.translate(-stride,-Math.max(0,-stride)*.4);art.part(ctx,.5,y,.5,Math.min(1/strips+.002,1-y));
-    } else art.part(ctx,0,y,1,Math.min(1/strips+.002,1-y));
-    ctx.restore();
-  }
+  const cycle = fluid ? time * 3.7 : flying ? time * 14 : moving ? walk : time * 2;
+  const at = ((cycle / (Math.PI * 2) % 1) + 1) % 1 * 40, frame = Math.floor(at);
+  const pose = (n: number) => {
+    const key = `${index}:${height}:${density}:${moving && !fluid && !flying ? 'walk' : 'idle'}:${n}`;
+    let image = creatureCache.get(key);
+    if (image) return image;
+    image = document.createElement('canvas'); image.width = Math.ceil(Math.max(height * 1.6, art.width * 1.4) * density); image.height = Math.ceil(height * 1.6 * density);
+    const c = image.getContext('2d')!; c.scale(density, density); c.translate(image.width / (2 * density), height * 1.35);
+    const step = n / 40 * Math.PI * 2;
+    meshActor(c, 'units', index, height, (x, y) => {
+      const edge = Math.abs(x - .5) * 2, feet = smooth((y - .55) / .4);
+      let xx = x, yy = y;
+      if (fluid) {
+        const wave = Math.sin(step + y * 5.5);
+        xx += wave * .055 * Math.sin(y * Math.PI);
+        yy += Math.cos(step + x * 3) * .022 * (1 - y);
+      } else if (flying) {
+        // Wing tips hinge from the thorax while the head and body remain stable.
+        const wing = smooth((edge - .22) / .65) * (1 - smooth((y - .72) / .2));
+        xx += (x - .5) * Math.sin(step) * .16 * wing;
+        yy += Math.sin(step) * .14 * wing;
+      } else {
+        const side = x < .5 ? 1 : -1, gait = moving ? Math.sin(step) : 0;
+        xx += gait * side * .10 * feet;
+        yy -= Math.max(0, gait * side) * .055 * feet;
+        // Opposing shoulder and claw motion transmits each footfall through the body.
+        xx -= gait * .022 * (1 - feet);
+        yy += Math.sin(step * 2) * (moving ? .012 : .006) * (1 - y);
+        yy += Math.sin(step + side) * .025 * edge * (1 - feet);
+      }
+      return [xx, yy];
+    });
+    creatureCache.set(key, image);
+    if (creatureCache.size > 720) creatureCache.delete(creatureCache.keys().next().value!);
+    return image;
+  };
+  const a = pose(frame), b = pose((frame + 1) % 40);
+  ctx.save();
+  ctx.transform(1, 0, -strike * .12, 1 - Math.abs(strike) * .025, strike * height * .03, 0);
+  blendPoses(ctx, height, at - frame, (c, next) => { const image=next?b:a; c.drawImage(image, -image.width / (2 * density), -height * 1.35, image.width / density, image.height / density); });
+  ctx.restore();
 }
 
-/** Prepare the reusable apprentice gait before the first battle, keeping cache work off combat frames. */
+/** Warm visible actors before play; retired workshop animations no longer delay startup. */
 export async function warmMotion(): Promise<void> {
-  const canvas=document.createElement('canvas');canvas.width=200;canvas.height=200;
-  const ctx=canvas.getContext('2d')!;ctx.translate(100,120);
-  for(let index=0;index<4;index++){
-    humanoid(ctx,'recruits',index,43,{time:0,walk:0,moving:false,phase:0,attacking:false});
-    for(let frame=0;frame<48;frame++){
-      humanoid(ctx,'recruits',index,43,{time:0,walk:frame/48*Math.PI*2,moving:true,phase:0,attacking:false});
-      if(frame%12===11)await new Promise<void>(resolve=>setTimeout(resolve,0));
+  const canvas = document.createElement('canvas'); canvas.width = 200; canvas.height = 200;
+  const ctx = canvas.getContext('2d')!; ctx.translate(100, 120);
+  for (const [index, height] of [[0, 43], [4, 90], [5, 74], [6, 78]] as const) {
+    humanoid(ctx, 'recruits', index, height, { time: 0, walk: 0, moving: false, phase: 0, attacking: false });
+  }
+  // Prepare the opening roster before play, avoiding a mesh build on each first footfall.
+  for (const id of ['drip', 'sludge', 'scaleCrab', 'pressureSpike', 'airlock', 'steamWisp'] as const) {
+    const def = ENEMIES[id], fluid = ['drip', 'sludge', 'airlock', 'steamWisp'].includes(id);
+    for (let frame = 0; frame < 40; frame++) {
+      const phase = frame / 40 * Math.PI * 2;
+      monster(ctx, ENEMY_ART[id]!, Math.max(37, def.radius * 2.8), phase, true, phase / (fluid ? 3.7 : def.flying ? 14 : 2), 0, false, def.flying, fluid);
+      if (frame % 8 === 7) await new Promise<void>(resolve => setTimeout(resolve, 0));
     }
   }
 }

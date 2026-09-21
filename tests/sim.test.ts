@@ -736,17 +736,17 @@ describe('Loadout and new kit', () => {
     expect(resolveLoadout(['washer', 'torch', 'barricade', 'vent', 'radiant', 'expansion'], CRAWLSPACE.allowedTowers)).toEqual([
       'washer',
       'torch',
-      'barricade', 'apprentices', 'jayjay',
+      'barricade',
     ]);
-    expect(resolveLoadout(undefined, CRAWLSPACE.allowedTowers)).toHaveLength(LOADOUT_SIZE);
+    expect(resolveLoadout(undefined, CRAWLSPACE.allowedTowers)).toHaveLength(CRAWLSPACE.allowedTowers.length);
     expect(LOADOUT_SIZE).toBe(5);
   });
 
   it('unlocks tools from jobs already on the board, never from The Neverending Service Call', () => {
     const save = new SaveStore(null);
     expect(save.data.lastLoadout).toEqual([]);
-    expect(unlockedTowers(save)).toEqual(['torch', 'washer', 'barricade', 'apprentices', 'jayjay', 'cbjDoni']);
-    expect(availableTowers(save, SERVICE_CALL, 'classic')).toEqual(['torch', 'washer', 'barricade', 'apprentices', 'jayjay', 'cbjDoni']);
+    expect(unlockedTowers(save)).toEqual(['torch', 'washer', 'barricade']);
+    expect(availableTowers(save, SERVICE_CALL, 'classic')).toEqual(['torch', 'washer', 'barricade']);
     save.setLoadout(['torch', 'washer']);
     expect(save.data.lastLoadout).toEqual(['torch', 'washer']);
     for (const map of MAPS.slice(0, 7)) save.recordClear(map.id, 'journeyman', 1);
