@@ -1,8 +1,6 @@
 import { dist } from '../core/vec';
 import {
   BOSS_VENT_DAMAGE,
-  BOSS_VENT_INTERVAL,
-  BOSS_VENT_RADIUS,
   FREEZE_DURATION,
   FREEZE_INTERVAL,
   FREEZE_RADIUS,
@@ -12,6 +10,7 @@ import {
   PHASE_HIDDEN_SECONDS,
   PHASE_VISIBLE_SECONDS,
 } from '../data/enemies';
+import { bossAttack } from '../data/bosses';
 import { friendlyMitigation } from './heroPowers';
 import { damageFriendly } from './friendlies';
 import { CREW_REACH } from './crew';
@@ -29,12 +28,13 @@ export function updateEnemies(game: Game, dt: number): void {
       continue;
     }
     tickTimers(game, e, dt);
+    if (e.dead) continue;
     if (!e.dead && hasProp(e, 'regen') && e.burnTimer <= 0 && e.hp > 0 && e.hp < e.maxHp) {
       e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.035 * dt);
     }
     validateHold(game, e);
     if (!e.heldBy) e.attackSwing = 0;
-    if (e.heldBy === null && e.stun <= 0) {
+    if (e.heldBy === null && e.stun <= 0 && !e.ventCast) {
       const speed = e.def.speed * e.speedMult * (1 - e.slow) * (1 + e.haste);
       e.progress += speed * dt;
       e.wobble += dt * 6;
@@ -43,18 +43,19 @@ export function updateEnemies(game: Game, dt: number): void {
     if (e.progress >= path.length) {
       e.escaped = true;
       e.heldBy = null;
-      const cost = leakRbe(e.def.id, hasProp(e, 'pressurized'));
+      const cost = e.def.traits.includes('boss') ? Math.max(0, game.lives) : leakRbe(e.def.id, hasProp(e, 'pressurized'));
       game.lives -= cost;
       game.stats.escaped++;
+      game.stats.escapedByType[e.def.id] = (game.stats.escapedByType[e.def.id] ?? 0) + 1;
       game.waveLeaks++;
       game.requestHitstop(0.06);
-      game.addEffect({ kind: 'text', pos: { x: e.pos.x - 30, y: e.pos.y - 20 }, text: `-${cost} life`, color: '#ff5252', ttl: 1.2, max: 1.2 });
+      game.addEffect({ kind: 'text', pos: { x: e.pos.x - 30, y: e.pos.y - 20 }, text: e.def.traits.includes('boss') ? 'BOSS BREACHED THE LINE' : `-${cost} life`, color: '#ff5252', ttl: 1.2, max: 1.2 });
       continue;
     }
     const base = path.pointAt(e.progress);
     const dir = path.directionAt(e.progress);
     e.pos = { x: base.x - dir.y * e.lane, y: base.y + dir.x * e.lane };
-    if (e.heldBy !== null && e.stun <= 0) attackHolder(game, e, dt);
+    if (e.heldBy !== null && e.stun <= 0 && !e.ventCast) attackHolder(game, e, dt);
   }
   packLanes(game, dt);
 }
@@ -85,6 +86,13 @@ function packLanes(game: Game, dt: number): void {
 }
 
 function tickTimers(game: Game, e: Enemy, dt: number): void {
+  if (e.burn) {
+    applyDamage(game, e, e.burn.dps * Math.min(dt, e.burn.left), 'fire', e.burn.source);
+    e.burn.left -= dt;
+    if (e.burn.left <= 0) e.burn = undefined;
+  }
+  if (e.exposed) { e.exposed.left -= dt; if (e.exposed.left <= 0) e.exposed = undefined; }
+  if (e.dead) return;
   if (e.dotTime > 0 && e.dotDps > 0 && e.dotSource) {
     applyDamage(game, e, e.dotDps * dt, 'water', e.dotSource);
     e.dotTime -= dt;
@@ -93,6 +101,7 @@ function tickTimers(game: Game, e: Enemy, dt: number): void {
       e.dotSource = null;
     }
   }
+  if (e.dead) return;
   if (e.stun > 0) e.stun -= dt;
   if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt);
   if (e.burnTimer > 0) e.burnTimer = Math.max(0, e.burnTimer - dt);
@@ -123,10 +132,20 @@ function tickTimers(game: Game, e: Enemy, dt: number): void {
     }
   }
   if (e.def.traits.includes('boss')) {
-    e.ventTimer -= dt;
-    if (e.ventTimer <= 0) {
-      e.ventTimer = BOSS_VENT_INTERVAL;
-      bossVent(game, e);
+    const attack = bossAttack(game.map.id);
+    if (e.ventCast && e.stun > 0) {
+      e.ventCast = undefined; e.ventTimer = attack.interval;
+      game.addEffect({ kind: 'text', pos: { x: e.pos.x, y: e.pos.y - 60 }, text: 'INTERRUPTED', color: '#b4efff', ttl: 1, max: 1 });
+    } else if (e.ventCast) {
+      e.ventCast.left -= dt;
+      if (e.ventCast.left <= 0) { bossVent(game, e); e.ventCast = undefined; e.ventTimer = attack.interval; }
+    } else if (e.stun <= 0) {
+      e.ventTimer -= dt;
+      if (e.ventTimer <= 0) {
+        const target = attack.targeted ? game.towers.filter(t => dist(t.pos, e.pos) < 320)
+          .sort((a, b) => b.invested - a.invested)[0] : undefined;
+        e.ventCast = { pos: { ...(target?.pos ?? e.pos) }, left: attack.duration, duration: attack.duration };
+      }
     }
   }
   if (e.def.traits.includes('laneSwap') && game.paths.length > 1) {
@@ -259,10 +278,28 @@ function freezePulse(game: Game, e: Enemy): void {
 }
 
 function bossVent(game: Game, boss: Enemy): void {
-  game.addEffect({ kind: 'ring', pos: { ...boss.pos }, radius: BOSS_VENT_RADIUS, color: '#ffab91', ttl: 0.6, max: 0.6 });
+  const center = boss.ventCast?.pos ?? boss.pos;
+  const attack = bossAttack(game.map.id), radius = attack.radius;
+  game.addEffect({ kind: 'splash', pos: { ...center }, radius, color: '#ff9b63', ttl: .7, max: .7 });
+  const protectedTowers = new Set<number>();
   for (const t of game.towers) {
-    if (t.def.kind !== 'barricade' || dist(t.rally, boss.pos) > BOSS_VENT_RADIUS) continue;
-    if (game.consumeShield(t)) continue;
-    damageBarricade(game, t, BOSS_VENT_DAMAGE);
+    if (dist(t.rally, center) > radius && dist(t.pos, center) > radius && !game.friendlies.some(f => f.towerId === t.id && f.hp > 0 && dist(f.pos, center) <= radius)) continue;
+    if (game.consumeShield(t)) { protectedTowers.add(t.id); continue; }
+    if (attack.targeted && dist(t.pos, center) <= radius) t.overheated = Math.max(t.overheated ?? 0, 2.5);
+    if (t.def.kind === 'barricade' && !t.def.recruits) damageBarricade(game, t, BOSS_VENT_DAMAGE);
+  }
+  if (heroOnYard(game) && dist(game.hero.pos, center) <= radius) game.damageHero(BOSS_VENT_DAMAGE * .65);
+  for (const f of game.friendlies) {
+    if (f.hp > 0 && f.respawn <= 0 && !protectedTowers.has(f.towerId) && dist(f.pos, center) <= radius) damageFriendly(game, f, BOSS_VENT_DAMAGE);
+  }
+  for (const c of game.crew) {
+    if (c.hp <= 0 || dist(c.pos, center) > radius) continue;
+    c.hp = Math.max(0, c.hp - BOSS_VENT_DAMAGE);
+    if (c.hp === 0) for (const e of game.enemies) if (e.heldBy?.kind === 'crew' && e.heldBy.id === c.id) e.heldBy = null;
+  }
+  for (const s of game.heroSummons) {
+    if (s.hp <= 0 || dist(s.pos, center) > radius) continue;
+    s.hp = Math.max(0, s.hp - BOSS_VENT_DAMAGE);
+    if (s.hp === 0) for (const e of game.enemies) if (e.heldBy?.kind === 'summon' && e.heldBy.id === s.id) e.heldBy = null;
   }
 }

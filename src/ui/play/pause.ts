@@ -44,7 +44,7 @@ export function createPausePanel(handlers: PauseHandlers): {
     },
     h('div', { class: 'eyebrow', text: 'On break' }),
     h('h2', { text: 'Paused' }),
-    h('p', { class: 'small muted', text: 'The truck is waiting. Soft AV only — no FOMO stingers.' }),
+    h('p', { class: 'small muted', text: 'Take a breather. The crew is holding your place.' }),
     h(
       'div',
       { class: 'pause-actions' },

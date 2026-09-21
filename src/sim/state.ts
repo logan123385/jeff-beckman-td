@@ -2,6 +2,7 @@ import type { Vec } from '../core/vec';
 import type { DamageType, EnemyDef, EnemyId, LeakProperty, TowerDef, TowerId } from '../data/types';
 import type { Specialization } from '../data/specializations';
 import type { AbilitySlot, HeroId } from '../data/heroes';
+import type { SpecialistAbilityId } from '../data/specialistAbilities';
 
 export type DamageSource = 'jeff' | 'crew' | TowerId;
 
@@ -60,6 +61,9 @@ export interface Enemy {
   maxShell: number;
   /** Regen pauses while this is > 0 (set by fire / heat). */
   burnTimer: number;
+  burn?: { dps: number; left: number; source: TowerId };
+  exposed?: { left: number; strength: number };
+  ventCast?: { pos: Vec; left: number; duration: number };
 }
 
 export type HoldRef = { kind: 'tower'; id: number } | { kind: 'crew'; id: number } | { kind: 'friendly'; id: number } | { kind: 'summon'; id: number } | { kind: 'hero' } | { kind: 'clamp' };
@@ -126,6 +130,9 @@ export interface Tower {
   abilityCd: number;
   /** Temporary fire-rate surge from Circulator / Thermostat actives. */
   surge?: number;
+  abilities?: Partial<Record<SpecialistAbilityId, { rank: number; cooldown: number }>>;
+  overclock?: { left: number; strength: number };
+  overheated?: number;
 }
 
 /** Kingdom Rush–style target priority for shooters. */
@@ -214,6 +221,7 @@ export interface HeroVisual {
   from: Vec; to: Vec; radius: number; color: string; left: number; duration: number;
 }
 export interface HeroSummon {
+  anchor: Vec;
   id: number; pos: Vec; prev: Vec; hp: number; maxHp: number; left: number; duration: number;
   facing: number; walkPhase: number; moving: boolean; moveBlend: number;
   swing: number; attackTimer: number; targetId?: number; pendingTarget?: number;
@@ -264,6 +272,7 @@ export interface RunStats {
   wavesCalledEarly: number;
   partsEarned: number;
   partsSpent: number;
+  escapedByType: Partial<Record<EnemyId, number>>;
 }
 
 export type GameStatus = 'playing' | 'won' | 'lost' | 'retired';

@@ -6,6 +6,7 @@ import type { EnemyId } from '../data/types';
 import { applyDamage, estimateDamage, heroOnYard, isTargetable, matchesTargetMode, pickTarget, predictedPos } from './combat';
 import type { Game } from './game';
 import type { Enemy, Tower } from './state';
+import { updateSpecialistAbilities } from './specialistAbilities';
 
 /** How fast shooter turrets swivel toward prey (rad/s). */
 const TURRET_TURN_RATE = 9.5;
@@ -43,16 +44,23 @@ export function updateAuras(game: Game, dt: number): void {
     e.haste = 0;
   }
 
+  for (const t of game.towers) {
+    if (!t.overclock) continue;
+    t.overclock.left -= dt;
+    if (t.overclock.left <= 0) { t.overclock = undefined; continue; }
+    if ((t.build ?? 0) <= 0 && t.frozen <= 0 && t.rebuild <= 0 && (t.overheated ?? 0) <= 0) game.buffs.set(t.id, { dmg: 0, range: 0, rate: t.overclock.strength });
+  }
+
   updateHeroAura(game, dt);
   updateHeroZones(game, dt);
 
   // Buff pads first so zone tools and Jeff haste read this frame's auras.
   for (const t of game.towers) {
-    if (t.frozen > 0 || (t.build ?? 0) > 0) continue;
+    if (t.frozen > 0 || (t.build ?? 0) > 0 || (t.overheated ?? 0) > 0) continue;
     applySupportAura(game, t);
   }
   for (const t of game.towers) {
-    if (t.frozen > 0 || (t.build ?? 0) > 0) continue;
+    if (t.frozen > 0 || (t.build ?? 0) > 0 || (t.overheated ?? 0) > 0) continue;
     applyZoneAura(game, t, dt);
   }
 
@@ -365,6 +373,10 @@ export function updateTowers(game: Game, dt: number): void {
       cur.rate += 0.55;
       game.buffs.set(t.id, cur);
     }
+    if ((t.overheated ?? 0) > 0) {
+      t.overheated = Math.max(0, t.overheated! - dt);
+      if (t.overheated > 0) continue;
+    }
     updateElite(game, t, dt);
     switch (t.def.kind) {
       case 'shooter':
@@ -384,6 +396,7 @@ export function updateTowers(game: Game, dt: number): void {
 }
 
 function updateElite(game: Game, t: Tower, dt: number): void {
+  updateSpecialistAbilities(game, t, dt);
   if (t.specialization !== 'control' || t.frozen > 0 || t.rebuild > 0 || (t.build ?? 0) > 0) return;
   if (t.def.kind === 'barricade') {
     t.hp = Math.min(t.maxHp, t.hp + 8 * dt);

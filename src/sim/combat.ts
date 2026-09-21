@@ -103,7 +103,8 @@ export function damageMultiplier(
     }
   }
   if (hasProp(enemy, 'cast') && (source === 'hammerDrill' || source === 'torch')) mult *= 1.25;
-  if (enemy.marked) mult *= 1 + (enemy.markBonus || MARKED_DAMAGE - 1);
+  const vulnerability = Math.max(enemy.marked ? (enemy.markBonus || MARKED_DAMAGE - 1) : 0, enemy.exposed?.strength ?? 0);
+  mult *= 1 + vulnerability;
   if (source === 'jeff') mult *= heroRank(game);
   return mult;
 }

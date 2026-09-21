@@ -6,7 +6,6 @@ import { WATERWORKS_ART } from '../../render/art';
 
 export function renderTitle(app: App): ScreenView {
   const hasProgress = app.save.hasAnyProgress();
-  const firstShift = app.save.needsTutorial();
   const how = h(
     'div',
     {
@@ -59,7 +58,7 @@ h('li', { html: '<b>Q</b> <b>E</b> <b>R</b> <b>T</b> <b>C</b> are your selected 
           class: 'btn primary big',
           text: hasProgress ? 'Back to the Van' : 'Start Shift',
           onClick: () =>
-            app.go(firstShift ? { kind: 'loadout', mapId: 'crawlspace', remaster: 'classic' } : { kind: 'hub' }),
+            app.go({ kind: 'hub' }),
         }),
         h('button', { class: 'btn', text: 'How it works', onClick: () => how.classList.remove('hidden') }),
         h('button', { class: 'btn', text: 'Encyclopedia', onClick: () => app.go({ kind: 'encyclopedia' }) }),

@@ -3,7 +3,7 @@ import { AudioBus, moodForMap } from '../../audio/bus';
 import { GameLoop } from '../../core/loop';
 import { dist, type Vec } from '../../core/vec';
 import { DIFFICULTIES } from '../../data/difficulty';
-import { ENEMIES } from '../../data/enemies';
+import { enemyForMap } from '../../data/bosses';
 import { MAPS, WORLD_H, WORLD_W, mapById } from '../../data/maps';
 import { availableTowers, resolveLoadout } from '../../data/loadout';
 import { TOWERS, TOWER_ORDER } from '../../data/towers';
@@ -22,6 +22,7 @@ import { starsForClear } from '../../save/save';
 import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
 import { Hud } from '../play/hud';
+import { BattleIntel } from '../play/intel';
 import { createPausePanel, pauseSoundLabel } from '../play/pause';
 import { createRankPanel } from '../play/ranks';
 import { Popover } from '../play/popover';
@@ -132,8 +133,11 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       }
       for (const t of game.towers) {
         const prev = lastRecoil.get(t.id) ?? 0;
-        if (t.recoil > 0.05 && prev <= 0.05) audio.shot();
+        if (t.recoil > 0.05 && prev <= 0.05) audio.shot(t.def.damageType);
         lastRecoil.set(t.id, t.recoil);
+      }
+      for (const enemy of game.enemies) if (enemy.ventCast && !heardHitFx.has(enemy.ventCast)) {
+        heardHitFx.add(enemy.ventCast); audio.bossWarning();
       }
       dripClock += dt;
       if (dripClock >= 2.2) {
@@ -186,6 +190,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       renderer.draw(game, view);
       hud.update();
       popover.update(stage, canvas);
+      intel.update(view.hoverEnemyId);
     },
   });
 
@@ -260,6 +265,9 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     },
     onRally: (towerId) => beginRally(towerId),
     onAbility: (towerId) => fireSelectedAbility(towerId),
+    onSpecialist: (towerId, ability) => {
+      if (live() && game.buySpecialistAbility(towerId, ability)) { audio.upgrade(); popover.showSpecialists(towerId); hud.setHint('Ability trained. It activates automatically when a target is available.'); }
+    },
   });
   stage.append(popover.el);
 
@@ -302,10 +310,19 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       onCrew: () => beginCrew(),
       onStrike: () => beginStrike(),
       onArm: (id) => arm(id, true),
+      onScout: () => intel.open(),
     },
     () => (loop.speed >= 2.5 ? '▶▶▶ 3×' : loop.speed >= 1.5 ? '▶▶ 2×' : '▶ 1×'),
     () => (loop.paused ? 'Resume' : 'Pause'),
   );
+
+  const intel = new BattleIntel(game, {
+    onOpen: () => { clearSelection(); banner.classList.add('hidden'); el.classList.add('scouting'); syncPause(); },
+    onClose: () => { el.classList.remove('scouting'); syncPause(); },
+    onCall: () => { if (userPaused) setPaused(false); if (live()) { const bonus = game.callNextWave(); hud.setHint(`Wave called. +$${bonus}.`); } },
+    onRoute: route => { view.scoutedRoute = route; },
+  });
+  stage.append(intel.entries, intel.el, intel.inspection);
 
   function cycleSound(): void {
     const next = audio.cyclePreset();
@@ -482,10 +499,10 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
 
   function syncPause(): void {
     const rankLock = game.pendingRankUps > 0 && game.status === 'playing';
-    loop.paused = userPaused || rankLock;
+    loop.paused = userPaused || rankLock || intel.isOpen;
     el.classList.toggle('paused', loop.paused);
     hud.syncTransport();
-    if (userPaused && !rankLock) pausePanel.show();
+    if (userPaused && !rankLock && !intel.isOpen) pausePanel.show();
     else pausePanel.hide();
     if (rankLock) rankPanel.show();
     else rankPanel.hide();
@@ -529,6 +546,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   }
 
   function togglePause(): void {
+    if (intel.isOpen) { intel.close(); return; }
     if (game.pendingRankUps > 0) {
       hud.setHint('Pick a skill to rank first.');
       rankPanel.show();
@@ -986,8 +1004,13 @@ cancelAim();
 
   const onKey = (ev: KeyboardEvent) => {
     if (ev.repeat) return;
+    if (ev.target instanceof HTMLElement && (ev.target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(ev.target.tagName))) return;
+    if (intel.isOpen) {
+      if (['escape', 'i', 'p'].includes(ev.key.toLowerCase())) { ev.preventDefault(); intel.close(); }
+      return;
+    }
     const key = ev.key.toLowerCase();
-    if (' vqertcdgjufpsanx123456789'.includes(key) || ev.key === ' ' || key === 'escape') ev.preventDefault();
+    if (' ivqertcdgjufpsanx123456789'.includes(key) || ev.key === ' ' || key === 'escape') ev.preventDefault();
     if (game.pendingRankUps > 0 && game.status === 'playing') {
       const rankKeys: Record<string, AbilitySlot> = { q: 0, e: 1, r: 2, t: 3, c: 4 };
       if (key in rankKeys) {
@@ -1005,6 +1028,7 @@ cancelAim();
       }
     }
     switch (key) {
+      case 'i': intel.open(); break;
       case 'd': beginCrew(); break;
       case 'x': beginStrike(); break;
       case 'g': if (view.selectedTowerId !== null) beginRally(view.selectedTowerId); break;
@@ -1131,7 +1155,7 @@ cancelAim();
     const fresh = ids.filter((id) => !app.save.hasSeen(id));
     if (fresh.length === 0) return;
     const first = fresh[0]!;
-    const def = ENEMIES[first];
+    const def = enemyForMap(first, game.map.id);
     const extra = fresh.length > 1 ? ` + ${fresh.length - 1} more new` : '';
     const pop = splitLine(first);
     clear(banner);
@@ -1175,7 +1199,7 @@ cancelAim();
     }
     const first = fresh[0];
     if (first) {
-      const def = ENEMIES[first];
+      const def = enemyForMap(first, game.map.id);
       banner.append(h('div', { class: 'banner-new' }, h('span', { class: 'pill new', text: 'NEW' }), h('b', { text: def.name }), h('span', { class: 'small', text: ` — ${def.fantasy}` })), h('div', { class: 'small counter', html: `<b>Counter:</b> ${def.counters}` }));
       bannerTimer = 6;
     } else {
@@ -1206,7 +1230,7 @@ cancelAim();
       app.save.recordServiceCall(game.completedWaves);
       audio.clock();
     } else if (game.status === 'lost') {
-      if (game.endless) app.save.recordServiceCall(Math.max(0, game.waveIdx - 1));
+      if (game.endless) app.save.recordServiceCall(game.completedWaves);
       audio.lose();
     }
     const reward = grantRunRewards(app.save, game, earned, firstClear);
@@ -1247,7 +1271,7 @@ cancelAim();
     el,
     dispose() {
       loop.stop();
-      audio.stopAmbient();
+      audio.dispose();
       coach?.dispose();
       pausePanel.hide();
       rankPanel.hide();

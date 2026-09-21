@@ -64,7 +64,7 @@ export function isTruckMoney(id: RemasterId): boolean {
   return id === 'cashJob' || id === 'cleanHands';
 }
 
-/** No spare-parts actives, support crew, or torch rain. Heroes still work. */
+/** No spare-parts actives, Summon Logan, or torch rain. Heroes still work. */
 export function isNoPowers(id: RemasterId): boolean {
   return id === 'cleanHands';
 }

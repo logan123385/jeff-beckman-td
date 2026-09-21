@@ -1,0 +1,15 @@
+{
+  "pass": true,
+  "purpose": "Combined-version browser regression",
+  "difficulty": "apprentice",
+  "won": true,
+  "lives": 20,
+  "abilitiesTrained": true,
+  "abilityActivated": true,
+  "towerActiveUsed": true,
+  "heroRanksPicked": 2,
+  "xp": 552,
+  "gear": 1,
+  "errors": [],
+  "evidence": "/tmp/jeff-combined-playtest"
+}

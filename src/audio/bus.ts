@@ -71,6 +71,8 @@ export class AudioBus {
   private lastHitAt = 0;
   private lastShotAt = 0;
   private lastDripAt = 0;
+  private disposed = false;
+  private noiseBuffer: AudioBuffer | null = null;
 
   constructor(opts: { muted?: boolean; sfxGain?: number; ambientGain?: number } = {}) {
     this.muted = opts.muted ?? false;
@@ -87,12 +89,14 @@ export class AudioBus {
   setMuted(muted: boolean): void {
     this.muted = muted;
     this.applyGains();
+    this.syncAmbient();
   }
 
   setVolumes(sfx: number, ambient: number): void {
     this.sfxGain = clamp01(sfx);
     this.ambientGain = clamp01(ambient);
     this.applyGains();
+    this.syncAmbient();
   }
 
   /** Apply Soft / Full / Off preset. */
@@ -117,6 +121,7 @@ export class AudioBus {
       }
     }
     this.applyGains();
+    this.syncAmbient();
   }
 
   /** Infer preset from current mute/volumes (for HUD label). */
@@ -194,13 +199,38 @@ export class AudioBus {
   }
 
   /** Tower shot / aura pulse. */
-  shot(): void {
+  shot(family: 'fire' | 'water' | 'heat' | 'physical' = 'physical'): void {
     const ctx = this.ensure();
     if (!ctx || this.muted) return;
     if (ctx.currentTime - this.lastShotAt < 0.055) return;
     this.lastShotAt = ctx.currentTime;
+    if (family === 'fire') {
+      this.play({ freq: 135, slide: 70, dur: .1, type: 'sawtooth', gain: .018, click: .012, filter: { type: 'lowpass', freq: 650 } });
+      return;
+    }
+    if (family === 'water') {
+      this.play({ freq: 420, slide: 95, dur: .13, type: 'sine', gain: .035, click: .025, filter: { type: 'bandpass', freq: 1200, q: .4 } });
+      return;
+    }
+    if (family === 'heat') {
+      this.play({ freq: 700, slide: 330, dur: .08, type: 'triangle', gain: .024, harmonic: .009 });
+      return;
+    }
     this.play({ freq: 310, dur: 0.045, type: 'triangle', gain: 0.028, slide: 190, click: 0.022, filter: { type: 'lowpass', freq: 1200 } });
     this.play({ freq: 640, dur: 0.03, type: 'sine', gain: 0.016, slide: 420 });
+  }
+
+  bossWarning(): void {
+    this.play({ freq: 110, slide: 165, dur: .55, type: 'triangle', gain: .06, harmonic: .015, filter: { type: 'lowpass', freq: 650 } });
+    this.play({ freq: 220, slide: 247, dur: .4, type: 'sine', gain: .035 });
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.stopAmbient();
+    this.musicBuffer = null;
+    if (this.ctx) void this.ctx.close().catch(() => {});
+    this.ctx = null; this.master = null; this.sfxBus = null; this.ambientBus = null; this.noiseBuffer = null;
   }
 
   skill(cue: SkillCue): void {
@@ -290,7 +320,22 @@ export class AudioBus {
     this.play({ freq: 420, dur: 0.06, type: 'triangle', gain: 0.01, slide: 260 });
   }
 
+  private syncAmbient(): void {
+    const mood = this.ambientMood;
+    if (mood === null || this.disposed) return;
+    if (this.muted || this.ambientGain === 0) {
+      this.stopAmbient();
+      this.ambientMood = mood;
+    } else this.startAmbient(mood);
+  }
+
   startAmbient(mood: AmbientMood): void {
+    if (this.disposed) return;
+    if (this.muted || this.ambientGain === 0) {
+      this.stopAmbient();
+      this.ambientMood = mood;
+      return;
+    }
     const ctx = this.ensure();
     if (!ctx) return;
     if (this.ambientMood === mood && this.ambientNodes.length > 0) {
@@ -375,6 +420,7 @@ export class AudioBus {
 
   /** Decode and start the looping music bed if ambient is active. */
   private async ensureMusicBed(): Promise<void> {
+    if (this.disposed || this.muted || this.ambientGain === 0) return;
     const ctx = this.ensure();
     if (!ctx || !this.ambientBus || this.ambientMood === null) return;
     if (this.musicSource) {
@@ -382,7 +428,7 @@ export class AudioBus {
       return;
     }
     const buffer = await this.loadMusic();
-    if (!buffer || this.ambientMood === null || !this.ambientBus) return;
+    if (!buffer || this.disposed || this.muted || this.ambientGain === 0 || this.ctx !== ctx || this.ambientMood === null || !this.ambientBus) return;
     if (this.musicSource) return;
 
     const src = ctx.createBufferSource();
@@ -397,7 +443,6 @@ export class AudioBus {
     src.start();
     this.musicSource = src;
     this.musicGain = g;
-    this.ambientNodes.push(src, g);
   }
 
   private stopMusicBed(): void {
@@ -434,22 +479,26 @@ export class AudioBus {
           const res = await fetch(musicUrl);
           if (!res.ok) return null;
           const raw = await res.arrayBuffer();
-          this.musicBuffer = await ctx.decodeAudioData(raw.slice(0));
-          return this.musicBuffer;
+          const decoded = await ctx.decodeAudioData(raw.slice(0));
+          if (this.disposed || this.ctx !== ctx) return null;
+          this.musicBuffer = decoded;
+          return decoded;
         } catch {
           return null;
         }
-      })();
+      })().finally(() => { this.musicLoad = null; });
     }
     return this.musicLoad;
   }
 
   private makeNoiseBuffer(ctx: AudioContext): AudioBuffer | null {
+    if (this.noiseBuffer) return this.noiseBuffer;
     try {
       const len = ctx.sampleRate * 2;
       const buf = ctx.createBuffer(1, len, ctx.sampleRate);
       const data = buf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * 0.35;
+      this.noiseBuffer = buf;
       return buf;
     } catch {
       return null;
@@ -457,7 +506,7 @@ export class AudioBus {
   }
 
   private ensure(): AudioContext | null {
-    if (typeof window === 'undefined') return null;
+    if (this.disposed || typeof window === 'undefined') return null;
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return null;
     if (!this.ctx) {

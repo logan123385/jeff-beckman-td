@@ -6,7 +6,7 @@ export const HEAT_PLANT: MapDef = {
   id: 'heatPlant',
   name: 'Heat Plant',
   subtitle: 'Service Call #9',
-  blurb: 'A district plant with steam on the roof and grit in the basement. Bring a heat exchanger, a dirt separator, and something that can see vapor.',
+  blurb: 'The source of the district’s pressure crisis. Thirteen waves build to the First Furnace: establish both frontlines, invest in your specialists, and break the plant’s heart.',
   paths: [
     [
       vec(-30, 100),
@@ -74,6 +74,9 @@ export const HEAT_PLANT: MapDef = {
     rush(pack('condensateMoth', 1, 0, 0), pack('zincWhisker', 5, 3, 1), grp('steamWisp', 3, 1.8, 6, 0)),
     rush(pack('biofilm', 2, 0, 1), grp('waterHammer', 2, 2.2, 5, 0), grp('vacuumBreak', 2, 2.0, 8, 1)),
     rush(pack('limeScale', 3, 8, 1), grp('glycolGolem', 1, 1, 2, 0), grp('zincWhisker', 8, 0.7, 10, 0), grp('pexKink', 2, 1, 16, 1), grp('steamWisp', 6, 1.4, 6, 1)),
+    wave(grp('biofilm', 4, 3, 0, 0), grp('limeScale', 5, 2.5, 3, 1), grp('drip', 14, .8, 7, 0), grp('waterHammer', 3, 3, 14, 1)),
+    wave(grp('condensateMoth', 3, 4, 0, 0), grp('zincWhisker', 10, .8, 3, 1), grp('vacuumBreak', 4, 2.5, 9, 0), grp('flangeGremlin', 6, 2.2, 12, 1)),
+    wave(grp('rogueBoiler', 1, 1, 2, 1), grp('limeScale', 3, 3.6, 8, 0), grp('zincWhisker', 8, .9, 12, 0), grp('biofilm', 2, 5, 20, 1)),
   ],
   palette: { bg: '#241816', wall: '#3a2420', pipe: '#bf360c', pipeDark: '#6d2110', accent: '#ffab91' },
 };

@@ -7,6 +7,32 @@ five tools — Kingdom Rush style — from what later calls have taught you. Opt
 remasters after a Classic clear (Code Inspection / Frozen Main / Cash Job / Clean Hands), and The Neverending Service Call
 after the first four service calls. Heroes share crew XP, talent points, and equipped locker gear. Each has a different combat kit and aura.
 
+## Tactical campaign update
+
+- Navigate an original illustrated county map with connected jobs, saved 90’s ratings,
+  locked mission previews, and a briefing for the selected location.
+- Mission preparation lists incoming enemies and warns when the packed tools lack
+  damaging anti-air, armor counters, or ranged support.
+- Press **I**, use **Scout**, or click an entrance flag to pause and inspect the next
+  wave by route. Counts, portraits, health, traits, counters, and highlighted routes
+  help plan defenses. Call the wave directly from the panel for the displayed bonus.
+- Every specialized tower has **two trainable abilities with three ranks each**.
+  Ten different behaviors cover burning, splash, precision shots, chain damage,
+  freezing, armor stripping, healing, attack-speed support, knockback, and revealing.
+  Abilities activate automatically against valid targets. Purchases belong to that
+  building and contribute to its sell value.
+- Boss attacks mark their impact area before striking. Move allies clear or interrupt
+  with a stun. Heat Plant now ends a 13-wave siege with **The First Furnace**, which
+  targets expensive defenses and temporarily overheats unshielded towers.
+  **A boss reaching the exit loses the mission.**
+- The tower menu stays stable as cash arrives. Audio has distinct weapon cues and a
+  boss warning; leaving a battle releases its audio context. Results explain which
+  enemies escaped and how to counter them.
+
+See [tactical update verification](docs/overhaul/tactical-verification.md) for the
+combined regression checks, nine-map simulation checks, browser verification,
+screenshots, and the limits of the evidence.
+
 ## Illustrated defense overhaul
 
 Original painted artwork now covers all 27 towers, all 20 enemies, Jeff (including his
@@ -24,7 +50,7 @@ skill emblems, numeric cooldowns, enemy previews, and a boss health bar.
   18 seconds; the ability recharges in 28 seconds. He holds and batters ground
   enemies and can be defeated. Invalid placement never spends the cooldown.
 - Select a barricade or barracks and press **G** to move its hold / rally point. Stock shutoff valves rally the hold; workshops rally their crew.
-- Hover the next-wave preview for enemy counts, routes, and counters. A **RUSH** pill means packed parents — splash or the children flood. The pipe medal counts lives on the line, including kids still inside parents.
+- Open Scout (I) for paused route intelligence; hover enemies for health and counters. A **RUSH** pill means packed parents — splash or the children flood. The pipe medal counts lives on the line, including kids still inside parents.
 - Big leaks **split** when they pop: Scale Crabs shed drips, Frozen Mains shed crabs, Sediment Boulders become Lime Scale. Pressurized mains shed one extra child. Child pips sit under a parent on the yard; hover it to read the family. Splash the children; letting a parent walk off costs the whole family.
 - **Clean Hands** is the CHIMPS remaster: no selling, no actives, no Logan, no torch rain, truck money only, one leak.
 
@@ -98,10 +124,13 @@ Local check: `npm run build && npm run preview`.
 | Right-click map | Move your hero (desktop) |
 | Tap / click your hero (or **J**) | Select your hero |
 | **Q / E / R / T / C** | Your selected hero’s five abilities; names and cooldowns appear in the HUD |
-| **D**, then click a route | Deploy two temporary support crew |
+| **D**, then click a route | Summon Logan for 18 seconds |
+| Tower selected, **V** | Spend spare parts on its active ability |
+| Specialized tower → Specialists | Train automatic abilities independently of its V active |
 | **X**, then click the yard | Torch rain — three fire dumps (hits ground and air) |
 | Barricade or barracks selected, **G**, then click a nearby route | Move the valve’s hold point, or the crew rally |
 | **Space** / **N** | Call next wave early for bonus cash |
+| **I** / Scout / entrance flag | Pause and inspect the next wave by route |
 | **F** | Cycle 1× / 2× / 3× speed |
 | **P** | Pause (Resume / sound / Quit panel) |
 | **Esc** | Deselect, or open/close pause when nothing is selected |
@@ -122,5 +151,5 @@ scripts      balance report
 
 Progress is saved in `localStorage` under `jbtd-save-v1`.
 
-Sound is soft AV only (oscillator beds + short blips). In a job, cycle the sound
+Sound combines Rain on Glass, quiet yard ambience, and combat cues. In a job, cycle the sound
 button: **Off → Soft → Full**.

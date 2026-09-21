@@ -1,11 +1,12 @@
 import { Rng } from '../core/rng';
 import { clamp, dist, type Vec } from '../core/vec';
-import { ENEMIES } from '../data/enemies';
+import { enemyForMap } from '../data/bosses';
 import { JEFF } from '../data/jeff';
 import { HEROES, isHeroId, type AbilitySlot, type HeroDef, type HeroId } from '../data/heroes';
 import { updateHeroMissiles, updateHeroSummons, summonLogan, useHeroAbility, fireJeffAbility } from './heroPowers';
 import type { HeroMissile, HeroSummon, HeroVisual, HeroZone } from './state';
 import { TOWERS, TOWER_ORDER } from '../data/towers';
+import { SPECIALIST_KITS, specialistAbilityCost, type SpecialistAbilityId } from '../data/specialistAbilities';
 import { specializeDef, specializationInfo, type Specialization } from '../data/specializations';
 import { generateEndlessWave, nightMutatorAt, proceduralIndex, type NightMutatorId } from '../data/night';
 import { propertiesFor } from '../data/leakProperties';
@@ -181,6 +182,7 @@ export class Game {
       wavesCalledEarly: 0,
       partsEarned: 0,
       partsSpent: 0,
+      escapedByType: {},
     };
   }
 
@@ -398,6 +400,20 @@ export class Game {
     syncRecruits(this, t);
     this.addEffect({ kind: 'splash', pos: { ...t.pos }, radius: 48, color: '#f5d68c', ttl: 0.7, max: 0.7 });
     this.addEffect({ kind: 'text', pos: { x: t.pos.x, y: t.pos.y - 90 }, text: t.def.name.toUpperCase(), color: '#fff0b0', ttl: 1.3, max: 1.3 });
+    return true;
+  }
+
+  buySpecialistAbility(towerId: number, abilityId: SpecialistAbilityId): boolean {
+    const t = this.towerById(towerId);
+    if (this.status !== 'playing' || !t?.specialization || t.level < 2 || !SPECIALIST_KITS[t.def.id].includes(abilityId)) return false;
+    const rank = t.abilities?.[abilityId]?.rank ?? 0;
+    if (rank >= 3) return false;
+    const cost = specialistAbilityCost(abilityId, rank, this.mods.towerCost);
+    if (this.money < cost) return false;
+    this.money -= cost; this.stats.moneySpent += cost; t.invested += cost;
+    t.abilities ??= {};
+    t.abilities[abilityId] = { rank: rank + 1, cooldown: t.abilities[abilityId]?.cooldown ?? 0 };
+    this.addEffect({ kind: 'ring', pos: { ...t.pos }, radius: 45, color: '#ffe8a0', ttl: .6, max: .6 });
     return true;
   }
 
@@ -676,7 +692,7 @@ export class Game {
   }
 
   spawnEnemy(id: EnemyId, pathIdx: number, progress = -SPAWN_LEAD, properties: readonly LeakProperty[] = []): Enemy {
-    const def = ENEMIES[id];
+    const def = enemyForMap(id, this.map.id);
     let hp = Math.round(def.hp * this.difficulty.hpMult * this.waveHpScale);
     if (properties.includes('pressurized')) hp = Math.round(hp * 1.45);
     const shell = properties.includes('cast') ? Math.round(hp * 0.85) : 0;

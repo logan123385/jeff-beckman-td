@@ -25,6 +25,7 @@ import { drawBuildPad, drawEnemy, drawJeff, drawSplitTell, drawTower, drawTowerB
 import { paintAtmosphere, paintForeground, paintPipeFlow, paintYard } from './yard';
 import { paintedCrew, paintedFriendly } from './paintedActors';
 import { ENEMY_ART, paintedSprite } from './art';
+import { drawBossTelegraphs, drawScoutedRoute } from './tactics';
 
 interface Spark {
   x: number;
@@ -59,6 +60,7 @@ export interface RenderView {
   armed?: TowerId | null;
   /** 0..1 leftover toward the next sim tick. */
   interp?: number;
+  scoutedRoute?: number | null;
 }
 
 export class Renderer {
@@ -112,6 +114,7 @@ export class Renderer {
     this.drawBackground(game);
     paintPipeFlow(ctx, game.map.paths, game.time, game.map.palette.pipe);
     this.drawEntrances(game);
+    drawScoutedRoute(ctx, game, view.scoutedRoute ?? null);
     this.drawWaveWarning(game);
     paintAtmosphere(ctx, game.map, game.time);
     this.drawAmbient(game);
@@ -126,6 +129,7 @@ export class Renderer {
     this.drawHeroCombat(game, view);
     this.drawHeroAuras(game);
     this.drawActors(game, view.hoverEnemyId);
+    drawBossTelegraphs(ctx, game);
     this.drawProjectiles(game);
     drawHeroMissiles(ctx, game);
     drawHeroVisuals(ctx, game);
@@ -705,7 +709,6 @@ if(opponent)dir={x:opponent.x-vis.x,y:opponent.y-vis.y};
         const keep = e.pos;
         e.pos = vis;
         if (e.stun > 0) statusHalo(ctx, e.pos.x, e.pos.y, e.def.radius, 'stun', game.time);
-        else if (e.freezeTimer > 0) statusHalo(ctx, e.pos.x, e.pos.y, e.def.radius, 'frozen', game.time);
         else if (e.slow > 0.15) statusHalo(ctx, e.pos.x, e.pos.y, e.def.radius, 'slow', game.time);
         drawEnemy(ctx, e, game.time, dir);
         drawSplitTell(ctx, e, hoverEnemyId === e.id);

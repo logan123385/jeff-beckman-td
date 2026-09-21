@@ -318,6 +318,7 @@ export function summonLogan(game: Game, pos: Vec): void {
   const start = { x: pos.x, y: pos.y };
   game.heroSummons = [{
     id: game.nextEntityId(),
+    anchor: { ...start },
     pos: { ...start },
     prev: { ...start },
     hp: 230,
@@ -350,9 +351,9 @@ export function updateHeroSummons(game: Game, dt: number): void {
       continue;
     }
     const held = game.enemies.find(e => isTargetable(e) && e.heldBy?.kind === 'summon' && e.heldBy.id === s.id);
-    const prey = held ?? targets(game, 205).filter(e => !e.def.flying).sort((a, b) => dist(a.pos, s.pos) - dist(b.pos, s.pos))[0];
+    const prey = held ?? targets(game, 205, s.anchor).filter(e => !e.def.flying).sort((a, b) => dist(a.pos, s.pos) - dist(b.pos, s.pos))[0];
     s.targetId = prey?.id;
-    const goal = prey?.pos ?? { x: game.hero.pos.x - game.hero.facing * 25, y: game.hero.pos.y + 14 };
+    const goal = prey?.pos ?? s.anchor;
     if (dist(s.pos, goal) > (prey ? 23 + prey.def.radius : 6)) {
       const step = moveToward(s.pos, goal, 215 * dt);
       s.facing = goal.x >= s.pos.x ? 1 : -1; s.walkPhase += dist(s.pos, step.pos) * .22;
