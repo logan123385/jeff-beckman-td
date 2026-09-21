@@ -4,7 +4,7 @@ import { HERO_ORDER } from '../src/data/heroes';
 import { cardUnlocked, cardsFor, defaultCards, KIT_CARDS } from '../src/data/kitCards';
 import { rollChest } from '../src/data/loot';
 import { defaultFamily, familyHero, familyStance, implicitFor } from '../src/data/weapons';
-import { normalizeSave, SaveStore } from '../src/save/save';
+import { SAVE_KEY, normalizeSave, SaveStore } from '../src/save/save';
 import { resolveAttackProfile as resolve } from '../src/sim/attackProfile';
 
 describe('weapon families', () => {
@@ -91,7 +91,76 @@ describe('save v2', () => {
     expect(data.kits.jeff?.cards).toEqual(['jeff_anchor', 'jeff_breaker']);
     expect(data.heroJobs.jeff).toBeGreaterThanOrEqual(3);
     expect(data.inventory.some(i => i.kind === 'armor' && i.slot === 'chest' && i.name === 'Veteran Vest')).toBe(true);
+    const veteranBoots = data.inventory.find(i => i.kind === 'armor' && i.slot === 'boots' && i.id === 'g-veteran-boots');
+    expect(veteranBoots?.name).toBe('Veteran Pacs');
+    expect(veteranBoots?.rarity).toBe('rare');
+    expect(data.inventory.find(i => i.id === 'g-veteran-chest')?.rarity).toBe('rare');
     expect((data as { skills?: unknown }).skills).toBeUndefined();
+  });
+  it('persists v2 kits, heroJobs, and armor across reload', () => {
+    class MemoryStorage implements Storage {
+      private readonly data = new Map<string, string>();
+      get length(): number {
+        return this.data.size;
+      }
+      clear(): void {
+        this.data.clear();
+      }
+      getItem(key: string): string | null {
+        return this.data.get(key) ?? null;
+      }
+      key(index: number): string | null {
+        return [...this.data.keys()][index] ?? null;
+      }
+      removeItem(key: string): void {
+        this.data.delete(key);
+      }
+      setItem(key: string, value: string): void {
+        this.data.set(key, value);
+      }
+    }
+
+    const storage = new MemoryStorage();
+    const save = new SaveStore(storage);
+    save.data.inventory.push(
+      { kind: 'weapon', id: 'w-jeff', family: 'jeff_melee', name: 'Pipe Wrench', rarity: 'uncommon', affixes: [] },
+      { kind: 'armor', id: 'chest-1', slot: 'chest', name: 'Hi-Vis', rarity: 'uncommon', affixes: [] },
+      { kind: 'armor', id: 'boots-1', slot: 'boots', name: 'Steel Toes', rarity: 'common', affixes: [] },
+    );
+    save.recordHeroJob('jeff');
+    save.recordHeroJob('jeff');
+    save.recordHeroJob('jeff');
+    save.setFamily('jeff', 'jeff_melee');
+    save.equipWeapon('jeff', 'w-jeff');
+    save.equipCard('jeff', 0, 'jeff_sweep');
+    save.equipCard('jeff', 1, 'jeff_breaker');
+    save.equipArmor('chest-1');
+    save.equipArmor('boots-1');
+    expect(save.save()).toBe(true);
+
+    const reloaded = new SaveStore(storage);
+    expect(reloaded.data.heroJobs.jeff).toBe(3);
+    expect(reloaded.data.kits.jeff).toEqual({
+      family: 'jeff_melee',
+      weaponId: 'w-jeff',
+      cards: ['jeff_sweep', 'jeff_breaker'],
+    });
+    expect(reloaded.data.chestId).toBe('chest-1');
+    expect(reloaded.data.bootsId).toBe('boots-1');
+
+    const normalized = normalizeSave(JSON.parse(storage.getItem(SAVE_KEY)!) as never);
+    expect(normalized.kits.jeff).toEqual(reloaded.data.kits.jeff);
+    expect(normalized.heroJobs.jeff).toBe(3);
+    expect(normalized.chestId).toBe('chest-1');
+    expect(normalized.bootsId).toBe('boots-1');
+  });
+  it('keeps stored heroJobs when v1 heroBuilds would grant fewer', () => {
+    const data = normalizeSave({
+      version: 2,
+      heroJobs: { jeff: 5 },
+      heroBuilds: { jeff: { nodes: ['venom:1'], technique: 'venom' } },
+    } as never);
+    expect(data.heroJobs.jeff).toBe(5);
   });
   it('rejects a weapon for the wrong hero', () => {
     const save = new SaveStore(null);

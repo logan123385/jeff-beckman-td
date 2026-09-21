@@ -215,6 +215,72 @@ function migrateHeroJobs(parsed: Record<string, unknown>): Partial<Record<HeroId
   return heroJobs;
 }
 
+function sanitizeHeroJobs(
+  parsed: Record<string, unknown>,
+  migrated: Partial<Record<HeroId, number>>,
+): Partial<Record<HeroId, number>> {
+  const heroJobs: Partial<Record<HeroId, number>> = { ...migrated };
+  const raw = parsed.heroJobs;
+  if (!raw || typeof raw !== 'object') return heroJobs;
+  for (const hero of HERO_ORDER) {
+    const n = finiteNumber((raw as Record<string, unknown>)[hero], -1, 0, 1_000_000);
+    if (n >= 0) heroJobs[hero] = Math.max(heroJobs[hero] ?? 0, Math.round(n));
+  }
+  return heroJobs;
+}
+
+function sanitizeKits(
+  parsed: Record<string, unknown>,
+  inventory: KitItem[],
+  heroJobs: Partial<Record<HeroId, number>>,
+): Partial<Record<HeroId, HeroKit>> {
+  const kits = initKits();
+  const raw = parsed.kits;
+  if (!raw || typeof raw !== 'object') return kits;
+  const invById = new Map(inventory.map((item) => [item.id, item]));
+
+  for (const hero of HERO_ORDER) {
+    const row = (raw as Record<string, unknown>)[hero];
+    if (!row || typeof row !== 'object') continue;
+    const kitRow = row as Record<string, unknown>;
+    const family =
+      typeof kitRow.family === 'string' && isWeaponFamilyId(kitRow.family) && familyHero(kitRow.family) === hero
+        ? kitRow.family
+        : defaultFamily(hero);
+    const stance = familyStance(family);
+    const jobs = heroJobs[hero] ?? 0;
+
+    let weaponId: string | null = null;
+    if (typeof kitRow.weaponId === 'string') {
+      const weapon = invById.get(kitRow.weaponId);
+      if (
+        weapon?.kind === 'weapon' &&
+        isWeaponFamilyId(weapon.family) &&
+        familyHero(weapon.family) === hero &&
+        weapon.family === family
+      ) {
+        weaponId = kitRow.weaponId;
+      }
+    }
+
+    const cards: [string | null, string | null] = [...defaultCards(hero)];
+    if (Array.isArray(kitRow.cards)) {
+      for (let i = 0; i < 2; i++) {
+        const id = kitRow.cards[i];
+        if (typeof id !== 'string' || !id) {
+          cards[i] = null;
+          continue;
+        }
+        const card = cardById(id);
+        cards[i] = card && card.hero === hero && card.stance === stance && cardUnlocked(card, jobs) ? id : null;
+      }
+    }
+
+    kits[hero] = { family, weaponId, cards };
+  }
+  return kits;
+}
+
 function initKits(): Partial<Record<HeroId, HeroKit>> {
   const kits: Partial<Record<HeroId, HeroKit>> = {};
   for (const hero of HERO_ORDER) kits[hero] = defaultHeroKit(hero);
@@ -228,7 +294,7 @@ function veteranArmor(): { chest: ArmorItem; boots: ArmorItem } {
       id: 'g-veteran-chest',
       slot: 'chest',
       name: 'Veteran Vest',
-      rarity: 'relic',
+      rarity: 'rare',
       affixes: [
         { key: 'startMoney', amount: 50 },
         { key: 'cooldown', amount: 0.08 },
@@ -239,8 +305,8 @@ function veteranArmor(): { chest: ArmorItem; boots: ArmorItem } {
       kind: 'armor',
       id: 'g-veteran-boots',
       slot: 'boots',
-      name: 'Veteran Boots',
-      rarity: 'relic',
+      name: 'Veteran Pacs',
+      rarity: 'rare',
       affixes: [
         { key: 'jeffSpeed', amount: 0.08 },
         { key: 'jeffRespawn', amount: 0.1 },
@@ -279,8 +345,8 @@ export function normalizeSave(parsed: Partial<SaveData> & Record<string, unknown
     : 'journeyman';
   const { inventory, wrenchSalvage } = sanitizeInventory(parsed.inventory);
   let jeffXp = Math.round(finiteNumber(parsed.jeffXp, 0, 0, 5_000_000)) + wrenchSalvage;
-  const heroJobs = migrateHeroJobs(parsed);
-  const kits = initKits();
+  const heroJobs = sanitizeHeroJobs(parsed, migrateHeroJobs(parsed));
+  const kits = sanitizeKits(parsed, inventory, heroJobs);
   const { chestId: migratedChest, bootsId: migratedBoots } = migrateEquippedArmor(parsed, inventory);
   let chestId = migratedChest;
   let bootsId = migratedBoots;
