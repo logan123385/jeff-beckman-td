@@ -1,6 +1,7 @@
 import { towerMechanisms } from './towerMotion';
 import { drawNewHero } from './heroActors';
 import { JEFF } from '../data/jeff';
+import { defaultFamily, familyStance, type WeaponFamilyId } from '../data/weapons';
 import type { Enemy, Hero, Tower, Friendly } from '../sim/state';
 import { humanoid, monster } from './animation';
 import { FRIENDLY_SWING } from '../sim/friendlies';
@@ -39,8 +40,11 @@ function health(ctx: Ctx, x: number, y: number, w: number, ratio: number, color:
   ctx.fillStyle = '#ffffff55'; ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, ratio)), 1);
 }
 
-export function paintedJeff(ctx: Ctx, hero: Hero, time: number, showBar: boolean, scale: number): boolean {
-  if (hero.id && hero.id !== 'jeff') return drawNewHero(ctx, hero, time, showBar);
+export function paintedJeff(ctx: Ctx, hero: Hero, time: number, showBar: boolean, scale: number, family?: WeaponFamilyId): boolean {
+  if (hero.id && hero.id !== 'jeff') return drawNewHero(ctx, hero, time, showBar, family);
+  const kit = family ?? defaultFamily(hero.id ?? 'jeff');
+  // The units atlas bakes the pipe wrench into Jeff. Ranged stance uses the procedural body.
+  if (familyStance(kit) !== 'melee') return false;
   if (!artReady('units')) return false;
   const { x, y } = hero.pos;
   const size = 68 * scale / 1.72;

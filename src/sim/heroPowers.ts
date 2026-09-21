@@ -331,17 +331,25 @@ function laserTargets(game: Game, first: Enemy, pierce: number): Enemy[] {
   return hits;
 }
 
+function applyBasicHeat(game: Game, enemy: Enemy): void {
+  if (game.mods.onHitHeat <= 0) return;
+  enemy.dotDps = Math.max(enemy.dotDps, game.mods.onHitHeat);
+  enemy.dotTime = Math.max(enemy.dotTime, 2);
+  enemy.dotSource = 'jeff';
+}
+
 export function strikeFromProfile(game: Game, enemy: Enemy): void {
   const h = game.hero;
   const profile = game.attackProfile;
   h.facing = enemy.pos.x >= h.pos.x ? 1 : -1;
-  const prep = prepareKitStrike(game, enemy);
   switch (profile.basic) {
     case 'laser': {
+      const prep = prepareKitStrike(game, enemy);
       const base = profile.damage * game.mods.jeffDamage * prep.damageMult;
       for (const target of laserTargets(game, enemy, profile.pierce)) {
         applyDamage(game, target, base, profile.damageType, 'jeff');
         onKitHit(game, target, base);
+        applyBasicHeat(game, target);
       }
       visual(game, 'laser', { x: h.pos.x + h.facing * 18, y: h.pos.y - 25 }, { x: enemy.pos.x, y: enemy.pos.y - 10 }, 4, game.heroDef.color, .22);
       break;
@@ -357,6 +365,7 @@ export function strikeFromProfile(game: Game, enemy: Enemy): void {
       break;
     }
     case 'contact': {
+      const prep = prepareKitStrike(game, enemy);
       const dmg = profile.damage * game.mods.jeffDamage * prep.damageMult;
       if (profile.tapStunEvery !== null) {
         h.tapCount += 1;
@@ -378,11 +387,7 @@ export function strikeFromProfile(game: Game, enemy: Enemy): void {
       if (prep.stun > 0) enemy.stun = Math.max(enemy.stun, prep.stun * game.mods.stunDuration);
       const dealt = applyDamage(game, enemy, dmg, profile.damageType, 'jeff');
       onKitHit(game, enemy, dmg);
-      if (game.mods.onHitHeat > 0) {
-        enemy.dotDps = Math.max(enemy.dotDps, game.mods.onHitHeat);
-        enemy.dotTime = Math.max(enemy.dotTime, 2);
-        enemy.dotSource = 'jeff';
-      }
+      applyBasicHeat(game, enemy);
       if (profile.splash > 0) {
         for (const e of targets(game, profile.splashRadius, enemy.pos)) {
           if (e.id === enemy.id) continue;
@@ -466,10 +471,16 @@ export function updateHeroMissiles(game: Game, dt: number): void {
     }
     if (p.splash > 0) {
       for (const e of targets(game, p.splash, p.goal)) applyDamage(game, e, p.damage, p.damageType ?? 'physical', 'jeff');
-      if (p.basic && target) onKitHit(game, target, p.damage);
+      if (p.basic && target) {
+        onKitHit(game, target, p.damage);
+        applyBasicHeat(game, target);
+      }
     } else if (target) {
       applyDamage(game, target, p.damage, p.damageType ?? 'physical', 'jeff');
-      if (p.basic) onKitHit(game, target, p.damage);
+      if (p.basic) {
+        onKitHit(game, target, p.damage);
+        applyBasicHeat(game, target);
+      }
     }
     if (target && !target.dead) {
       if ((p.stun ?? 0) > 0 && ((p.pull ?? 0) <= 0 || !target.def.flying)) {
