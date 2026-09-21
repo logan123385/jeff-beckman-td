@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HERO_ORDER } from '../src/data/heroes';
+import { cardUnlocked, cardsFor, defaultCards, KIT_CARDS } from '../src/data/kitCards';
 import { defaultFamily, familyHero, familyStance, implicitFor } from '../src/data/weapons';
 import { resolveAttackProfile as resolve } from '../src/sim/attackProfile';
 
@@ -34,5 +35,25 @@ describe('weapon families', () => {
     const boosted = resolve('jeff_melee', 'uncommon', [{ key: 'jeffHolds', amount: 1 }, { key: 'jeffReach', amount: 0.1 }]);
     expect(boosted.holds).toBe(3);
     expect(boosted.reach).toBeCloseTo(42 * 1.1, 5);
+  });
+});
+
+describe('kit cards', () => {
+  it('has four melee and four ranged cards per hero', () => {
+    expect(KIT_CARDS).toHaveLength(64);
+    for (const hero of HERO_ORDER) {
+      expect(cardsFor(hero, 'melee').map(c => c.job)).toEqual(['anchor', 'breaker', 'crew', 'sweep']);
+      expect(cardsFor(hero, 'ranged').map(c => c.job)).toEqual(['lane', 'pin', 'control', 'spot']);
+    }
+  });
+  it('unlocks crew after one job and sweep after three', () => {
+    const crew = cardsFor('jeff', 'melee').find(c => c.job === 'crew')!;
+    const sweep = cardsFor('jeff', 'melee').find(c => c.job === 'sweep')!;
+    expect(cardUnlocked(crew, 0)).toBe(false);
+    expect(cardUnlocked(crew, 1)).toBe(true);
+    expect(cardUnlocked(sweep, 2)).toBe(false);
+    expect(cardUnlocked(sweep, 3)).toBe(true);
+    expect(defaultCards('jeff')).toEqual(['jeff_anchor', 'jeff_breaker']);
+    expect(defaultCards('mike')).toEqual(['mike_lane', 'mike_pin']);
   });
 });
