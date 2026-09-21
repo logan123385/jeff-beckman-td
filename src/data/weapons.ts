@@ -1,7 +1,5 @@
 import { HERO_ORDER, type HeroId } from './heroes';
-import type { DamageType, Rarity } from './types';
-
-export type WeaponStance = 'melee' | 'ranged';
+import type { DamageType, Rarity, WeaponStance } from './types';
 export type WeaponFamilyId = `${HeroId}_${WeaponStance}`;
 
 export interface AttackProfile {
