@@ -74,11 +74,16 @@ try {
   if(await visible('.coach-skip'))await click('.coach-skip');
   for(let i=0;i<100&&!await read('!!window.__game');i++)await delay(100);
   assert(await read('!!window.__game'),'Simulation started');
-  await read(`(()=>{__game.status='won';__game.lives=20;window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}));window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}));})()`);
+  await read(`(()=>{__game.status='won';__game.lives=20;__game.waveIdx=10;__game.completedWaves=10;__game.stats.kills=100;window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}));window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}));})()`);
   const first=await save(); assert(first.jeffXp>0); assert.equal(first.heroJobs.jeff,1);
   await wait('.results'); assert((await read(`document.querySelector('.results').textContent`)).includes('Clean sheet'));
   assert.equal((await save()).jeffXp,first.jeffXp); assert.equal((await save()).inventory.length,1);
   checks.push({label:'pagehide before results banks once and still presents the receipt on return'});
+  for (const [w,h] of [[390,664],[320,568],[667,280]]) {
+    await viewport(w,h);
+    assert(await read(`(() => {const r=document.querySelector('.result-actions').getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;})()`),'Result actions stay on screen');
+  }
+  await viewport(390,664);
   await shot('01-win-receipt');
   await read(`__app.go({kind:'play',mapId:'crawlspace'})`); await delay(100);
   await read(`(()=>{__game.status='won';document.querySelector('.quit-button').click();})()`);

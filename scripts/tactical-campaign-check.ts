@@ -19,7 +19,7 @@ for (const map of MAPS.filter(map => !process.argv[4] || map.id === process.argv
   if (map.id === 'liftStation') kit.splice(0, kit.length, 'torch', 'washer', 'barricade', 'hammerDrill', 'descaler');
   const customPlan = process.argv[5]?.split(',') as TowerId[] | undefined;
   if (customPlan) kit.splice(0, kit.length, ...new Set(customPlan));
-  const g=new Game(map,{difficulty:DIFFICULTIES[difficulty],mods:neutralModifiers(),heroId:'cbj',manualStart:true,loadout:kit,seed:7});
+  const g=new Game(map,{difficulty:DIFFICULTIES[difficulty],mods:neutralModifiers(),heroId:(process.env.JEFF_AUDIT_HERO as import('../src/data/heroes').HeroId | undefined) ?? (map.id === 'heatPlant' ? 'mike' : 'cbj'),manualStart:true,loadout:kit,seed:7});
   const plan:TowerId[]=['torch','washer','torch',...(support?[support]:[]),...(kit.includes('vent')?['vent' as const]:[]),'barricade','torch','washer'];
   if (map.id === 'liftStation') plan.splice(0, plan.length, 'torch', 'washer', 'hammerDrill', 'descaler', 'barricade', 'torch', 'washer', 'hammerDrill');
   if (customPlan) plan.splice(0, plan.length, ...customPlan);
@@ -70,7 +70,7 @@ for (const map of MAPS.filter(map => !process.argv[4] || map.id === process.argv
     }
     g.update(1/60);
   }
-  const row={map:map.id,difficulty,status:g.status,lives:g.lives,wave:g.waveIdx,seconds:Math.round(g.time),kills:g.stats.kills,money:g.money,decisions,kit,towers:g.towers.map(t=>({id:t.def.id,slot:t.slot,tier:t.level+1,specialization:t.specialization}))};
+  const row={map:map.id,hero:g.heroDef.id,difficulty,status:g.status,lives:g.lives,wave:g.waveIdx,seconds:Math.round(g.time),kills:g.stats.kills,money:g.money,decisions,kit,towers:g.towers.map(t=>({id:t.def.id,slot:t.slot,tier:t.level+1,specialization:t.specialization}))};
   records.push(row); console.log(`${map.id}: ${g.status}, ${g.lives} lives, wave ${g.waveIdx}, ${Math.round(g.time)}s`);
 }
-writeFileSync(process.argv[2]??'/tmp/jeff-tactical-campaign.json',JSON.stringify({method:'Fixed active-play policy. CBJ, seed 7, legal kits, no gear/perks/extra money. Automated simulation; not human difficulty proof.',records},null,2));
+writeFileSync(process.argv[2]??'/tmp/jeff-tactical-campaign.json',JSON.stringify({method:'Fixed active-play policy. Hero recorded per map (CBJ, or Big Mike for Heat Plant by default), seed 7, legal kits, no gear/perks/extra money. Automated simulation; not human difficulty proof.',records},null,2));

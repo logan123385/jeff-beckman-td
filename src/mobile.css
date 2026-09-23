@@ -216,3 +216,12 @@
   .adventure-copy .persist-actions { flex-wrap: wrap; }
   .adventure-hero { pointer-events: none; z-index: 1; }
 }
+
+/* Keep the way out visible while a long reward receipt scrolls. */
+.play .results { display: flex; flex-direction: column; overflow: hidden; }
+.result-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px 6px 2px 2px; }
+.results > .result-actions { flex: 0 0 auto; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid #d3b17d66; }
+@media (max-height: 400px) {
+  .play .results { padding: 10px; }
+  .results > .result-actions { margin-top: 6px; padding-top: 6px; gap: 8px; }
+}

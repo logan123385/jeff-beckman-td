@@ -12,6 +12,7 @@
 - A weaker hero heat DoT could change the source and damage type of a stronger descaler effect. Source/type/duration now stay together; final partial ticks use the remaining duration.
 - Ranged pin bonuses advanced on launch even if the missile missed. They now advance at the first connecting impact, once across bounces/pierces.
 - Empty endless exits no longer count toward hero-card unlocks. Buying a first tower license makes that purchase exportable without skipping the first-job tutorial.
+- Results keep navigation buttons on screen while the reward receipt scrolls, including short landscape phones.
 - Help reflects touch controls, bought tower licenses, current kits, and the exit/save flows. Mobile title spacing is tighter. Shared links have a title, description, artwork, and favicon.
 - Retained PR #13's gear-ID repair, batched rewards, current modifiers module, removal of obsolete tree screens, and persistence notices.
 
@@ -21,7 +22,7 @@
 - [21 production-browser checks](browser-functional.json): fresh entry, help dismissal, all 24 store entries, purchase, all eight hero kit tabs and both stances, encyclopedia, loadout, first-job tutorial after shopping, touch exits with native confirms disabled, save restore/backup/reload, and startup/play with storage blocked. No runtime exceptions.
 - [Five lifecycle checks](browser-terminal.json): terminal pagehide and receipt presentation, immediate victory exit, repeat-clear loot, loss/retry, background pause, and clock-out from pause. These use explicit terminal-state fixtures in the dev runtime; they are not campaign wins.
 - [22 measured layouts](mobile-layouts.json): 320–1440px widths, short landscape down to 667×280, tablet, rotation, boss/five-tool stress, and desktop. Battlefield and dock do not overlap; combat controls stay on screen, and compact-layout targets are at least 44px. Real CDP touch input also builds a tower, deploys the hero, casts Logan, calls a wave, and opens scout/pause.
-- [Apprentice campaign simulation](campaign-apprentice.json): all nine maps won with normal resources, capped kits, CBJ, seed 7, and no equipment bonuses. Lift Station uses a deliberate split-route deployment. This proves one viable strategy, not universal difficulty balance.
+- [Apprentice campaign simulation](campaign-apprentice.json): all nine maps won with normal resources, capped kits, CBJ (Big Mike on Heat Plant), seed 7, and no equipment bonuses. Lift Station uses a deliberate split-route deployment. This proves one viable strategy, not universal difficulty balance.
 - [Journeyman campaign simulation](campaign-journeyman.json): the same policy wins seven of nine. Lift Station and Heat Plant defeat that policy. They were not weakened merely to make an automated builder win. Equipment, hero choices, and different strategies are not exhausted by this check.
 - All eight heroes exercised in the endless simulation with ordinary resources; each survives 10–14 completed waves, then loses normally without a simulation exception.
 
