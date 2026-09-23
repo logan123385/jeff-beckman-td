@@ -5,8 +5,10 @@ import { remasterTitle, isOneLife } from '../../data/remasters';
 import { TOWERS, TOWER_ORDER } from '../../data/towers';
 import type { ArmorSlot, KitItem } from '../../data/types';
 import { familyLabel, isWeaponFamilyId } from '../../data/weapons';
+import type { SaveStore } from '../../save/save';
 import type { Game } from '../../sim/game';
 import { h, stars } from '../dom';
+import { persistRow } from '../persist';
 import { enemyForMap } from '../../data/bosses';
 import type { EnemyId } from '../../data/types';
 
@@ -19,7 +21,7 @@ export interface ResultsHandlers {
 }
 
 /** End-of-job card, including the Stage 0 "damage share" instrumentation the plan asks for. */
-export function renderResults(game: Game, earnedStars: number, handlers: ResultsHandlers, reward?: RunReward): HTMLElement {
+export function renderResults(game: Game, earnedStars: number, handlers: ResultsHandlers, reward?: RunReward, save?: SaveStore): HTMLElement {
   const won = game.status === 'won';
   const retired = game.status === 'retired';
   const leaks = Object.entries(game.stats.escapedByType).sort((a, b) => b[1] - a[1]);
@@ -62,73 +64,76 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
 
   return h(
     'div',
-    { class: 'overlay' },
+    { class: 'overlay', attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Job results' } },
     h(
       'div',
       { class: `results sheet ${won || retired ? 'won' : 'lost'}` },
-      h('div', { class: 'eyebrow', text: eyebrow }),
-      h('h2', { text: headline }),
-      h('p', { class: 'muted', text: blurb }),
-      reward ? serviceRewardCard(reward.servicePoints, won) : null,
-      won && !game.endless ? h('section', { class: 'mission-goals result-goals' }, h('h3', { text: 'Mission commendations' }),
-        ...COMMENDATIONS.map(goal => h('div', { class: 'goal-card', attrs: { 'data-earned': String(earnedCommendations(game).includes(goal.id)) } },
-          h('b', { text: `${earnedCommendations(game).includes(goal.id) ? '◆ Earned · ' : '◇ '}${goal.name}` }), h('span', { text: goal.description })))) : null,
-      leakDef && biggestLeak ? h('aside', { class: 'result-advice' },
-        h('b', { text: `Field note: ${leakDef.name}` }),
-        h('p', { text: `${biggestLeak[1]} escaped. ${leakDef.counters}` })) : null,
-      won && game.remaster === 'classic' && earnedStars > 0 ? h('div', { class: 'result-stars' }, stars(earnedStars)) : null,
-      won && game.remaster !== 'classic' && earnedStars > 0
-        ? h('p', { class: 'small', text: 'First remaster clear — +1 90’s.' })
-        : null,
-      won && game.remaster !== 'classic' && earnedStars === 0
-        ? h('p', { class: 'small muted', text: 'Already inspected. No extra 90 or chest this time.' })
-        : null,
-      won && game.remaster === 'classic' && reward && reward.chests.length === 0 && reward.items.length === 0
-        ? h('p', { class: 'small muted', text: 'First-clear chest already claimed. XP still banks.' })
-        : null,
-      reward
-        ? h(
-            'div',
-            { class: 'loot-block' },
-            h('div', { class: 'small muted', text: reward.leveledTo ? `Crew reached level ${reward.leveledTo}.` : 'Experience' }),
-            h('b', { text: `+${reward.xp} XP` }),
-            reward.salvagedXp > 0 ? h('span', { class: 'small muted', text: ` · locker full, salvaged +${reward.salvagedXp} XP` }) : null,
-            reward.chests.length > 0
-              ? h('div', { class: 'small muted', text: reward.chests.map(chestBlurb).join(' · ') })
-              : null,
-            ...reward.items.map((item) => lootItemRow(item)),
-          )
-        : null,
-      h(
-        'div',
-        { class: 'result-stats' },
-        stat('Lives kept', `${game.lives}`),
-        stat('Kills', `${game.stats.kills}`),
-        stat('Leaks escaped', `${game.stats.escaped}`),
-        stat('Clean waves', `${game.cleanWaves} / ${game.completedWaves}`),
-        stat('Best clean streak', `${game.bestCleanStreak}`),
-        stat('Early-call recovery', `${Math.round(game.callRecovery)}s`),
-        stat(game.endless ? 'Wave' : 'Cash earned', game.endless ? `${game.waveIdx}` : `$${game.stats.moneyEarned}`),
-        stat('Time', `${Math.floor(game.time / 60)}:${String(Math.floor(game.time % 60)).padStart(2, '0')}`),
-      ),
-      h(
-        'div',
-        { class: 'share' },
-        h('h4', { text: 'Who did the work?' }),
+      h('div', { class: 'result-body' },
+        save ? persistRow(save) : null,
+        h('div', { class: 'eyebrow', text: eyebrow }),
+        h('h2', { text: headline }),
+        h('p', { class: 'muted', text: blurb }),
+        reward ? serviceRewardCard(reward.servicePoints, won) : null,
+        won && !game.endless ? h('section', { class: 'mission-goals result-goals' }, h('h3', { text: 'Mission commendations' }),
+          ...COMMENDATIONS.map(goal => h('div', { class: 'goal-card', attrs: { 'data-earned': String(earnedCommendations(game).includes(goal.id)) } },
+            h('b', { text: `${earnedCommendations(game).includes(goal.id) ? '◆ Earned · ' : '◇ '}${goal.name}` }), h('span', { text: goal.description })))) : null,
+        leakDef && biggestLeak ? h('aside', { class: 'result-advice' },
+          h('b', { text: `Field note: ${leakDef.name}` }),
+          h('p', { text: `${biggestLeak[1]} escaped. ${leakDef.counters}` })) : null,
+        won && game.remaster === 'classic' && earnedStars > 0 ? h('div', { class: 'result-stars' }, stars(earnedStars)) : null,
+        won && game.remaster !== 'classic' && earnedStars > 0
+          ? h('p', { class: 'small', text: 'First remaster clear — +1 90’s.' })
+          : null,
+        won && game.remaster !== 'classic' && earnedStars === 0
+          ? h('p', { class: 'small muted', text: 'Already inspected. No extra 90 or chest this time.' })
+          : null,
+        won && game.remaster === 'classic' && reward && reward.chests.length === 0 && reward.items.length === 0
+          ? h('p', { class: 'small muted', text: 'First-clear chest already claimed. XP still banks.' })
+          : null,
+        reward
+          ? h(
+              'div',
+              { class: 'loot-block' },
+              h('div', { class: 'small muted', text: reward.leveledTo ? `Crew reached level ${reward.leveledTo}.` : 'Experience' }),
+              h('b', { text: `+${reward.xp} XP` }),
+              reward.salvagedXp > 0 ? h('span', { class: 'small muted', text: ` · locker full, salvaged +${reward.salvagedXp} XP` }) : null,
+              reward.chests.length > 0
+                ? h('div', { class: 'small muted', text: reward.chests.map(chestBlurb).join(' · ') })
+                : null,
+              ...reward.items.map((item) => lootItemRow(item)),
+            )
+          : null,
         h(
           'div',
-          { class: 'share-row jeff' },
-          h('span', { class: 'share-name', text: game.heroDef.name }),
-          h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${jeffPct}%`, background: game.heroDef.color } })),
-          h('span', { class: 'share-pct', text: `${jeffPct.toFixed(0)}%` }),
+          { class: 'result-stats' },
+          stat('Lives kept', `${game.lives}`),
+          stat('Kills', `${game.stats.kills}`),
+          stat('Leaks escaped', `${game.stats.escaped}`),
+          stat('Clean waves', `${game.cleanWaves} / ${game.completedWaves}`),
+          stat('Best clean streak', `${game.bestCleanStreak}`),
+          stat('Early-call recovery', `${Math.round(game.callRecovery)}s`),
+          stat(game.endless ? 'Wave' : 'Cash earned', game.endless ? `${game.waveIdx}` : `$${game.stats.moneyEarned}`),
+          stat('Time', `${Math.floor(game.time / 60)}:${String(Math.floor(game.time % 60)).padStart(2, '0')}`),
         ),
-        ...towerRows,
-        game.stats.crewDamage > 0 ? h('div', { class: 'share-row' }, h('span', { class: 'share-name', text: 'Logan' }), h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${game.stats.crewDamage / total * 100}%`, background: '#dfc273' } })), h('span', { class: 'share-pct', text: `${(game.stats.crewDamage / total * 100).toFixed(0)}%` })) : null,
-        h('p', { class: 'small muted', text: jeffPct > 50 ? `${game.heroDef.name} led the damage. Invest in towers to spread the workload.` : `Towers held the line with ${game.heroDef.name} and the crew.` }),
+        h(
+          'div',
+          { class: 'share' },
+          h('h4', { text: 'Who did the work?' }),
+          h(
+            'div',
+            { class: 'share-row jeff' },
+            h('span', { class: 'share-name', text: game.heroDef.name }),
+            h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${jeffPct}%`, background: game.heroDef.color } })),
+            h('span', { class: 'share-pct', text: `${jeffPct.toFixed(0)}%` }),
+          ),
+          ...towerRows,
+          game.stats.crewDamage > 0 ? h('div', { class: 'share-row' }, h('span', { class: 'share-name', text: 'Logan' }), h('div', { class: 'bar' }, h('div', { class: 'fill', style: { width: `${game.stats.crewDamage / total * 100}%`, background: '#dfc273' } })), h('span', { class: 'share-pct', text: `${(game.stats.crewDamage / total * 100).toFixed(0)}%` })) : null,
+          h('p', { class: 'small muted', text: jeffPct > 50 ? `${game.heroDef.name} led the damage. Invest in towers to spread the workload.` : `Towers held the line with ${game.heroDef.name} and the crew.` }),
+        ),
       ),
       h(
         'div',
-        { class: 'btn-row' },
+        { class: 'btn-row result-actions' },
         h('button', { class: 'btn', text: retired || won ? 'Replay' : 'Retry', onClick: handlers.onRetry }),
         handlers.onNext ? h('button', { class: 'btn primary', text: 'Next service call →', onClick: handlers.onNext }) : null,
         h('button', { class: 'btn', text: 'Back to the van', onClick: handlers.onHub }),

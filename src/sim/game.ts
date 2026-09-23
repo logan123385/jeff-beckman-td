@@ -845,6 +845,7 @@ export class Game {
       dotDps: 0,
       dotTime: 0,
       dotSource: null,
+      dotType: null,
       marked: false,
       haste: 0,
       laneTimer: 7,

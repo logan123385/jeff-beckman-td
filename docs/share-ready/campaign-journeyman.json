@@ -1,0 +1,445 @@
+{
+  "method": "Fixed active-play policy. Hero recorded per map (CBJ, or Big Mike for Heat Plant by default), seed 7, legal kits, no gear/perks/extra money. Automated simulation; not human difficulty proof.",
+  "records": [
+    {
+      "map": "crawlspace",
+      "hero": "cbj",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 10,
+      "seconds": 207,
+      "kills": 167,
+      "money": 136,
+      "decisions": 830,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 3,
+          "tier": 3
+        },
+        {
+          "id": "washer",
+          "slot": 0,
+          "tier": 3
+        },
+        {
+          "id": "torch",
+          "slot": 6,
+          "tier": 3
+        },
+        {
+          "id": "barricade",
+          "slot": 5,
+          "tier": 3
+        },
+        {
+          "id": "torch",
+          "slot": 1,
+          "tier": 3
+        }
+      ]
+    },
+    {
+      "map": "boilerRoom",
+      "hero": "cbj",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 12,
+      "seconds": 206,
+      "kills": 293,
+      "money": 78,
+      "decisions": 825,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 0,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 3,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "barricade",
+          "slot": 8,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "torch",
+          "slot": 1,
+          "tier": 3,
+          "specialization": "power"
+        }
+      ]
+    },
+    {
+      "map": "radiantFloor",
+      "hero": "cbj",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 12,
+      "seconds": 338,
+      "kills": 344,
+      "money": 82,
+      "decisions": 1352,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "radiant"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 9,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 1,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 10,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "radiant",
+          "slot": 11,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "barricade",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "power"
+        }
+      ]
+    },
+    {
+      "map": "municipalMain",
+      "hero": "cbj",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 16,
+      "seconds": 440,
+      "kills": 522,
+      "money": 119,
+      "decisions": 1762,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "radiant",
+        "vent"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 9,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 4,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "radiant",
+          "slot": 6,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "vent",
+          "slot": 8,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "barricade",
+          "slot": 12,
+          "tier": 3,
+          "specialization": "power"
+        }
+      ]
+    },
+    {
+      "map": "snowmelt",
+      "hero": "cbj",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 12,
+      "seconds": 268,
+      "kills": 370,
+      "money": 53,
+      "decisions": 1073,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "radiant"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 0,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 10,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "radiant",
+          "slot": 7,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "barricade",
+          "slot": 11,
+          "tier": 3,
+          "specialization": "power"
+        }
+      ]
+    },
+    {
+      "map": "attic",
+      "hero": "cbj",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 12,
+      "seconds": 238,
+      "kills": 211,
+      "money": 190,
+      "decisions": 952,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "vent"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 10,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 0,
+          "tier": 3
+        },
+        {
+          "id": "vent",
+          "slot": 1,
+          "tier": 3
+        },
+        {
+          "id": "barricade",
+          "slot": 6,
+          "tier": 3
+        }
+      ]
+    },
+    {
+      "map": "liftStation",
+      "hero": "cbj",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "wave": 12,
+      "seconds": 242,
+      "kills": 248,
+      "money": 118,
+      "decisions": 971,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "hammerDrill",
+        "descaler"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 6,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "hammerDrill",
+          "slot": 9,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "descaler",
+          "slot": 8,
+          "tier": 3
+        },
+        {
+          "id": "barricade",
+          "slot": 12,
+          "tier": 3
+        }
+      ]
+    },
+    {
+      "map": "mechanicalRoom",
+      "hero": "cbj",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 10,
+      "seconds": 296,
+      "kills": 189,
+      "money": 254,
+      "decisions": 1184,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "radiant"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 9,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 8,
+          "tier": 3
+        },
+        {
+          "id": "torch",
+          "slot": 1,
+          "tier": 3
+        },
+        {
+          "id": "radiant",
+          "slot": 0,
+          "tier": 3
+        },
+        {
+          "id": "barricade",
+          "slot": 3,
+          "tier": 3
+        }
+      ]
+    },
+    {
+      "map": "heatPlant",
+      "hero": "mike",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "wave": 11,
+      "seconds": 198,
+      "kills": 189,
+      "money": 18,
+      "decisions": 791,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "glycol",
+        "vent"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 6,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 14,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 3,
+          "tier": 3
+        },
+        {
+          "id": "glycol",
+          "slot": 0,
+          "tier": 3
+        },
+        {
+          "id": "vent",
+          "slot": 11,
+          "tier": 3
+        }
+      ]
+    }
+  ]
+}

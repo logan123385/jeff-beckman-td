@@ -3,7 +3,7 @@ import { GameLoop } from '../src/core/loop';
 import { DIFFICULTIES } from '../src/data/difficulty';
 import { COOLDOWN_FIELDS, type HeroId } from '../src/data/heroes';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import type { MapDef } from '../src/data/types';
 import { Game } from '../src/sim/game';
 import { applyDamage, pickTarget } from '../src/sim/combat';

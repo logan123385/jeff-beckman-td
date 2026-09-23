@@ -1,0 +1,180 @@
+{
+  "pass": true,
+  "checks": [
+    {
+      "label": "fresh title",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Jeff Beckman",
+        "Tower Defense",
+        "How it works"
+      ]
+    },
+    {
+      "label": "help opens and Escape restores focus"
+    },
+    {
+      "label": "campaign hub",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "The service trail",
+        "One county. Nine calls.",
+        "Keep the first basement dry."
+      ]
+    },
+    {
+      "label": "supply store",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Build a better truck",
+        "Soldering Torch",
+        "Pressure Washer",
+        "Apprentice Barricade",
+        "Vent Stack",
+        "Radiant Loop Coil",
+        "Expansion Tank",
+        "Pipe Snake",
+        "Backflow Preventer",
+        "Chemical Descaler",
+        "Circulator Pump",
+        "PRV",
+        "Boiler",
+        "Hammer Drill",
+        "Glycol Injector",
+        "Sump Pump",
+        "Inspection Camera",
+        "Radiant Manifold",
+        "Mixing Valve",
+        "Air Separator",
+        "Thermostat",
+        "Heat Exchanger",
+        "Dirt Separator",
+        "Steam Trap",
+        "Zone Valve"
+      ]
+    },
+    {
+      "label": "jeff kit and both stances",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Kit"
+      ]
+    },
+    {
+      "label": "mike kit and both stances",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Kit"
+      ]
+    },
+    {
+      "label": "bob kit and both stances",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Kit"
+      ]
+    },
+    {
+      "label": "chris kit and both stances",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Kit"
+      ]
+    },
+    {
+      "label": "becbec kit and both stances",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Kit"
+      ]
+    },
+    {
+      "label": "cbj kit and both stances",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Kit"
+      ]
+    },
+    {
+      "label": "doni kit and both stances",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Kit"
+      ]
+    },
+    {
+      "label": "jayjay kit and both stances",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Kit"
+      ]
+    },
+    {
+      "label": "encyclopedia",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Field Encyclopedia",
+        "Stacked leak properties",
+        "Layered pops"
+      ]
+    },
+    {
+      "label": "loadout",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Pack the truck",
+        "Crawlspace Chaos",
+        "Optional commendations",
+        "Who’s taking the call?",
+        "Saved crews",
+        "Single-target DPS",
+        "AoE splash",
+        "Block / stall",
+        "Anti-air"
+      ]
+    },
+    {
+      "label": "exit cancellation and focus 390x664"
+    },
+    {
+      "label": "exit cancellation and focus 667x280"
+    },
+    {
+      "label": "exit cancellation and focus 320x568"
+    },
+    {
+      "label": "touch exit succeeds with native confirmations disabled"
+    },
+    {
+      "label": "save restore rejects invalid files, backs up, survives reload, and reset cancels safely"
+    },
+    {
+      "label": "returning title",
+      "width": 390,
+      "scrollWidth": 390,
+      "headings": [
+        "Jeff Beckman",
+        "Tower Defense",
+        "How it works"
+      ]
+    },
+    {
+      "label": "restricted-storage webview still loads and enters a match with an honest save warning"
+    }
+  ],
+  "errors": [],
+  "limitations": "Chromium touch emulation; not a physical iPhone or Snapchat session."
+}

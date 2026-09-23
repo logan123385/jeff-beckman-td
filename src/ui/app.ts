@@ -2,6 +2,7 @@ import { renderStore } from './screens/store';
 import type { RemasterId, TowerId } from '../data/types';
 import { SaveStore } from '../save/save';
 import { clear } from './dom';
+import { ConfirmationDialog } from './confirmation';
 import { renderEncyclopedia } from './screens/encyclopedia';
 import { renderHub } from './screens/hub';
 import { renderKit } from './screens/kit';
@@ -14,9 +15,6 @@ export type Screen =
   | { kind: 'title' }
   | { kind: 'hub' }
   | { kind: 'kit' }
-  | { kind: 'skills' }
-  | { kind: 'talents' }
-  | { kind: 'crewTalents' }
   | { kind: 'store' }
   | { kind: 'locker' }
   | { kind: 'encyclopedia' }
@@ -30,11 +28,13 @@ export interface ScreenView {
 
 export class App {
   readonly save = new SaveStore();
+  readonly confirmation = new ConfirmationDialog();
   private current: ScreenView | null = null;
 
   constructor(private readonly root: HTMLElement) {}
 
   go(screen: Screen): void {
+    this.confirmation.close();
     this.current?.dispose?.();
     clear(this.root);
     let view: ScreenView;
@@ -46,11 +46,6 @@ export class App {
         view = renderHub(this);
         break;
       case 'kit':
-        view = renderKit(this);
-        break;
-      case 'skills':
-      case 'talents':
-      case 'crewTalents':
         view = renderKit(this);
         break;
       case 'store': view = renderStore(this); break;
@@ -77,11 +72,14 @@ export class App {
     }
     this.current = view;
     this.root.append(view.el);
+    window.scrollTo(0, 0);
   }
 
   dispose(): void {
+    this.confirmation.close();
     this.current?.dispose?.();
     this.current = null;
     clear(this.root);
+    this.save.dispose();
   }
 }

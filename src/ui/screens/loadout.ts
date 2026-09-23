@@ -11,6 +11,7 @@ import { TOWERS } from '../../data/towers';
 import type { RemasterId, TowerId } from '../../data/types';
 import type { App, ScreenView } from '../app';
 import { h } from '../dom';
+import { persistRow } from '../persist';
 import { heroPortrait, towerPortrait } from '../portraits';
 import { CAMPAIGN_LOCATIONS } from '../../data/campaign';
 import { enemyForMap } from '../../data/bosses';
@@ -84,6 +85,7 @@ export function renderLoadout(app: App, mapId: string, remaster: RemasterId = 'c
         h('button', { class: 'btn link', text: '← Van', onClick: () => app.go({ kind: 'hub' }) }),
         h('div', {}, h('div', { class: 'eyebrow', text: map.endless ? 'After hours' : map.subtitle }), h('h1', { text: 'Pack the truck' })),
       ),
+      persistRow(app.save) ?? '',
       h('section', { class: 'loadout-brief sheet', attrs: { 'aria-label': 'Mission intelligence' } },
         h('div', {}, h('span', { class: 'eyebrow', text: 'Mission intelligence' }), h('h2', { text: map.name }),
           h('p', { text: CAMPAIGN_LOCATIONS[map.id]?.tactic ?? map.blurb })),

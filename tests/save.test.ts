@@ -1,6 +1,11 @@
 import { expect, test } from 'vitest';
+import { DIFFICULTIES } from '../src/data/difficulty';
+import { CRAWLSPACE } from '../src/data/maps/crawlspace';
+import { bankTerminalRun, clockOutHint, pauseBlocksSettle, shouldBankOnLeave } from '../src/data/progress';
 import { persistWarning } from '../src/ui/persist';
 import { SAVE_BAK_KEY, SAVE_KEY, SaveStore, normalizeSave, type SaveData } from '../src/save/save';
+import { Game } from '../src/sim/game';
+import { neutralModifiers } from '../src/data/modifiers';
 
 class MemoryStorage implements Storage {
   private readonly data = new Map<string, string>();
@@ -142,4 +147,204 @@ test('normalizeSave never throws on garbage fields', () => {
   expect(data.inventory.length).toBe(0);
   expect(data.chestId).toBeNull();
   expect(data.bootsId).toBeNull();
+});
+
+test('gearSeq advances past existing gN inventory ids (SR-003)', () => {
+  const data = normalizeSave({
+    version: 2,
+    gearSeq: 1,
+    inventory: [{
+      kind: 'armor',
+      id: 'g7',
+      name: 'Old vest',
+      slot: 'chest',
+      rarity: 'common',
+      affixes: [{ key: 'jeffDamage', amount: 0.05 }],
+    }],
+  } as unknown as Partial<SaveData> & Record<string, unknown>);
+  expect(data.gearSeq).toBe(8);
+});
+
+test('salvage removes one matching inventory row (SR-003)', () => {
+  const save = new SaveStore(null);
+  const row = {
+    kind: 'armor' as const,
+    id: 'g1',
+    name: 'Dup vest',
+    slot: 'chest' as const,
+    rarity: 'common' as const,
+    affixes: [{ key: 'jeffDamage' as const, amount: 0.05 }],
+  };
+  save.data.inventory.push({ ...row }, { ...row });
+  save.salvage('g1');
+  expect(save.data.inventory.filter((item) => item.id === 'g1')).toHaveLength(1);
+});
+
+test('markSeen is not progress and does not write (SR-005)', () => {
+  const storage = new MemoryStorage();
+  const save = new SaveStore(storage);
+  save.markSeen(['drip']);
+  expect(save.hasSeen('drip')).toBe(true);
+  expect(save.hasAnyProgress()).toBe(false);
+  expect(storage.getItem(SAVE_KEY)).toBeNull();
+});
+
+test('stale tab cannot wipe a newer finished run (SR-002)', () => {
+  const storage = new MemoryStorage();
+  const fresh = new SaveStore(storage);
+  const stale = new SaveStore(storage);
+  fresh.recordClear('crawlspace', 'journeyman', 3);
+  fresh.addXp(200);
+  expect(fresh.data.jeffXp).toBe(200);
+  stale.setMuted(true);
+  expect(stale.staleWriteSkipped).toBe(true);
+  expect(persistWarning(stale)).toMatch(/Another tab/);
+  const disk = JSON.parse(storage.getItem(SAVE_KEY)!) as { jeffXp: number; stars: { crawlspace: { journeyman: number } }; muted: boolean };
+  expect(disk.stars.crawlspace.journeyman).toBe(3);
+  expect(disk.jeffXp).toBe(200);
+  expect(disk.muted).toBe(false);
+});
+
+test('quit after a terminal win still banks stars and the first chest (SR-001 / SR-004)', () => {
+  const storage = new MemoryStorage();
+  const save = new SaveStore(storage);
+  const game = new Game(CRAWLSPACE, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), manualStart: true });
+  game.status = 'won';
+  game.lives = Math.max(1, Math.round(CRAWLSPACE.lives * DIFFICULTIES.apprentice.livesMult));
+  expect(shouldBankOnLeave(game.status, false)).toBe(true);
+  expect(pauseBlocksSettle(game.status)).toBe(false);
+  expect(clockOutHint(false)).not.toMatch(/saved/i);
+  expect(clockOutHint(true)).toMatch(/Record saved/);
+  let writes = 0;
+  const setItem = storage.setItem.bind(storage);
+  storage.setItem = (key: string, value: string) => {
+    if (key === SAVE_KEY) writes += 1;
+    setItem(key, value);
+  };
+  const first = bankTerminalRun(save, game);
+  expect(first.earned).toBe(3);
+  expect(first.firstClear).toBe(true);
+  expect(first.reward.chests.length).toBeGreaterThan(0);
+  expect(save.starsFor('crawlspace')).toBe(3);
+  expect(save.data.jeffXp).toBeGreaterThan(0);
+  expect(save.data.heroJobs.jeff).toBe(1);
+  expect(writes).toBe(1);
+  const replay = bankTerminalRun(save, game);
+  expect(replay.reward.xp).toBe(0);
+  expect(save.data.heroJobs.jeff).toBe(1);
+});
+
+test('a stale completed run adds rewards to the latest save without duplicating first-clear loot', () => {
+  const storage = new MemoryStorage();
+  const fresh = new SaveStore(storage), stale = new SaveStore(storage);
+  const makeWin = () => {
+    const game = new Game(CRAWLSPACE, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers() });
+    game.status = 'won';
+    game.lives = 20;
+    return game;
+  };
+  bankTerminalRun(fresh, makeWin());
+  fresh.addServicePoints(2000);
+  fresh.buyTower('descaler');
+  const before = new SaveStore(storage).data;
+  const second = makeWin();
+  const outcome = bankTerminalRun(stale, second);
+  const disk = new SaveStore(storage).data;
+  expect(outcome.firstClear).toBe(false);
+  expect(outcome.reward.chests).toEqual([]);
+  expect(disk.jeffXp).toBe(before.jeffXp + outcome.reward.xp);
+  expect(disk.servicePoints).toBe(before.servicePoints + outcome.reward.servicePoints);
+  expect(disk.ownedTowers).toContain('descaler');
+  expect(disk.heroJobs.jeff).toBe(2);
+  expect(disk.inventory).toEqual(before.inventory);
+  expect(second.rewardsClaimed).toBe(true);
+});
+
+test('failed reward write retains the complete receipt in memory for export', () => {
+  const save = new SaveStore(new QuotaStorage());
+  const game = new Game(CRAWLSPACE, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers() });
+  game.status = 'won';
+  const outcome = bankTerminalRun(save, game);
+  expect(save.lastWriteOk).toBe(false);
+  const exported = JSON.parse(save.exportJson());
+  expect(exported.jeffXp).toBe(outcome.reward.xp);
+  expect(exported.inventory).toHaveLength(outcome.reward.items.length);
+  expect(exported.stars.crawlspace.apprentice).toBeGreaterThan(0);
+  expect(exported.rev).toBe(0);
+});
+
+test('transaction exceptions roll back mutations and do not leave saving suspended', () => {
+  const storage = new MemoryStorage(), save = new SaveStore(storage);
+  expect(() => save.transact(() => { save.addXp(100); throw new Error('stop'); })).toThrow('stop');
+  expect(save.data.jeffXp).toBe(0);
+  expect(storage.getItem(SAVE_KEY)).toBeNull();
+  save.addXp(5);
+  expect(new SaveStore(storage).data.jeffXp).toBe(5);
+});
+
+test('restore round-trips progress, keeps a backup, and advances the local revision', () => {
+  const storage = new MemoryStorage(), save = new SaveStore(storage);
+  save.addXp(10);
+  const exported = new SaveStore(null);
+  exported.addXp(100);
+  exported.recordClear('crawlspace', 'master', 3);
+  exported.setHero('doni');
+  exported.buyTower('descaler');
+  const rev = save.data.rev;
+  expect(save.importJson(exported.exportJson()).ok).toBe(true);
+  const disk = new SaveStore(storage);
+  expect(disk.data.jeffXp).toBe(100);
+  expect(disk.starsFor('crawlspace')).toBe(3);
+  expect(disk.data.selectedHero).toBe('doni');
+  expect(disk.data.rev).toBe(rev + 1);
+  expect(JSON.parse(storage.getItem(SAVE_BAK_KEY)!).jeffXp).toBe(10);
+});
+
+test.each(['bad', 'null', '[]', '{}', '{"version":99,"jeffXp":20}', 'x'.repeat(1_000_001)])('restore rejects invalid or unsupported files without replacing progress (%#)', raw => {
+  const storage = new MemoryStorage(), save = new SaveStore(storage);
+  save.addXp(40);
+  const before = save.exportJson();
+  expect(save.importJson(raw).ok).toBe(false);
+  expect(save.exportJson()).toBe(before);
+  expect(new SaveStore(storage).data.jeffXp).toBe(40);
+});
+
+test.each([SAVE_KEY, SAVE_BAK_KEY])('restore preserves the current save when %s cannot be written', key => {
+  const storage = new MemoryStorage();
+  storage.setItem(SAVE_KEY, JSON.stringify({ version: 2, jeffXp: 40 }));
+  const set = storage.setItem.bind(storage);
+  storage.setItem = (k, v) => { if (k === key) throw new Error('quota'); set(k, v); };
+  const save = new SaveStore(storage);
+  expect(save.importJson('{"version":2,"jeffXp":100}').ok).toBe(false);
+  expect(save.data.jeffXp).toBe(40);
+  expect(new SaveStore(storage).data.jeffXp).toBe(40);
+});
+
+test('a first license purchase is exportable and does not skip the first-job coach', () => {
+  const save = new SaveStore(null);
+  expect(save.buyTower('vent')).toBe(true);
+  expect(save.hasAnyProgress()).toBe(true);
+  expect(save.needsTutorial()).toBe(true);
+});
+
+test('reset retains in-memory progress when the primary write fails after a backup', () => {
+  const storage = new MemoryStorage();
+  const save = new SaveStore(storage);
+  save.addXp(80);
+  const set = storage.setItem.bind(storage);
+  storage.setItem = (k, v) => { if (k === SAVE_KEY) throw new Error('quota'); set(k, v); };
+  expect(save.reset()).toBe(false);
+  expect(save.data.jeffXp).toBe(80);
+});
+
+test('idle clock-out does not unlock hero cards without doing any work', async () => {
+  const { SERVICE_CALL } = await import('../src/data/maps/serviceCall');
+  const save = new SaveStore(null);
+  const game = new Game(SERVICE_CALL, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), manualStart: true });
+  game.callNextWave();
+  expect(game.retire()).toBe(true);
+  const outcome = bankTerminalRun(save, game);
+  expect(outcome.reward.xp).toBe(0);
+  expect(outcome.reward.servicePoints).toBe(0);
+  expect(save.data.heroJobs.jeff ?? 0).toBe(0);
 });

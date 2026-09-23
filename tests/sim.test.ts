@@ -10,13 +10,13 @@ import { CRAWLSPACE } from '../src/data/maps/crawlspace';
 import { MECHANICAL_ROOM } from '../src/data/maps/mechanicalRoom';
 import { SERVICE_CALL } from '../src/data/maps/serviceCall';
 import { generateEndlessWave, nightMutatorAt } from '../src/data/night';
+import { cardUnlocked, KIT_CARDS } from '../src/data/kitCards';
 import { buildRunModifiers, chestsForRun, xpForRun } from '../src/data/progress';
-import { buildModifiers, canUnlock, neutralModifiers } from '../src/data/skills';
-import { applyTalents, canUnlockTalent } from '../src/data/talents';
+import { neutralModifiers } from '../src/data/modifiers';
 import { TOWERS, TOWER_ORDER } from '../src/data/towers';
 import type { MapDef, TowerId } from '../src/data/types';
 import { JEFF } from '../src/data/jeff';
-import { JEFF_LEVEL_CAP, levelFromXp, nightXp, talentPointsAvailable, xpBarCopy, xpToNext } from '../src/data/xp';
+import { JEFF_LEVEL_CAP, levelFromXp, nightXp, xpBarCopy, xpToNext } from '../src/data/xp';
 import { applyDamage, estimateDamage, pickTarget } from '../src/sim/combat';
 import { Game } from '../src/sim/game';
 import { Path } from '../src/sim/path';
@@ -443,15 +443,30 @@ describe('Waves and economy', () => {
   });
 });
 
-describe('Skills and save', () => {
-  it('modifiers stack from unlocked nodes and tiers gate each other', () => {
-    const m = buildModifiers(['sharpTools', 'startingFloat']);
+describe('Kit and save', () => {
+  it('armor affixes stack into run modifiers and cards unlock from hero jobs', () => {
+    const save = new SaveStore(null);
+    const vest = {
+      kind: 'armor' as const,
+      id: 'g-stack',
+      name: 'test vest',
+      slot: 'chest' as const,
+      rarity: 'rare' as const,
+      affixes: [{ key: 'towerDamage' as const, amount: 0.1 }, { key: 'startMoney' as const, amount: 80 }],
+    };
+    expect(save.addGear(vest).kept).toBe(true);
+    expect(save.equipArmor(vest.id)).toBe(true);
+    const m = buildRunModifiers(save);
     expect(m.towerDamage).toBeCloseTo(1.1);
     expect(m.startMoney).toBe(80);
-    const owned = new Set(['sharpTools']);
-    expect(canUnlock('bulkDiscount', owned)).toBe(true);
-    expect(canUnlock('longReach', owned)).toBe(false);
-    expect(canUnlock('sharpTools', owned)).toBe(false);
+    const pin = KIT_CARDS.find((c) => c.id === 'jeff_pin')!;
+    const control = KIT_CARDS.find((c) => c.id === 'jeff_control')!;
+    const spot = KIT_CARDS.find((c) => c.id === 'jeff_spot')!;
+    expect(cardUnlocked(pin, 0)).toBe(true);
+    expect(cardUnlocked(control, 0)).toBe(false);
+    expect(cardUnlocked(control, 1)).toBe(true);
+    expect(cardUnlocked(spot, 2)).toBe(false);
+    expect(cardUnlocked(spot, 3)).toBe(true);
   });
 
   it('save store tracks stars forward-only and unlocks maps in order', () => {
@@ -595,13 +610,13 @@ describe('Stage 3 progression and kit', () => {
     expect(bubble.marked).toBe(true);
   });
 
-  it('Jeff XP and talent points track from jobs', () => {
+  it('Jeff XP and hero job counts track from jobs', () => {
     expect(levelFromXp(0).level).toBe(1);
     expect(levelFromXp(xpToNext(1)).level).toBe(2);
-    expect(talentPointsAvailable(xpToNext(1), 0)).toBe(1);
-    const owned = new Set<string>();
-    expect(canUnlockTalent('ironGrip', owned)).toBe(true);
-    expect(canUnlockTalent('wreckingTap', owned)).toBe(false);
+    const save = new SaveStore(null);
+    expect(save.data.heroJobs.jeff ?? 0).toBe(0);
+    save.recordHeroJob('jeff');
+    expect(save.data.heroJobs.jeff).toBe(1);
   });
 
   it('folds equipped armor into a run', () => {
@@ -621,9 +636,10 @@ describe('Stage 3 progression and kit', () => {
     expect(save.hasAnyProgress()).toBe(true);
   });
 
-  it('Get Closer spends on reach and wrench damage, not leftover aggro', () => {
+  it('reach and wrench affixes fold into modifiers without leftover talent trees', () => {
     const m = neutralModifiers();
-    applyTalents(m, ['closer']);
+    applyAffix(m, { key: 'jeffReach', amount: 0.2 });
+    applyAffix(m, { key: 'jeffDamage', amount: 0.15 });
     expect(m.jeffReach).toBeCloseTo(1.2);
     expect(m.jeffDamage).toBeCloseTo(1.15);
   });

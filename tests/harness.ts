@@ -3,16 +3,18 @@ import { FIXED_DT } from '../src/core/loop';
 import { dist } from '../src/core/vec';
 import { DIFFICULTIES } from '../src/data/difficulty';
 import { ENEMIES } from '../src/data/enemies';
-import { buildModifiers } from '../src/data/skills';
+import { buildRunModifiers } from '../src/data/progress';
 import { TOWERS } from '../src/data/towers';
-import type { DifficultyId, MapDef, TowerId } from '../src/data/types';
+import type { DifficultyId, MapDef, Modifiers, TowerId } from '../src/data/types';
+import { SaveStore } from '../src/save/save';
 import { Game } from '../src/sim/game';
 
 export interface HarnessOptions {
   difficulty?: DifficultyId;
   heroEnabled?: boolean;
   heroId?: HeroId;
-  skills?: string[];
+  /** Kit/armor run modifiers. Defaults to an empty locker (neutral + no affixes). */
+  mods?: Modifiers;
   seed?: number;
   /** Tower build priority; cycles through allowed towers in this order. */
   buildOrder?: TowerId[];
@@ -81,7 +83,7 @@ export function coverage(map: MapDef, game: Game, slot: number, range: number): 
  */
 export function runHeadless(map: MapDef, opts: HarnessOptions = {}): HarnessResult {
   const difficulty = DIFFICULTIES[opts.difficulty ?? 'apprentice'];
-  const mods = buildModifiers(opts.skills ?? []);
+  const mods = opts.mods ?? buildRunModifiers(new SaveStore(null));
   const game = new Game(map, { heroId: opts.heroId, difficulty, mods, seed: opts.seed ?? 7, heroEnabled: opts.heroEnabled ?? true, loadout: opts.loadout });
   if (game.heroEnabled) game.deployHero({ ...map.jeffStart });
   const order = (opts.buildOrder ?? DEFAULT_ORDER).filter((id) => game.allowedTowers.includes(id));

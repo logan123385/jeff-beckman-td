@@ -124,7 +124,6 @@ export type LeakProperty = 'mineral' | 'cast' | 'regen' | 'pressurized';
 
 export type GearSlot = 'wrench' | 'boots' | 'belt' | 'shirt' | 'gauges';
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'relic';
-export type TalentBranch = 'combat' | 'field' | 'foreman';
 export type ChestQuality = 'job' | 'clean' | 'remaster' | 'night' | 'deepNight';
 export type WeaponStance = 'melee' | 'ranged';
 export type ArmorSlot = 'chest' | 'boots';
@@ -249,8 +248,6 @@ export interface MapDef {
   palette: MapPalette;
 }
 
-export type SkillBranch = 'tools' | 'jeff' | 'shop' | 'crew';
-
 /** Multiplicative / additive modifiers applied to a run. All default to neutral. */
 export interface Modifiers {
   towerDamage: number;
@@ -274,27 +271,6 @@ export interface Modifiers {
   crewHp: number;
   crewDamage: number;
   crewRespawn: number;
-}
-
-export interface SkillNode {
-  id: string;
-  branch: SkillBranch;
-  tier: 1 | 2 | 3 | 4 | 5;
-  cost?: number;
-  prerequisite?: string;
-  choiceGroup?: string;
-  name: string;
-  desc: string;
-  apply: (m: Modifiers) => void;
-}
-
-export interface TalentNode {
-  id: string;
-  branch: TalentBranch;
-  tier: 1 | 2 | 3 | 4;
-  name: string;
-  desc: string;
-  apply: (m: Modifiers) => void;
 }
 
 export type DifficultyId = 'apprentice' | 'journeyman' | 'master';

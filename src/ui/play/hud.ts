@@ -156,7 +156,7 @@ export class Hud {
       this.speedBtn,
       this.pauseBtn,
       this.muteBtn,
-      h('button', { class: 'btn small-btn link quit-button', text: 'Quit job', onClick: handlers.onQuit }),
+      h('button', { class: 'btn small-btn link quit-button', text: 'Main menu', onClick: handlers.onQuit }),
     );
 
     const ability = (

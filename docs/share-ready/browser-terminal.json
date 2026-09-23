@@ -1,0 +1,22 @@
+{
+  "pass": true,
+  "checks": [
+    {
+      "label": "pagehide before results banks once and still presents the receipt on return"
+    },
+    {
+      "label": "immediate exit after victory banks XP and does not duplicate the first-clear chest"
+    },
+    {
+      "label": "loss rewards bank, retry starts a clean match"
+    },
+    {
+      "label": "switching away pauses an active battle"
+    },
+    {
+      "label": "clock-out from pause opens results and idle exits grant no XP or hero unlocks"
+    }
+  ],
+  "errors": [],
+  "limitations": "Explicit terminal-state fixtures test lifecycle only; campaign balance is checked separately with ordinary resources."
+}

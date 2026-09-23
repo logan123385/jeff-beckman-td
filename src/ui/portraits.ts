@@ -114,6 +114,7 @@ export function enemyPortrait(id: EnemyId, size = 64, silhouette = false): HTMLC
     dotDps: 0,
     dotTime: 0,
     dotSource: null,
+    dotType: null,
     marked: false,
     haste: 0,
     laneTimer: 0,

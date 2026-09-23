@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Game } from '../src/sim/game';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
 import { DIFFICULTIES } from '../src/data/difficulty';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import { routeCoverage } from '../src/sim/coverage';
 import { earnedCommendations, commendationKey } from '../src/data/commendations';
 import { normalizeSave, SaveStore } from '../src/save/save';

@@ -53,7 +53,7 @@ export function createPausePanel(handlers: PauseHandlers): {
       soundBtn,
       autoBtn,
       handlers.onClockOut ? h('button', { class: 'btn pause-clock', text: 'Clock out · bank rewards', onClick: handlers.onClockOut }) : null,
-      h('button', { class: 'btn', text: 'Quit job', onClick: () => handlers.onQuit() }),
+      h('button', { class: 'btn pause-exit', text: 'Main menu', onClick: () => handlers.onQuit() }),
     ),
     h('p', { class: 'small muted pause-keys', text: 'P or Esc to resume · double-tap a tower to upgrade · tap pads to keep placing' }),
   );

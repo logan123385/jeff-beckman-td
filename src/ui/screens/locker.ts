@@ -5,6 +5,7 @@ import type { ArmorSlot, KitItem } from '../../data/types';
 import { familyHero, isWeaponFamilyId } from '../../data/weapons';
 import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
+import { persistRow } from '../persist';
 import { heroPortrait } from '../portraits';
 
 const ARMOR_SLOTS: ArmorSlot[] = ['chest', 'boots'];
@@ -25,6 +26,7 @@ export function renderLocker(app: App): ScreenView {
         h('h1', { text: 'Crew Locker' }),
         h('span', { class: 'pill big', text: xp.level >= JEFF_LEVEL_CAP ? `Lv ${xp.level} · ${xpBarCopy(xp)}` : `Lv ${xp.level} · ${xp.into} / ${xp.need} XP` }),
       ),
+      persistRow(save) ?? '',
       h('p', { class: 'lede', text: 'First-clear job chests and The Neverending Service Call mileposts drop gear. Shared chest and boots slots. Inventory is 24 — extras salvage into XP.' }),
       h(
         'div',
@@ -116,8 +118,8 @@ function invCard(app: App, item: KitItem, render: () => void): HTMLElement {
       h('button', {
         class: 'btn danger',
         text: 'Salvage',
-        onClick: () => {
-          if (confirm(`Salvage ${item.name} for XP?`)) {
+        onClick: async () => {
+          if (await app.confirmation.show({ title: 'Salvage this item?', message: `${item.name} will be removed from your locker and any equipped kit in exchange for XP.`, confirmLabel: 'Salvage item' })) {
             app.save.salvage(item.id);
             render();
           }

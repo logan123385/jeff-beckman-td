@@ -66,7 +66,7 @@ const HERO_CARDS: Record<HeroId, { melee: readonly CardDef[]; ranged: readonly C
     melee: [
       { name: 'Foot in the Trench', verb: 'Trench', description: '+1 hold' },
       { name: 'Saw Tooth', verb: 'Saw', description: 'shred 18% 3s' },
-      { name: 'Caddie Wave', verb: 'Wave', description: 'one 8s helper every 22s during `waveActive`' },
+      { name: 'Caddie Wave', verb: 'Wave', description: 'one 8s helper every 22s while a wave is active' },
       { name: 'Gallery Swing', verb: 'Swing', description: 'splash 30% within 48' },
     ],
     ranged: [
@@ -94,7 +94,7 @@ const HERO_CARDS: Record<HeroId, { melee: readonly CardDef[]; ranged: readonly C
     melee: [
       { name: 'Tailgate Wall', verb: 'Wall', description: '+1 hold' },
       { name: 'Masher Crack', verb: 'Crack', description: 'shred 14% 3s' },
-      { name: 'Convoy Honk', verb: 'Honk', description: 'two 10s helpers on a 28s timer during `waveActive`' },
+      { name: 'Convoy Honk', verb: 'Honk', description: 'two 10s helpers on a 28s timer while a wave is active' },
       { name: 'Bed Sweep', verb: 'Sweep', description: 'splash 35% within 50' },
     ],
     ranged: [
@@ -108,7 +108,7 @@ const HERO_CARDS: Record<HeroId, { melee: readonly CardDef[]; ranged: readonly C
     melee: [
       { name: 'Gaff Set', verb: 'Set', description: '+1 hold' },
       { name: 'Scale Rip', verb: 'Rip', description: 'shred 16% 3s' },
-      { name: 'Deckhand', verb: 'Hand', description: 'one 10s helper every 20s during `waveActive`' },
+      { name: 'Deckhand', verb: 'Hand', description: 'one 10s helper every 20s while a wave is active' },
       { name: 'Sweep the Gunwale', verb: 'Sweep', description: 'splash 28% within 46' },
     ],
     ranged: [
@@ -122,7 +122,7 @@ const HERO_CARDS: Record<HeroId, { melee: readonly CardDef[]; ranged: readonly C
     melee: [
       { name: 'Title Belt', verb: 'Belt', description: '+1 hold' },
       { name: 'Main Event', verb: 'Event', description: 'stun every 2nd basic' },
-      { name: 'Corner Crew', verb: 'Corner', description: 'one 12s helper every 20s during `waveActive`' },
+      { name: 'Corner Crew', verb: 'Corner', description: 'one 12s helper every 20s while a wave is active' },
       { name: 'Rope Swing', verb: 'Swing', description: 'splash 35% within 54' },
     ],
     ranged: [

@@ -1,7 +1,7 @@
 /** Controlled rendering fixture. Never imported by the game; does not read or write saves. */
 import { DIFFICULTIES } from '../../src/data/difficulty';
 import { HEAT_PLANT } from '../../src/data/maps/heatPlant';
-import { neutralModifiers } from '../../src/data/skills';
+import { neutralModifiers } from '../../src/data/modifiers';
 import { TOWER_ORDER } from '../../src/data/towers';
 import { Game } from '../../src/sim/game';
 import { updateEnemies } from '../../src/sim/enemies';

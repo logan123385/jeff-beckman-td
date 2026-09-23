@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { DIFFICULTIES } from '../src/data/difficulty';
 import { MAPS } from '../src/data/maps';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import type { TowerId } from '../src/data/types';
 import { Game } from '../src/sim/game';
 import { applyDamage } from '../src/sim/combat';
