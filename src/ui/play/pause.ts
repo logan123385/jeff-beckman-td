@@ -6,6 +6,7 @@ export interface PauseHandlers {
   onCycleSound(): void;
   soundLabel(): string;
   onQuit(): void;
+  onClockOut?: () => void;
   autoPause: () => boolean;
   onToggleAutoPause(): void;
 }
@@ -51,6 +52,7 @@ export function createPausePanel(handlers: PauseHandlers): {
       h('button', { class: 'btn primary big', text: 'Resume', onClick: () => handlers.onResume() }),
       soundBtn,
       autoBtn,
+      handlers.onClockOut ? h('button', { class: 'btn pause-clock', text: 'Clock out · bank rewards', onClick: handlers.onClockOut }) : null,
       h('button', { class: 'btn', text: 'Quit job', onClick: () => handlers.onQuit() }),
     ),
     h('p', { class: 'small muted pause-keys', text: 'P or Esc to resume · double-tap a tower to upgrade · tap pads to keep placing' }),
