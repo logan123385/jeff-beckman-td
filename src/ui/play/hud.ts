@@ -48,8 +48,8 @@ export class Hud {
   private readonly pipeMedal: HTMLElement;
   private readonly next = h('span', { class: 'next-wave' });
   private readonly callBtn = h('button', { class: 'btn primary call' });
-  private readonly speedBtn = h('button', { class: 'btn small-btn' });
-  private readonly pauseBtn = h('button', { class: 'btn small-btn' });
+  private readonly speedBtn = h('button', { class: 'btn small-btn speed-button', attrs: { 'aria-label': 'Change game speed' } });
+  private readonly pauseBtn = h('button', { class: 'btn small-btn pause-button' });
   private readonly hpFill = h('div', { class: 'fill' });
   private readonly hpText = h('span', { class: 'small' });
   private readonly xpFill = h('div', { class: 'fill xp' });
@@ -84,8 +84,8 @@ export class Hud {
   });
   private readonly status = h('span', { class: 'jeff-status' });
   private readonly hint = h('div', { class: 'hint' });
-  private readonly clockBtn = h('button', { class: 'btn small-btn' });
-  private readonly muteBtn = h('button', { class: 'btn small-btn' });
+  private readonly clockBtn = h('button', { class: 'btn small-btn clock-button' });
+  private readonly muteBtn = h('button', { class: 'btn small-btn mute-button' });
   private readonly mutator = h('span', { class: 'pill night-mut hidden' });
   private readonly jeffCard: HTMLElement;
   private readonly abilityRail: HTMLElement;
@@ -150,13 +150,13 @@ export class Hud {
       this.stickyChip,
       h('div', { class: 'medal wave' }, h('span', { class: 'label', text: 'Wave' }), this.wave),
       h('div', { class: 'hud-group grow' }, this.next, this.mutator),
-      h('button', { class: 'btn small-btn scout-button', text: 'Scout (I)', title: 'Pause and inspect incoming routes, enemies and counters', onClick: handlers.onScout }),
+      h('button', { class: 'btn small-btn scout-button', text: 'Scout', title: 'Pause and inspect incoming routes, enemies and counters (I)', onClick: handlers.onScout }),
       this.callBtn,
       this.clockBtn,
       this.speedBtn,
       this.pauseBtn,
       this.muteBtn,
-      h('button', { class: 'btn small-btn link', text: 'Quit job', onClick: handlers.onQuit }),
+      h('button', { class: 'btn small-btn link quit-button', text: 'Quit job', onClick: handlers.onQuit }),
     );
 
     const ability = (

@@ -77,10 +77,11 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   const canvas = h('canvas', { class: 'stage-canvas' });
   const banner = h('div', { class: 'banner hidden' });
   const stage = h('div', { class: 'stage' }, canvas, banner);
+  const battlefield = h('div', { class: 'battlefield-space' }, stage);
   const overlayHost = h('div', { class: 'play-overlays' });
   const flow = new BattleFlow(game);
   stage.append(flow.el);
-  const rankCall = h('button', { class: 'rank-call', text: 'Hero ranks (L)', disabled: true, onClick: () => openRanks() });
+  const rankCall = h('button', { class: 'rank-call', text: 'Hero ranks', title: 'Spend hero ranks (L)', disabled: true, onClick: () => openRanks() });
   const el = h('div', { class: 'screen play' });
 
   const renderer = new Renderer(canvas);
@@ -110,7 +111,8 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   let autoPauseWaves = false;
   let userPaused = false;
   let planning = false;
-  const planButton = h('button', { class: 'btn plan-button', text: 'Plan defenses (B)', attrs: { 'aria-pressed': 'false' }, onClick: () => togglePlanning() });
+  const planButton = h('button', { class: 'btn plan-button', text: 'Plan', title: 'Plan defenses (B)', attrs: { 'aria-pressed': 'false' }, onClick: () => togglePlanning() });
+  const cancelTarget = h('button', { class: 'btn cancel-target hidden', text: 'Cancel', attrs: { 'aria-label': 'Cancel targeting or building' }, onClick: () => clearSelection({ disarm: true }) });
   let lastTowerTap = { id: 0, at: 0 };
   let wasDowned = false;
   let rankPanel!: ReturnType<typeof createRankPanel>;
@@ -200,8 +202,9 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
       renderer.draw(game, view);
       hud.update();
       flow.update();
+      cancelTarget.classList.toggle('hidden', !view.targeting && !stickyTower && !view.heroSelected);
       rankCall.disabled = game.pendingRankUps <= 0;
-      const rankText = game.pendingRankUps > 0 ? `★ ${game.pendingRankUps} hero rank${game.pendingRankUps > 1 ? 's' : ''} (L)` : 'Hero ranks (L)';
+      const rankText = game.pendingRankUps > 0 ? `★ ${game.pendingRankUps} hero rank${game.pendingRankUps > 1 ? 's' : ''}` : 'Hero ranks';
       if (rankCall.textContent !== rankText) rankCall.textContent = rankText;
       rankCall.classList.toggle('ready', game.pendingRankUps > 0);
       popover.update(stage, canvas);
@@ -298,15 +301,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         togglePause();
       },
       onQuit: () => quitJob(),
-      onClockOut: () => {
-        if (!live()) return;
-        if (game.retire()) {
-          audio.clock();
-          hud.setHint('Clocked out. Record saved.');
-        } else if (game.endless && game.waveIdx <= 0) {
-          hud.setHint('Start the call before you clock out — no XP for standing in the lot.');
-        }
-      },
+      onClockOut: () => clockOut(),
       onMute: () => cycleSound(),
       muteLabel: () => pauseSoundLabel(audio.preset()),
       onClamp: () => useClamp(),
@@ -331,7 +326,9 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     canCall: () => !planning && !userPaused,
     onRoute: route => { view.scoutedRoute = route; },
   });
-  stage.append(intel.entries, intel.el, intel.inspection);
+  stage.append(intel.entries, intel.inspection);
+  // Fixed mobile intel must escape the board's size-query containing block.
+  overlayHost.append(intel.el);
 
   function cycleSound(): void {
     const next = audio.cyclePreset();
@@ -359,11 +356,25 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     if (confirm(leave)) app.go({ kind: 'hub' });
   }
 
+  function clockOut(): void {
+    if (!live()) return;
+    if (game.retire()) {
+      audio.clock();
+      hud.setHint('Clocked out. Record saved.');
+    } else if (game.endless && game.waveIdx <= 0) {
+      hud.setHint('Start the call before you clock out — no XP for standing in the lot.');
+    }
+  }
+
   const pausePanel = createPausePanel({
     onResume: () => setPaused(false),
     onCycleSound: () => cycleSound(),
     soundLabel: () => pauseSoundLabel(audio.preset()),
     onQuit: () => quitJob(),
+    onClockOut: game.endless ? () => {
+      setPaused(false);
+      clockOut();
+    } : undefined,
     autoPause: () => autoPauseWaves,
     onToggleAutoPause: () => {
       autoPauseWaves = !autoPauseWaves;
@@ -401,12 +412,13 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     h('b', { text: map.name }),
     rankCall,
     planButton,
+    cancelTarget,
     h('span', { class: 'pill', text: remasterTitle(remaster) }),
     h('span', { class: 'pill', text: difficulty.name }),
     game.endless ? h('span', { class: 'small muted', text: 'Clock out anytime' }) : h('span', { class: 'small muted', text: `${map.waves.length} waves` }),
   );
 
-  el.append(hud.top, job, stage, hud.bottom, overlayHost);
+  el.append(hud.top, job, battlefield, hud.bottom, overlayHost);
 
   // ---------------------------------------------------------------- input
 
@@ -535,7 +547,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     loop.paused = planning || userPaused || rankLock || intel.isOpen;
     el.classList.toggle('paused', loop.paused && !planning);
     el.classList.toggle('planning', planning);
-    planButton.textContent = planning ? 'Resume action (B)' : 'Plan defenses (B)';
+    planButton.textContent = planning ? 'End plan' : 'Plan';
     planButton.setAttribute('aria-pressed', String(planning));
     hud.planning = planning;
     hud.syncTransport();

@@ -1,0 +1,181 @@
+/* The board always keeps its world aspect ratio. Its own container, rather than
+   an assumed HUD height, measures the space left by controls and boss health. */
+.battlefield-space {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+.play .battlefield-space .stage {
+  flex: none;
+  width: min(100cqw, 160cqh);
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 8 / 5;
+  margin: 0;
+}
+.cancel-target { display: none; }
+.play .battle-intel { position: fixed; top: 80px; right: 24px; bottom: 32px; }
+
+@media (max-width: 900px), (max-height: 600px) and (max-width: 1100px) {
+  /* dvh follows mobile browser chrome; safe areas protect notches/home bars.
+     Only the battle is locked. The van, kit, store and loadout still scroll. */
+  html:has(.play), body:has(.play) { overflow: hidden; overscroll-behavior: none; }
+  .play {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    margin: 0;
+    padding: max(4px, env(safe-area-inset-top)) max(4px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 44px minmax(0, 1fr) auto;
+    gap: 4px;
+    overflow: hidden;
+    background: #102630;
+  }
+  .play button { touch-action: manipulation; }
+  .play .hud-top {
+    display: grid;
+    grid-template-columns: 1fr 1.8fr 1fr 1fr;
+    gap: 2px 4px;
+    padding: 3px 5px;
+    min-height: 0;
+    align-items: center;
+  }
+  .play .hud-top .medal {
+    grid-row: 1;
+    min-width: 0;
+    height: 28px;
+    padding: 0;
+    gap: 4px;
+    border: 0;
+    justify-content: center;
+  }
+  .play .hud-top .heart { grid-column: 1; }
+  .play .hud-top .coin { grid-column: 2; }
+  .play .hud-top .parts { grid-column: 3; }
+  .play .hud-top .wave { grid-column: 4; white-space: nowrap; }
+  .play .medal b { font-size: 17px; }
+  .play .medal .ico { width: 22px; height: 22px; font-size: 15px; }
+  .play .medal .label { font-size: 9px; letter-spacing: 0; }
+  .play .hud-top .pipe,
+  .play .hud-top .grow,
+  .play .hud-top .combo-chip,
+  .play .hud-top .sticky-chip,
+  .play .hud-top .clock-button,
+  .play .hud-top .mute-button,
+  .play .hud-top .quit-button { display: none; }
+  /* Sound, leaving and banking an endless run live in Pause. Scout keeps intel. */
+  .play .hud-top .btn { min-width: 44px; min-height: 44px; padding: 4px; font-size: 12px; white-space: normal; line-height: 1.1; }
+  .play .scout-button { grid-row: 2; grid-column: 1; }
+  .play .hud-top .call { grid-row: 2; grid-column: 2; letter-spacing: 0; font-size: 11px; }
+  .play .speed-button { grid-row: 2; grid-column: 3; }
+  .play .pause-button { grid-row: 2; grid-column: 4; }
+  .play .job-strip { min-width: 0; min-height: 0; padding: 0 3px; gap: 4px; flex-wrap: nowrap; overflow: hidden; }
+  .play .job-strip > b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .play .job-strip > .eyebrow,
+  .play .job-strip > .pill,
+  .play .job-strip > .small { display: none; }
+  .play .rank-call, .play .plan-button, .play .cancel-target { margin: 0; min-width: 44px; min-height: 44px; flex: none; padding: 5px 9px; font-size: 11px; }
+  .play .cancel-target:not(.hidden) { display: block; }
+  .play .stage { border-width: 2px; box-shadow: 0 3px 16px #0005; outline-offset: -1px; animation: none; filter: none; }
+  .play .hud-bottom { min-width: 0; padding: 4px; gap: 4px; grid-template-columns: minmax(0, 1fr); }
+  .play .jeff-card { width: 100%; max-width: none; min-width: 0; min-height: 48px; height: 48px; padding: 2px 7px 2px 2px; gap: 7px; }
+  .play .jeff-card .jeff-frame { padding: 0; }
+  .play .jeff-card canvas { width: 40px !important; height: 40px !important; }
+  .play .jeff-info { flex: 1; gap: 2px; overflow: hidden; }
+  .play .jeff-name-row { display: block; line-height: 1; }
+  .play .jeff-name-row b { font-size: 12px; }
+  .play .jeff-title, .play .hud-hero-aura, .play .jeff-meta > .small { display: none; }
+  .play .jeff-meta { display: flex; justify-content: space-between; line-height: 1; gap: 4px; }
+  .play .jeff-status { max-width: none; font-size: 10px; }
+  .play .xp-label { white-space: nowrap; font-size: 10px; }
+  .play .jeff-card .bar { height: 4px; min-height: 0; margin: 0; }
+  .play .jeff-card .bar.xp { height: 2px; }
+  .play .tool-tray { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 0; overflow: visible; }
+  .play .tray-tool { min-width: 0; min-height: 56px; padding: 2px; gap: 0; }
+  .play .tray-tool canvas { width: 34px; height: 34px; }
+  .play .tray-key, .play .tray-name { display: none; }
+  .play .tray-cost { font-size: 11px; line-height: 16px; }
+  .play .ability-rail { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+  .play .ability { min-height: 64px; min-width: 0; padding: 32px 2px 3px; align-items: center; justify-content: start; gap: 2px; }
+  .play .ability .ab-glyph { left: calc(50% - 14px); top: 2px; width: 28px; height: 28px; }
+  .play .ability .ab-name { font-size: 9px; line-height: 1.05; text-align: center; white-space: normal; overflow: visible; }
+  .play .ability .key, .play .ability .ab-desc { display: none; }
+  .play .ability .rank-pips { margin: auto 0 0; gap: 2px; }
+  .play .ability .rank-pip { width: 4px; height: 4px; }
+  .play .cooldown-number { top: 6px; left: calc(50% - 12px); width: 24px; font-size: 18px; }
+  .play .hint { display: block; min-height: 28px; height: 28px; padding: 0 3px; margin: 0; overflow-y: auto; overscroll-behavior: contain; font-size: 10px; line-height: 14px; text-align: center; }
+  .play .boss-panel { margin: 0; padding: 3px 6px; font-size: 10px; min-height: 22px; }
+  .play .flow-state { top: 2px; min-width: 150px; max-width: 70%; padding: 2px 6px; gap: 1px; }
+  .play .flow-phase, .play .flow-detail { font-size: 8px; }
+  .play .flow-reward { bottom: 3px; font-size: 9px; padding: 3px 6px; }
+  .play .flow-warning { top: 42px; right: 3px; font-size: 9px; padding: 3px 5px; }
+  .play .banner { top: 42px; padding: 4px 8px; max-width: 80%; }
+  .play .banner .counter { display: none; }
+  .play .banner .banner-title { font-size: 12px; }
+  /* Menus scroll within the viewport, never underneath the bottom controls. */
+  .play .overlay { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); overflow: hidden; }
+  .play .pause-card, .play .rank-card, .play .results { max-height: 100%; min-height: 0; padding: 16px; overflow-y: auto; overscroll-behavior: contain; }
+  .play .overlay button { min-height: 44px; }
+  .play .rank-later { position: sticky; bottom: -16px; width: 100%; background: #25444b; }
+  .play .battle-intel { position: fixed; inset: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); width: auto; max-width: none; padding: 12px; z-index: 60; overscroll-behavior: contain; }
+  .play .intel-header { position: sticky; top: -12px; z-index: 1; background: #294432; }
+  .play .intel-footer { position: sticky; bottom: -12px; background: #19382b; }
+  .play .battle-intel button { min-height: 44px; }
+  .play .coach { top: auto; bottom: 4px; width: calc(100% - 8px); min-width: 0; max-width: 330px; padding: 5px 8px; }
+  .play .coach-title { font-size: 12px; }
+  .play .coach-body { margin: 3px 0; font-size: 10px; }
+  .play .coach-skip { min-height: 44px; padding: 5px 10px; }
+  .play:has(.coach:not(.hidden)) .banner { display: none; }
+  .play .kr-compact .kr-x { min-width: 44px; min-height: 44px; }
+  .play .kr-compact .kr-hub { min-height: 44px; }
+  .play .kr-wheel { z-index: 12; }
+}
+
+@media (max-width: 359px) {
+  .play .ability-rail { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .play .ability { min-height: 44px; padding: 3px 2px 3px 27px; }
+  .play .ability .ab-glyph { width: 24px; height: 24px; left: 1px; top: 8px; }
+  .play .ability .rank-pips { display: none; }
+  .play .rank-call, .play .plan-button, .play .cancel-target { padding-inline: 6px; }
+}
+
+/* A landscape phone has horizontal room but very little height. Put the
+   controls beside the board so both remain available without any page scroll. */
+@media (orientation: landscape) and (max-height: 600px) and (max-width: 1100px) {
+  .play { grid-template-columns: minmax(0, 1fr) 244px; grid-template-rows: 44px 44px minmax(0, 1fr); }
+  .play .hud-top { grid-column: 1 / -1; grid-row: 1; display: flex; flex-wrap: nowrap; gap: 4px; padding: 0 4px; }
+  .play .hud-top .medal { flex: none; padding-right: 4px; }
+  .play .hud-top .coin { margin-right: auto; }
+  .play .hud-top .medal b { font-size: 15px; }
+  .play .hud-top .btn { flex: none; padding: 3px 7px; font-size: 11px; }
+  .play .hud-top .call { width: 120px; }
+  .play .job-strip { grid-column: 1; grid-row: 2; }
+  .play .battlefield-space { grid-column: 1; grid-row: 3; }
+  .play .hud-bottom { grid-column: 2; grid-row: 2 / -1; align-content: center; gap: 3px; }
+  .play .jeff-card { height: 44px; min-height: 44px; }
+  .play .jeff-card canvas { width: 36px !important; height: 36px !important; }
+  .play .tool-tray { gap: 2px; }
+  .play .tray-tool { min-height: 50px; }
+  .play .tray-tool canvas { width: 30px; height: 30px; }
+  .play .ability-rail { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
+  .play .ability { min-height: 51px; padding-top: 25px; }
+  .play .ability .ab-glyph { width: 23px; height: 23px; left: calc(50% - 11.5px); }
+  .play .ability .ab-name { font-size: 9px; }
+  .play .ability .rank-pips { display: none; }
+  .play .hint { height: 28px; }
+  .play .pause-card { padding: 12px; }
+  .play .pause-card > p, .play .pause-card > .eyebrow { display: none; }
+  .play .pause-card h2 { font-size: 22px; margin: 0; }
+  .play .pause-actions { gap: 5px; margin-top: 7px; }
+  .play .pause-actions .btn { min-height: 44px; padding: 4px; font-size: 14px; }
+}

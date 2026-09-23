@@ -1,0 +1,433 @@
+{
+  "pass": true,
+  "touchInput": true,
+  "ordinaryResources": true,
+  "layouts": [
+    {
+      "label": "390x664",
+      "width": 390,
+      "height": 664,
+      "pageHeight": 664,
+      "pageWidth": 390,
+      "board": {
+        "x": 4,
+        "y": 159.625,
+        "w": 382,
+        "h": 238.75,
+        "right": 386,
+        "bottom": 398.375
+      },
+      "dock": {
+        "x": 4,
+        "y": 424,
+        "w": 382,
+        "h": 236,
+        "right": 386,
+        "bottom": 660
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "375x667",
+      "width": 375,
+      "height": 667,
+      "pageHeight": 667,
+      "pageWidth": 375,
+      "board": {
+        "x": 4,
+        "y": 165.8125,
+        "w": 367,
+        "h": 229.375,
+        "right": 371,
+        "bottom": 395.1875
+      },
+      "dock": {
+        "x": 4,
+        "y": 427,
+        "w": 367,
+        "h": 236,
+        "right": 371,
+        "bottom": 663
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "320x568",
+      "width": 320,
+      "height": 568,
+      "pageHeight": 568,
+      "pageWidth": 320,
+      "board": {
+        "x": 32.796875,
+        "y": 138,
+        "w": 254.390625,
+        "h": 158.984375,
+        "right": 287.1875,
+        "bottom": 296.984375
+      },
+      "dock": {
+        "x": 4,
+        "y": 301,
+        "w": 312,
+        "h": 263,
+        "right": 316,
+        "bottom": 564
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "360x640",
+      "width": 360,
+      "height": 640,
+      "pageHeight": 640,
+      "pageWidth": 360,
+      "board": {
+        "x": 4,
+        "y": 157,
+        "w": 352,
+        "h": 220,
+        "right": 356,
+        "bottom": 377
+      },
+      "dock": {
+        "x": 4,
+        "y": 400,
+        "w": 352,
+        "h": 236,
+        "right": 356,
+        "bottom": 636
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "430x740",
+      "width": 430,
+      "height": 740,
+      "pageHeight": 740,
+      "pageWidth": 430,
+      "board": {
+        "x": 4,
+        "y": 185.125,
+        "w": 422,
+        "h": 263.75,
+        "right": 426,
+        "bottom": 448.875
+      },
+      "dock": {
+        "x": 4,
+        "y": 500,
+        "w": 422,
+        "h": 236,
+        "right": 426,
+        "bottom": 736
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "768x1024",
+      "width": 768,
+      "height": 1024,
+      "pageHeight": 1024,
+      "pageWidth": 768,
+      "board": {
+        "x": 4,
+        "y": 221.5,
+        "w": 760,
+        "h": 475,
+        "right": 764,
+        "bottom": 696.5
+      },
+      "dock": {
+        "x": 4,
+        "y": 784,
+        "w": 760,
+        "h": 236,
+        "right": 764,
+        "bottom": 1020
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "844x390",
+      "width": 844,
+      "height": 390,
+      "pageHeight": 390,
+      "pageWidth": 844,
+      "board": {
+        "x": 69.203125,
+        "y": 100,
+        "w": 457.59375,
+        "h": 285.984375,
+        "right": 526.796875,
+        "bottom": 385.984375
+      },
+      "dock": {
+        "x": 596,
+        "y": 52,
+        "w": 244,
+        "h": 334,
+        "right": 840,
+        "bottom": 386
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "740x360",
+      "width": 740,
+      "height": 360,
+      "pageHeight": 360,
+      "pageWidth": 740,
+      "board": {
+        "x": 41.203125,
+        "y": 100,
+        "w": 409.59375,
+        "h": 255.984375,
+        "right": 450.796875,
+        "bottom": 355.984375
+      },
+      "dock": {
+        "x": 492,
+        "y": 52,
+        "w": 244,
+        "h": 304,
+        "right": 736,
+        "bottom": 356
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "667x375",
+      "width": 667,
+      "height": 375,
+      "pageHeight": 375,
+      "pageWidth": 667,
+      "board": {
+        "x": 4,
+        "y": 107.0625,
+        "w": 411,
+        "h": 256.875,
+        "right": 415,
+        "bottom": 363.9375
+      },
+      "dock": {
+        "x": 419,
+        "y": 52,
+        "w": 244,
+        "h": 319,
+        "right": 663,
+        "bottom": 371
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "568x320",
+      "width": 568,
+      "height": 320,
+      "pageHeight": 320,
+      "pageWidth": 568,
+      "board": {
+        "x": 4,
+        "y": 110.5,
+        "w": 312,
+        "h": 195,
+        "right": 316,
+        "bottom": 305.5
+      },
+      "dock": {
+        "x": 320,
+        "y": 52,
+        "w": 244,
+        "h": 264,
+        "right": 564,
+        "bottom": 316
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "boss-five-tools-320x568",
+      "width": 320,
+      "height": 568,
+      "pageHeight": 568,
+      "pageWidth": 320,
+      "board": {
+        "x": 53.59375,
+        "y": 138,
+        "w": 212.796875,
+        "h": 132.984375,
+        "right": 266.390625,
+        "bottom": 270.984375
+      },
+      "dock": {
+        "x": 4,
+        "y": 275,
+        "w": 312,
+        "h": 289,
+        "right": 316,
+        "bottom": 564
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "boss-five-tools-390x664",
+      "width": 390,
+      "height": 664,
+      "pageHeight": 664,
+      "pageWidth": 390,
+      "board": {
+        "x": 4,
+        "y": 146.625,
+        "w": 382,
+        "h": 238.75,
+        "right": 386,
+        "bottom": 385.375
+      },
+      "dock": {
+        "x": 4,
+        "y": 398,
+        "w": 382,
+        "h": 262,
+        "right": 386,
+        "bottom": 660
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "boss-five-tools-568x320",
+      "width": 568,
+      "height": 320,
+      "pageHeight": 320,
+      "pageWidth": 568,
+      "board": {
+        "x": 4,
+        "y": 110.5,
+        "w": 312,
+        "h": 195,
+        "right": 316,
+        "bottom": 305.5
+      },
+      "dock": {
+        "x": 320,
+        "y": 52,
+        "w": 244,
+        "h": 264,
+        "right": 564,
+        "bottom": 316
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "boss-five-tools-844x390",
+      "width": 844,
+      "height": 390,
+      "pageHeight": 390,
+      "pageWidth": 844,
+      "board": {
+        "x": 69.203125,
+        "y": 100,
+        "w": 457.59375,
+        "h": 285.984375,
+        "right": 526.796875,
+        "bottom": 385.984375
+      },
+      "dock": {
+        "x": 596,
+        "y": 52,
+        "w": 244,
+        "h": 334,
+        "right": 840,
+        "bottom": 386
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "rotate-during-combat",
+      "width": 844,
+      "height": 390,
+      "pageHeight": 390,
+      "pageWidth": 844,
+      "board": {
+        "x": 69.203125,
+        "y": 100,
+        "w": 457.59375,
+        "h": 285.984375,
+        "right": 526.796875,
+        "bottom": 385.984375
+      },
+      "dock": {
+        "x": 596,
+        "y": 52,
+        "w": 244,
+        "h": 334,
+        "right": 840,
+        "bottom": 386
+      },
+      "outside": [],
+      "shortTargets": [],
+      "overlap": false
+    },
+    {
+      "label": "desktop",
+      "width": 1440,
+      "height": 900,
+      "pageHeight": 900,
+      "pageWidth": 1440,
+      "board": {
+        "x": 222.40625,
+        "y": 115,
+        "w": 995.1875,
+        "h": 621.984375,
+        "right": 1217.59375,
+        "bottom": 736.984375
+      },
+      "dock": {
+        "x": 20,
+        "y": 745,
+        "w": 1400,
+        "h": 143,
+        "right": 1420,
+        "bottom": 888
+      },
+      "outside": [],
+      "shortTargets": [
+        "Scout",
+        "Call wave  (+$0)",
+        "▶ 1×",
+        "Pause",
+        "Sound full",
+        "Quit job",
+        "Hero ranks",
+        "Plan"
+      ],
+      "overlap": false
+    }
+  ],
+  "errors": []
+}
