@@ -72,7 +72,8 @@ const layout = async label => {
     const rect=el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom};};
     const visible=el=>!!el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden';
     const controls=[...document.querySelectorAll('.hud-top button,.job-strip button,.hud-bottom button')].filter(visible);
-    const outside=controls.filter(el=>{const r=rect(el);return r.x < -1||r.y < -1||r.right > innerWidth+1||r.bottom > innerHeight+1;}).map(el=>el.textContent.trim());
+    const elements=[...controls,...document.querySelectorAll('.hint,.boss-panel')].filter(visible);
+    const outside=elements.filter(el=>{const r=rect(el);return r.x < -1||r.y < -1||r.right > innerWidth+1||r.bottom > innerHeight+1;}).map(el=>el.textContent.trim());
     const board=rect(document.querySelector('.stage')), dock=rect(document.querySelector('.hud-bottom'));
     return {width:innerWidth,height:innerHeight,pageHeight:document.documentElement.scrollHeight,pageWidth:document.documentElement.scrollWidth,
       board,dock,outside,shortTargets:controls.filter(el=>rect(el).h<43||rect(el).w<43).map(el=>el.textContent.trim()),
@@ -100,7 +101,7 @@ try {
   await waitFor('.stage-canvas');
   await shot('01-tutorial');
   if (await read(`!!document.querySelector('.coach-skip')`)) await click('.coach-skip');
-  for (const [w,h] of [[390,664],[375,667],[320,568],[360,640],[430,740],[768,1024],[844,390],[740,360],[667,375],[568,320]]) {
+  for (const [w,h] of [[390,664],[375,667],[320,568],[360,640],[430,740],[768,1024],[844,390],[740,360],[667,375],[568,320],[844,300],[667,280]]) {
     await viewport(w,h); await layout(`${w}x${h}`); await shot(`layout-${w}x${h}`);
   }
   // Presentation-only stress fixture: five tools and boss health.
@@ -108,14 +109,16 @@ try {
   await read(`(() => {
     const tray=document.querySelector('.tool-tray');
     for(let i=tray.children.length;i<5;i++){const clone=tray.firstElementChild.cloneNode(true);clone.dataset.layoutFixture='true';tray.append(clone);}
-    document.querySelector('.boss-panel').style.setProperty('display','block','important');
+    const boss=document.querySelector('.boss-panel').cloneNode(true);
+    boss.classList.remove('hidden');boss.dataset.layoutFixture='true';
+    boss.firstElementChild.textContent='Boss layout fixture';
+    document.querySelector('.hud-bottom').append(boss);
   })()`);
-  for (const [w,h] of [[320,568],[390,664],[568,320],[844,390]]) {
+  for (const [w,h] of [[320,568],[390,664],[568,320],[844,390],[768,1024],[820,1180],[844,300],[667,280]]) {
     await viewport(w,h); await layout(`boss-five-tools-${w}x${h}`);
   }
   await read(`(() => {
     document.querySelectorAll('[data-layout-fixture]').forEach(el=>el.remove());
-    document.querySelector('.boss-panel').style.removeProperty('display');
   })()`);
   await viewport(390,664);
   await click('.scout-button'); await assertInViewport('.battle-intel');
