@@ -5,7 +5,7 @@ A Kingdom Rush–style tower defense with a plumbing / hydronic-heating theme. E
 Twenty-four unique towers across nine campaign maps. Before each job you pack up to
 five tools — Kingdom Rush style — from what later calls have taught you. Opt-in
 remasters after a Classic clear (Code Inspection / Frozen Main / Cash Job / Clean Hands), and The Neverending Service Call
-after the first four service calls. Heroes share crew XP, shared training, and equipped locker gear. Each also has an independent career build, combat kit, and aura.
+after the first four service calls. Progression is **Kit of Three**: a weapon family (melee or ranged), shared chest and boots, and two stance cards. Heroes share crew XP and locker gear. Skill trees, talent trees, and Hero builds are retired.
 
 ## Gameplay flow overhaul
 
@@ -80,7 +80,7 @@ skill emblems, numeric cooldowns, enemy previews, and a boss health bar.
 - Big leaks **split** when they pop: Scale Crabs shed drips, Frozen Mains shed crabs, Sediment Boulders become Lime Scale. Pressurized mains shed one extra child. Child pips sit under a parent on the yard; hover it to read the family. Splash the children; letting a parent walk off costs the whole family.
 - **Clean Hands** is the CHIMPS remaster: no selling, no actives, no Logan, no torch rain, truck money only, one leak.
 
-Progress remains in the existing save format (`jbtd-save-v1`). A backup copy (`jbtd-save-v1.bak`) is written before reset. Title and the van offer **Download save** if you have progress; a banner appears if this device couldn’t write, or if a backup was restored. Original PNG sources and optimized
+Progress remains under the storage key `jbtd-save-v1` as **schema version 2** (kits and `heroJobs`). A backup copy (`jbtd-save-v1.bak`) is written before reset. Title and the van offer **Download save** if you have progress; a banner appears if this device couldn’t write, or if a backup was restored. Original PNG sources and optimized
 WebP runtime assets live in `assets/remaster/`; see [art direction and prompts](docs/overhaul/art-direction.md)
 and [verification with screenshots](docs/overhaul/verification.md).
 
@@ -88,7 +88,7 @@ and [verification with screenshots](docs/overhaul/verification.md).
 
 - Apprentice Workshop, Jayjay’s Stronghold, and CBJ & Doni’s Garage have been retired. CBJ, Doni, and Jayjay are playable heroes with their own five-skill kits. Older saved tool picks migrate to legal loadouts.
 - Every tower has **six equipment tiers**, two specialization choices, and increasingly expensive repeatable **Mastery** after tier VI. Buildings and recruit armor change visibly.
-- **The 90’s Workshop** has four branches, 28 perks, mutually exclusive forks, and free respecs. Campaign ratings award 1–3 90’s; the icon depicts a PureFlow PEX press elbow with a black body and silver sleeves.
+- Campaign ratings still award 1–3 90’s. Kit cards unlock from jobs completed as that hero; armor affixes are the run modifiers. Historical skill/talent trees are not a play path.
 - **The Neverending Service Call** waits for the field to clear, pays cleared-call bonuses, repairs two lives every fifth completed call, and continues with generated waves. Records, XP, and crates use completed calls.
 - Full painted attack and walking sequences cover Jeff, Jayjay, CBJ, and Doni. Monsters deform continuously through locomotion, anticipation, contact, and recovery. Damage lands at the contact pose; towers wind up and recoil.
 
@@ -96,12 +96,9 @@ See [crew update verification](docs/overhaul/crew-verification.md) and [generati
 
 ## Apprentice careers and the Supply Store
 
-The van now offers **Hero builds** and the **Supply Store** before the first job.
-Each of the eight heroes has three career paths with passive upgrades and an alternate
-**C** skill at the end of each path. Start with one point; crew levels give each hero
-an independent budget, up to eight points. Mix branches, choose one unlocked C skill,
-and respec a hero for free between jobs. The existing shared training and gear remain.
-Support towers, apply poison, summon helpers, splash crowds, or specialize in one target.
+The van now offers **Kit** and the **Supply Store** before the first job.
+Each hero picks a melee or ranged family, equips one weapon, and two stance cards.
+Chest and boots are shared. Historical career-path docs live under `docs/`.
 
 All 24 towers are visible in the store immediately. Torch, Washer, and Apprentice
 Barricade are included; the starting 100 service points can buy another license.
@@ -180,12 +177,12 @@ Local check: `npm run build && npm run preview`.
 | Tower selected, **V** | Spend spare parts on its active ability |
 | Specialized tower → Specialists | Train automatic abilities independently of its V active |
 | **X**, then click the yard | Torch rain — three fire dumps (hits ground and air) |
-| Barricade selected, **G**, then click a nearby route | Move the valve’s hold point |
+| Barricade selected, **G**, then click a nearby route | Move the apprentices’ rally point |
 | **Space** / **N** | Call next wave early for cash and skill cooldown recovery |
 | **I** / Scout / entrance flag | Inspect three upcoming waves, health, routes and shooter coverage |
 | **B** / Plan defenses | Freeze time while building, upgrading and giving orders; B resumes |
 | **F** | Cycle 1× / 2× / 3× / ½× speed |
-| **P** | Pause (Resume / sound / Quit panel) |
+| **P** | Pause (Resume / sound / Main menu) |
 | **Esc** | Deselect, or open/close pause when nothing is selected |
 | Clock out | The Neverending Service Call soft-exit (keeps the wave record) |
 
@@ -193,10 +190,10 @@ Local check: `npm run build && npm run preview`.
 
 ```
 src/core     vec math, seeded RNG, fixed-step loop
-src/data     towers, enemies, heroes, skills, difficulty, maps (pure data)
+src/data     towers, enemies, heroes, kit cards, difficulty, maps (pure data)
 src/sim      deterministic game logic — no DOM, no canvas
 src/render   canvas renderer, painted sprite atlases, animation, and procedural effects
-src/ui       DOM screens (title, hub, loadout, skills, talents, locker, encyclopedia, play) and HUD
+src/ui       DOM screens (title, hub, loadout, kit, store, locker, encyclopedia, play) and HUD
 src/save     localStorage persistence
 tests        vitest specs + headless auto-builder harness
 scripts      balance report
@@ -208,3 +205,11 @@ Sound combines Rain on Glass, quiet yard ambience, and combat cues. In a job, cy
 button: **Off → Soft → Full**.
 
 Research-driven additions include three saved hero/tool crews and optional campaign commendations per difficulty and remaster. See [research and design decisions](docs/research-driven-defense/research.md).
+
+## Playing and sharing on a phone
+
+[Play Jeff Beckman Tower Defense](https://logan123385.github.io/jeff-beckman-td/). Combat fits the phone viewport; landscape gives the battlefield more room. Tap **Pause → Main menu → Leave match** to leave a match. In the endless service call, **Pause → Clock out** banks earned rewards after the call starts.
+
+Progress belongs to this browser and device. **Download save** and **Restore save** on the title/truck let you move it to another browser. For the most predictable mobile experience, open the game in Safari or Chrome. If a browser blocks storage, the game shows a warning; download your save before closing that tab.
+
+See the [release verification and its limits](docs/share-ready/verification.md).

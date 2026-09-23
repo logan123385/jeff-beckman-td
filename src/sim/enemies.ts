@@ -98,11 +98,12 @@ function tickTimers(game: Game, e: Enemy, dt: number): void {
   }
   if (e.dead) return;
   if (e.dotTime > 0 && e.dotDps > 0 && e.dotSource) {
-    applyDamage(game, e, e.dotDps * dt, 'water', e.dotSource);
-    e.dotTime -= dt;
+    applyDamage(game, e, e.dotDps * Math.min(dt, e.dotTime), e.dotType ?? 'water', e.dotSource);
+    e.dotTime = Math.max(0, e.dotTime - dt);
     if (e.dotTime <= 0) {
       e.dotDps = 0;
       e.dotSource = null;
+      e.dotType = null;
     }
   }
   if (e.dead) return;

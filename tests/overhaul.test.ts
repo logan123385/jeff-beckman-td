@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DIFFICULTIES } from '../src/data/difficulty';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import { specializationInfo } from '../src/data/specializations';
 import { TOWERS, TOWER_ORDER } from '../src/data/towers';
 import type { TowerId } from '../src/data/types';

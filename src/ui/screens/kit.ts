@@ -6,6 +6,7 @@ import { familyLabel, familyStance, type WeaponFamilyId } from '../../data/weapo
 import type { HeroKit } from '../../save/save';
 import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
+import { persistRow } from '../persist';
 import { heroPortrait } from '../portraits';
 
 const ARMOR_SLOTS: ArmorSlot[] = ['chest', 'boots'];
@@ -61,6 +62,7 @@ export function renderKit(app: App): ScreenView {
         h('div', {}, h('div', { class: 'eyebrow', text: 'Five slots · one fighter' }), h('h1', { text: 'Kit' })),
         h('span', { class: 'pill', text: `${save.data.servicePoints} points` }),
       ),
+      persistRow(save) ?? '',
       h('p', { class: 'lede kit-jobs-line', text: `Call ${jobs} as ${HEROES[hero].name}. Weapon and cards are per hero; chest and boots are shared.` }),
       h(
         'nav',

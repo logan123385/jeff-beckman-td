@@ -38,8 +38,8 @@ try {
   assert(ready,'Wait for asset preparation and application startup before replacing the fixture host.');
   await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false });
   const setup = await read(`(async () => {
-    const [{ Game }, { Renderer }, { MAPS, SERVICE_CALL }, { DIFFICULTIES }, { buildModifiers }, art, { HEROES }, { drawNewHero }, { paintedJeff }, { monster }, { ENEMY_ART }, { ENEMIES }] = await Promise.all([
-      import('/src/sim/game.ts'), import('/src/render/renderer.ts'), import('/src/data/maps/index.ts'), import('/src/data/difficulty.ts'), import('/src/data/skills.ts'), import('/src/render/art.ts'), import('/src/data/heroes.ts'), import('/src/render/heroActors.ts'), import('/src/render/paintedActors.ts'), import('/src/render/animation.ts'), import('/src/render/art.ts'), import('/src/data/enemies.ts')]);
+    const [{ Game }, { Renderer }, { MAPS, SERVICE_CALL }, { DIFFICULTIES }, { neutralModifiers }, art, { HEROES }, { drawNewHero }, { paintedJeff }, { monster }, { ENEMY_ART }, { ENEMIES }] = await Promise.all([
+      import('/src/sim/game.ts'), import('/src/render/renderer.ts'), import('/src/data/maps/index.ts'), import('/src/data/difficulty.ts'), import('/src/data/modifiers.ts'), import('/src/render/art.ts'), import('/src/data/heroes.ts'), import('/src/render/heroActors.ts'), import('/src/render/paintedActors.ts'), import('/src/render/animation.ts'), import('/src/render/art.ts'), import('/src/data/enemies.ts')]);
     await art.preloadArt();
     const canvas = document.createElement('canvas'); canvas.style.cssText='width:1120px;height:700px;max-width:100%;border:1px solid #d1b987;border-radius:6px';
     const caption=document.createElement('p'); caption.style.cssText='font:13px system-ui;letter-spacing:2px;color:#dfc496;margin:20px 0';
@@ -49,7 +49,7 @@ try {
     state.create = (mapId,heroId='becbec') => {
       const source=[...MAPS,SERVICE_CALL].find(m=>m.id===mapId);
       const map={...source,startMoney:100000,lives:1000,allowedTowers:['torch','washer','hammerDrill','glycol','descaler','boiler']};
-      const game=new Game(map,{difficulty:DIFFICULTIES.apprentice,mods:buildModifiers([]),seed:731,manualStart:true,heroId});
+      const game=new Game(map,{difficulty:DIFFICULTIES.apprentice,mods:neutralModifiers(),seed:731,manualStart:true,heroId});
       const kinds=['torch','washer','hammerDrill','glycol','descaler','boiler'];
       map.slots.forEach((_,i)=>{ if(i%2===1){game.placeTower(i,kinds[Math.floor(i/2)%kinds.length]);const t=game.towers.at(-1);game.upgradeTower(t.id);t.build=0;} });
       game.deployHero(map.jeffStart);game.hero.hp=game.hero.maxHp=9999;

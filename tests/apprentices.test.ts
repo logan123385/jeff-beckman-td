@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
 import { DIFFICULTIES } from '../src/data/difficulty';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import { Game } from '../src/sim/game';
 import { damageFriendly, updateFriendlies, FRIENDLY_SWING } from '../src/sim/friendlies';
 import { towerAbilityReady } from '../src/sim/towerAbilities';

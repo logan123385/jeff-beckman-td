@@ -24,10 +24,6 @@ export function xpBarCopy(xp: { level: number; into: number; need: number }): st
   return `${xp.into} / ${xp.need} XP to next`;
 }
 
-export function talentPointsAvailable(totalXp: number, talentsOwned: number): number {
-  return Math.max(0, levelFromXp(totalXp).level - 1 - talentsOwned);
-}
-
 export function campaignXp(opts: {
   won: boolean;
   stars: number;

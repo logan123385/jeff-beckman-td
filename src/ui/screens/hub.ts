@@ -22,7 +22,7 @@ export function renderHub(app: App): ScreenView {
     const xp = levelFromXp(save.data.jeffXp);
     const metaLocked = !save.hasAnyProgress();
     const metaTip = 'Clear a job first — the truck unlocks after your first call.';
-    const persist = persistRow(app.save);
+    const persist = persistRow(app.save, app);
     el.append(
       h(
         'header',

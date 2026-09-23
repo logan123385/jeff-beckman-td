@@ -33,7 +33,7 @@ try {
   await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   const setup=await read(`(async()=>{
     const [{Game},{Renderer},{CRAWLSPACE},{TOWERS,TOWER_ORDER},{DIFFICULTIES},{neutralModifiers},art,paint,{damageFriendly}] = await Promise.all([
-      import('/src/sim/game.ts'),import('/src/render/renderer.ts'),import('/src/data/maps/crawlspace.ts'),import('/src/data/towers.ts'),import('/src/data/difficulty.ts'),import('/src/data/skills.ts'),import('/src/render/art.ts'),import('/src/render/paintedActors.ts'),import('/src/sim/friendlies.ts')]);
+      import('/src/sim/game.ts'),import('/src/render/renderer.ts'),import('/src/data/maps/crawlspace.ts'),import('/src/data/towers.ts'),import('/src/data/difficulty.ts'),import('/src/data/modifiers.ts'),import('/src/render/art.ts'),import('/src/render/paintedActors.ts'),import('/src/sim/friendlies.ts')]);
     await art.preloadArt();const canvas=document.createElement('canvas');canvas.width=1440;canvas.height=960;canvas.style.cssText='width:100%;max-width:1440px;display:block;margin:auto';
     const caption=document.createElement('p');caption.style.cssText='text-align:center;color:#dbc89a;font:14px system-ui';
     const host=document.createElement('main');host.append(caption,canvas);document.body.replaceChildren(host);

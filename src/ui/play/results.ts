@@ -5,8 +5,10 @@ import { remasterTitle, isOneLife } from '../../data/remasters';
 import { TOWERS, TOWER_ORDER } from '../../data/towers';
 import type { ArmorSlot, KitItem } from '../../data/types';
 import { familyLabel, isWeaponFamilyId } from '../../data/weapons';
+import type { SaveStore } from '../../save/save';
 import type { Game } from '../../sim/game';
 import { h, stars } from '../dom';
+import { persistRow } from '../persist';
 import { enemyForMap } from '../../data/bosses';
 import type { EnemyId } from '../../data/types';
 
@@ -19,7 +21,7 @@ export interface ResultsHandlers {
 }
 
 /** End-of-job card, including the Stage 0 "damage share" instrumentation the plan asks for. */
-export function renderResults(game: Game, earnedStars: number, handlers: ResultsHandlers, reward?: RunReward): HTMLElement {
+export function renderResults(game: Game, earnedStars: number, handlers: ResultsHandlers, reward?: RunReward, save?: SaveStore): HTMLElement {
   const won = game.status === 'won';
   const retired = game.status === 'retired';
   const leaks = Object.entries(game.stats.escapedByType).sort((a, b) => b[1] - a[1]);
@@ -66,6 +68,7 @@ export function renderResults(game: Game, earnedStars: number, handlers: Results
     h(
       'div',
       { class: `results sheet ${won || retired ? 'won' : 'lost'}` },
+      save ? persistRow(save) : null,
       h('div', { class: 'eyebrow', text: eyebrow }),
       h('h2', { text: headline }),
       h('p', { class: 'muted', text: blurb }),

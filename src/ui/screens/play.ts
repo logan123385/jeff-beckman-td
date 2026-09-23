@@ -1,4 +1,3 @@
-import { earnedCommendations } from '../../data/commendations';
 import { COOLDOWN_FIELDS, type AbilitySlot } from '../../data/heroes';
 import { AudioBus, moodForMap } from '../../audio/bus';
 import { GameLoop } from '../../core/loop';
@@ -9,17 +8,16 @@ import { MAPS, WORLD_H, WORLD_W, mapById } from '../../data/maps';
 import { availableTowers, resolveLoadout } from '../../data/loadout';
 import { TOWERS } from '../../data/towers';
 import { NIGHT_MUTATORS } from '../../data/night';
-import { remasterTitle, isOneLife, isNoPowers, isNoSell } from '../../data/remasters';
+import { remasterTitle, isNoPowers, isNoSell } from '../../data/remasters';
 import { PROPERTY_LABEL } from '../../data/leakProperties';
 import { splitLine, splitOf } from '../../data/splits';
 import { AIM_HINT, AIM_LABEL, scaledCastRange, heroAbilityHitsAir } from '../../sim/combat';
 import { towerAbilityReady } from '../../sim/towerAbilities';
-import { buildRunModifiers, grantRunRewards } from '../../data/progress';
+import { bankTerminalRun, buildRunModifiers, clockOutHint, pauseBlocksSettle, shouldBankOnLeave } from '../../data/progress';
 import type { EnemyId, RemasterId, TowerId } from '../../data/types';
 import { Renderer, type RenderView } from '../../render/renderer';
 import { JEFF_SELECT_RADIUS } from '../../render/sprites';
 import { Game } from '../../sim/game';
-import { starsForClear } from '../../save/save';
 import type { App, ScreenView } from '../app';
 import { clear, h } from '../dom';
 import { Hud } from '../play/hud';
@@ -105,6 +103,9 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
   let lastWaveShown = -1;
   let lastForeshadow = -1;
   let finished = false;
+  let bankedOutcome: ReturnType<typeof bankTerminalRun> | null = null;
+  let disposed = false;
+  let exitPending = false;
   let endDelay = 0;
   let coach: TutorCoach | null = null;
   let stickyTower: TowerId | null = null;
@@ -179,6 +180,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
         showUpcomingBanner();
       }
       if (game.status !== 'playing' && !finished) {
+        persistTerminal();
         endDelay += dt;
         if (endDelay > 0.8) finish();
       }
@@ -345,22 +347,38 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
     hud.setHint(hint);
   }
 
-  function quitJob(): void {
-    if (game.status !== 'playing') {
-      app.go({ kind: 'hub' });
+  async function quitJob(): Promise<void> {
+    if (exitPending) return;
+    if (shouldBankOnLeave(game.status, finished)) {
+      persistTerminal();
+      app.go({ kind: 'title' });
       return;
     }
-    const leave = game.endless
-      ? 'Leave without clocking out? You will not keep XP or crates. Use Clock out to bank them.'
-      : 'Leave this job? You will not keep XP or chests from this run.';
-    if (confirm(leave)) app.go({ kind: 'hub' });
+    if (game.status !== 'playing') {
+      app.go({ kind: 'title' });
+      return;
+    }
+    exitPending = true;
+    syncPause();
+    const leave = await app.confirmation.show({
+      title: 'Return to the main menu?',
+      message: game.endless
+        ? 'Your previous progress is safe. To bank this service call’s rewards, choose Keep playing, then Clock out in the pause menu. Leaving now abandons this call.'
+        : 'Your previous progress is safe. Leaving now abandons this match and its unfinished rewards.',
+      confirmLabel: 'Leave match',
+      cancelLabel: 'Keep playing',
+    });
+    exitPending = false;
+    if (disposed) return;
+    if (leave) app.go({ kind: 'title' });
+    else syncPause();
   }
 
   function clockOut(): void {
     if (!live()) return;
     if (game.retire()) {
       audio.clock();
-      hud.setHint('Clocked out. Record saved.');
+      hud.setHint(clockOutHint(false));
     } else if (game.endless && game.waveIdx <= 0) {
       hud.setHint('Start the call before you clock out — no XP for standing in the lot.');
     }
@@ -544,7 +562,7 @@ export function renderPlay(app: App, mapId: string, remaster: RemasterId = 'clas
 
   function syncPause(): void {
     const rankLock = rankPanel.isOpen() && game.status === 'playing';
-    loop.paused = planning || userPaused || rankLock || intel.isOpen;
+    loop.paused = pauseBlocksSettle(game.status) && (planning || userPaused || rankLock || intel.isOpen || exitPending);
     el.classList.toggle('paused', loop.paused && !planning);
     el.classList.toggle('planning', planning);
     planButton.textContent = planning ? 'End plan' : 'Plan';
@@ -1259,60 +1277,48 @@ cancelAim();
     banner.classList.remove('hidden');
   }
 
+  function persistTerminal(): ReturnType<typeof bankTerminalRun> {
+    bankedOutcome ??= bankTerminalRun(app.save, game);
+    return bankedOutcome;
+  }
+
   function finish(): void {
+    const outcome = persistTerminal();
     finished = true;
     loop.stop();
     audio.stopAmbient();
-    app.save.markSeen(game.seen);
-    const startLives = isOneLife(game.remaster) ? 1 : Math.max(1, Math.round(map.lives * difficulty.livesMult));
-    let earned = 0;
-    let firstClear = true;
-    if (game.status === 'won' && !game.endless) {
-      if (remaster === 'classic') {
-        firstClear = app.save.starsFor(map.id) === 0;
-        earned = starsForClear(game.lives, startLives);
-        app.save.recordClear(map.id, difficulty.id, earned);
-      } else {
-        firstClear = app.save.recordRemaster(map.id, remaster);
-        earned = firstClear ? 1 : 0;
-      }
-      app.save.recordCommendations(map.id, difficulty.id, remaster, earnedCommendations(game));
-      audio.win();
-    } else if (game.status === 'retired') {
-      app.save.recordServiceCall(game.completedWaves);
-      audio.clock();
-    } else if (game.status === 'lost') {
-      if (game.endless) app.save.recordServiceCall(game.completedWaves);
-      audio.lose();
-    }
-    if (['won', 'lost', 'retired'].includes(game.status)) {
-      app.save.recordHeroJob(game.heroDef.id);
-    }
-    const reward = grantRunRewards(app.save, game, earned, firstClear);
+    if (game.status === 'won') audio.win();
+    else if (game.status === 'retired') audio.clock();
+    else if (game.status === 'lost') audio.lose();
     const idx = MAPS.findIndex((m) => m.id === map.id);
     const next = remaster === 'classic' && !game.endless ? MAPS[idx + 1] : undefined;
     clearSelection({ disarm: true });
     overlayHost.append(
-      renderResults(game, earned, {
+      renderResults(game, outcome.earned, {
         onRetry: replay,
         onNext: game.status === 'won' && next ? () => app.go({ kind: 'loadout', mapId: next.id, remaster: 'classic' }) : null,
         onHub: () => app.go({ kind: 'hub' }),
-      }, reward),
+      }, outcome.reward, app.save),
     );
   }
 
   const onResize = () => renderer.resize();
   const onHide = () => {
+    if (document.hidden && shouldBankOnLeave(game.status, finished)) persistTerminal();
     if (document.hidden && game.status === 'playing' && !loop.paused) {
       setPaused(true);
-      hud.setHint('Paused — the tab was in the background. Press P or Esc to resume.');
+      hud.setHint('Paused while you were away. Tap Resume when you are ready.');
     }
   };
   const stageWatch = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(onResize) : null;
   stageWatch?.observe(stage);
   window.addEventListener('resize', onResize);
   window.visualViewport?.addEventListener('resize', onResize);
+  const onPageHide = () => {
+    if (shouldBankOnLeave(game.status, finished)) persistTerminal();
+  };
   document.addEventListener('visibilitychange', onHide);
+  window.addEventListener('pagehide', onPageHide);
   lastForeshadow = game.waveIdx;
   showUpcomingBanner();
   if (import.meta.env.DEV) {
@@ -1325,6 +1331,8 @@ cancelAim();
   return {
     el,
     dispose() {
+      disposed = true;
+      if (shouldBankOnLeave(game.status, finished)) persistTerminal();
       loop.stop();
       audio.dispose();
       coach?.dispose();
@@ -1336,6 +1344,7 @@ cancelAim();
       window.removeEventListener('resize', onResize);
       window.visualViewport?.removeEventListener('resize', onResize);
       document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onPageHide);
     },
   };
 }

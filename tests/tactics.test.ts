@@ -5,7 +5,7 @@ import { HEAT_PLANT } from '../src/data/maps/heatPlant';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
 import { MAPS } from '../src/data/maps';
 import { loadoutWarnings } from '../src/data/intel';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import { SPECIALIST_ABILITIES, SPECIALIST_KITS, specialistAbilityCost } from '../src/data/specialistAbilities';
 import { TOWERS, TOWER_ORDER } from '../src/data/towers';
 import type { TowerId } from '../src/data/types';

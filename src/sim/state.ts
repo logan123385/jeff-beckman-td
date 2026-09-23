@@ -47,6 +47,8 @@ export interface Enemy {
   dotDps: number;
   dotTime: number;
   dotSource: DamageSource | null;
+  /** When set, DoT ticks as this type. Jeff onHitHeat uses heat; descaler stays water. */
+  dotType: DamageType | null;
   marked: boolean;
   markBonus?: number;
   /** Snapshot / camera paint that survives the per-frame aura reset. */
@@ -224,6 +226,8 @@ export interface HeroMissile {
   id: number; kind: 'plunger' | 'golf' | 'tater' | 'hook' | 'hose' | 'rebar' | 'bell'; from: Vec; pos: Vec; prev: Vec; goal: Vec; targetId?: number;
   age: number; duration: number; damage: number; splash: number; bounces: number; hitIds: number[];
   pull?: number; stun?: number; basic?: boolean; pierce?: number; damageType?: DamageType;
+  /** Set on the first connecting impact; misses and later hops do not advance cadence. */
+  kitPrepared?: boolean;
 }
 export interface HeroZone {
   id: number; kind: 'supply' | 'gas' | 'rain' | 'review' | 'sand' | 'net' | 'taterRain'; pos: Vec; radius: number;

@@ -3,7 +3,7 @@ import { DIFFICULTIES } from '../src/data/difficulty';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
 import { BOILER_ROOM } from '../src/data/maps/boilerRoom';
 import { HEROES } from '../src/data/heroes';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import { resolveLoadout } from '../src/data/loadout';
 import { AIM_HINT, AIM_LABEL, AIM_ORDER } from '../src/sim/combat';
 import { BUILD_TIME, Game, type GameOptions } from '../src/sim/game';

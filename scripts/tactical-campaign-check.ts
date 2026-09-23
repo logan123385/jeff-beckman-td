@@ -5,21 +5,28 @@ import { DIFFICULTIES } from '../src/data/difficulty';
 import { MAPS } from '../src/data/maps';
 import { TOWERS } from '../src/data/towers';
 import { SPECIALIST_KITS } from '../src/data/specialistAbilities';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import type { DifficultyId, TowerId } from '../src/data/types';
 import { Game } from '../src/sim/game';
 import { isTargetable, scaledCastRange } from '../src/sim/combat';
 const records=[];
-for (const map of MAPS) {
+for (const map of MAPS.filter(map => !process.argv[4] || map.id === process.argv[4])) {
   const difficulty = (process.argv[3] ?? 'journeyman') as DifficultyId;
   const support = map.allowedTowers.includes('radiant') ? 'radiant' : map.allowedTowers.includes('glycol') ? 'glycol' : null;
   const kit:TowerId[]=['torch','washer','barricade'];
   if(support)kit.push(support);
   if(map.allowedTowers.includes('vent'))kit.push('vent');
+  if (map.id === 'liftStation') kit.splice(0, kit.length, 'torch', 'washer', 'barricade', 'hammerDrill', 'descaler');
+  const customPlan = process.argv[5]?.split(',') as TowerId[] | undefined;
+  if (customPlan) kit.splice(0, kit.length, ...new Set(customPlan));
   const g=new Game(map,{difficulty:DIFFICULTIES[difficulty],mods:neutralModifiers(),heroId:'cbj',manualStart:true,loadout:kit,seed:7});
   const plan:TowerId[]=['torch','washer','torch',...(support?[support]:[]),...(kit.includes('vent')?['vent' as const]:[]),'barricade','torch','washer'];
+  if (map.id === 'liftStation') plan.splice(0, plan.length, 'torch', 'washer', 'hammerDrill', 'descaler', 'barricade', 'torch', 'washer', 'hammerDrill');
+  if (customPlan) plan.splice(0, plan.length, ...customPlan);
+  const fixedSlots = process.argv[6]?.split(',').map(Number) ?? (map.id === 'liftStation' ? [6,5,9,8,12,11,2,1] : undefined);
   let decisions=0;
   const place=(id:TowerId)=>{
+    if (fixedSlots?.[g.towers.length] !== undefined) return g.placeTower(fixedSlots[g.towers.length]!, id);
     const range=TOWERS[id].levels[0].range;
     const options=map.slots.map((pos,slot)=>({pos,slot})).filter(s=>!g.towerAt(s.slot));
     const value=(pos:{x:number;y:number})=>g.paths.reduce((sum,path)=>{
@@ -45,7 +52,7 @@ for (const map of MAPS) {
       decisions++; invest();
       while(g.pendingRankUps>0){const slot=([4,0,3,1,2] as const).find(i=>g.abilityRanks[i]<3);if(slot===undefined||!g.rankAbility(slot))break;}
       const core=g.towers[0];
-      if(!g.hero.deployed&&g.hero.downed<=0&&core)g.deployHero(g.nearestPathPoint(core.pos));
+      if(!g.hero.deployed&&g.hero.downed<=0&&core)g.deployHero(fixedSlots ? {x:500,y:340} : g.nearestPathPoint(core.pos));
       if(g.waveIdx===0&&g.towers.length>=2||!g.waveActive&&g.canCallWave)g.callNextWave();
       const threats=g.enemies.filter(isTargetable).sort((a,b)=>(g.paths[a.pathIdx]!.length-a.progress)/Math.max(1,a.def.speed)-(g.paths[b.pathIdx]!.length-b.progress)/Math.max(1,b.def.speed));
       const lead=threats[0];
@@ -53,7 +60,7 @@ for (const map of MAPS) {
         g.reinforce(g.nearestPathPoint(lead.pos));
         if(threats.length>=6||lead.def.traits.includes('boss'))g.torchStrike(lead.pos);
         for(const t of g.towers)g.useTowerAbility(t.id);
-        if(core&&g.hero.deployed&&g.hero.hp>g.hero.maxHp*.4&&dist(g.hero.pos,core.pos)>130)g.commandHero(g.nearestPathPoint(core.pos));
+        if(!fixedSlots&&core&&g.hero.deployed&&g.hero.hp>g.hero.maxHp*.4&&dist(g.hero.pos,core.pos)>130)g.commandHero(g.nearestPathPoint(core.pos));
         for(const slot of [0,4,1,3,2] as const){
           const target=threats.find(e=>dist(e.pos,g.hero.pos)<=scaledCastRange(g,slot));
           if(slot===2&&g.hero.hp>g.hero.maxHp*.8)continue;

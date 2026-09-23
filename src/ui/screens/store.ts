@@ -2,6 +2,7 @@ import { TOWERS, TOWER_ORDER } from '../../data/towers';
 import { TOWER_PRICES } from '../../data/store';
 import type { App, ScreenView } from '../app';
 import { h } from '../dom';
+import { persistRow } from '../persist';
 import { towerPortrait } from '../portraits';
 
 export function renderStore(app: App): ScreenView {
@@ -13,6 +14,7 @@ export function renderStore(app: App): ScreenView {
     el.replaceChildren(h('header', { class: 'screen-header sheet' }, h('button', { class: 'btn link', text: '← Van', onClick: () => app.go({ kind: 'hub' }) }),
       h('div', {}, h('span', { class: 'eyebrow', text: 'Beckman supply co.' }), h('h1', { text: 'Build a better truck' })),
       h('span', { class: 'pill big service-points', text: `${points} service points` })),
+      persistRow(save) ?? '',
       h('p', { class: 'lede', text: notice, attrs: { role: 'status' } }),
       h('p', { class: 'small muted', text: 'Wins pay the full service rate. Losses pay half the work completed; even partial combat earns points. Replays pay too. You keep your three starter tools and every purchase.' }),
       h('nav', { class: 'btn-row', attrs: { 'aria-label': 'Store filter' } }, ...(['all', 'affordable', 'owned'] as const).map(id => h('button', {

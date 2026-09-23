@@ -19,6 +19,12 @@
   margin: 0;
 }
 .cancel-target { display: none; }
+.confirmation-overlay { z-index: 300; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+.confirmation-card { width: min(440px, 100%); max-height: 100%; overflow-y: auto; padding: 22px; border: 1px solid #d9bf84; border-radius: 12px; background: #203b46; box-shadow: 0 20px 60px #0008; }
+.confirmation-card h2 { margin: 10px 0; font-size: 26px; }
+.confirmation-card p { color: #d3dfd2; font-size: 15px; line-height: 1.5; }
+.confirmation-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.confirmation-actions .btn { flex: 1; min-height: 48px; }
 .play .battle-intel { position: fixed; top: 80px; right: 24px; bottom: 32px; }
 
 @media (max-width: 900px), (max-height: 600px) and (max-width: 1100px) {
@@ -188,4 +194,25 @@
   .play .ability-rail { grid-template-columns: repeat(7, minmax(0, 1fr)); }
   .play .ability { min-height: 64px; padding-top: 29px; }
   .play .hint { height: 14px; min-height: 14px; }
+}
+
+/* Keep help usable above every screen, including short in-app browser viewports. */
+.how-overlay { z-index: 250; padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+.how-card { max-height: 100%; overscroll-behavior: contain; }
+.how-card-head { position: sticky; top: -22px; z-index: 1; background: #24363b; padding: 8px 0; }
+.how-card-head .btn { min-height: 44px; min-width: 64px; }
+.how-essential { padding: 12px; background: #152b32; border-left: 3px solid var(--brass); line-height: 1.5; }
+.persist-warn:empty { display: none; }
+@media (max-width: 600px) {
+  .adventure-title { min-height: calc(100svh - 20px); padding: 20px 22px 100px; }
+  .adventure-copy { margin-top: 28px; }
+  .adventure-title h1 { font-size: clamp(40px, 12vw, 59px); margin-top: 20px; }
+  .adventure-title h2 { font-size: clamp(19px, 6.4vw, 25px); }
+  .adventure-lede { line-height: 1.5; margin: 18px 0; }
+  .adventure-title .btn { min-height: 44px; }
+  .adventure-title .btn-row { margin-top: 18px; }
+  .title-toolkit { margin-top: 20px; }
+  .adventure-copy .persist-row { max-width: 200px; margin-top: 18px; background: #112630e8; }
+  .adventure-copy .persist-actions { flex-wrap: wrap; }
+  .adventure-hero { pointer-events: none; z-index: 1; }
 }

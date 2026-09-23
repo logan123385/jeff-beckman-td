@@ -5,14 +5,15 @@ import { cardUnlocked, cardsFor, defaultCards, KIT_CARDS } from '../src/data/kit
 import { rollChest } from '../src/data/loot';
 import { CRAWLSPACE } from '../src/data/maps/crawlspace';
 import { DIFFICULTIES } from '../src/data/difficulty';
-import { neutralModifiers } from '../src/data/skills';
+import { neutralModifiers } from '../src/data/modifiers';
 import { defaultFamily, familyHero, familyStance, implicitFor } from '../src/data/weapons';
 import { SAVE_KEY, normalizeSave, SaveStore } from '../src/save/save';
 import { kitSummary } from '../src/ui/screens/kit';
 import { resolveAttackProfile as resolve } from '../src/sim/attackProfile';
 import { Game } from '../src/sim/game';
+import { updateEnemies } from '../src/sim/enemies';
 import { updateHero } from '../src/sim/hero';
-import { updateHeroMissiles } from '../src/sim/heroPowers';
+import { strikeFromProfile, updateHeroMissiles } from '../src/sim/heroPowers';
 import { updateAuras } from '../src/sim/towers';
 
 function playJeff(family: 'jeff_melee' | 'jeff_ranged') {
@@ -286,6 +287,61 @@ describe('kit combat', () => {
     expect(e.dotDps).toBe(8);
     expect(e.dotTime).toBe(2);
     expect(e.dotSource).toBe('jeff');
+    expect(e.dotType).toBe('heat');
+  });
+
+  it('ticks onHitHeat as heat through armor (CORR-001)', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'jeff',
+      kit: {
+        family: 'jeff_melee',
+        weapon: {
+          kind: 'weapon',
+          id: 'w-hot',
+          family: 'jeff_melee',
+          name: 'Hot Wrench',
+          rarity: 'rare',
+          affixes: [{ key: 'onHitHeat', amount: 10 }],
+        },
+        cards: [null, null],
+      },
+      manualStart: true,
+    });
+    g.deployHero({ ...g.map.jeffStart });
+    const e = g.spawnEnemy('scaleCrab', 0, 320);
+    e.lane = 0;
+    e.pos = { x: 340, y: 250 };
+    e.properties = [];
+    e.def = { ...e.def, dps: 0, speed: 0 };
+    e.hp = e.maxHp = 10000;
+    landContactBasic(g);
+    expect(e.dotType).toBe('heat');
+    expect(e.dotDps).toBe(10);
+    const before = e.hp;
+    updateEnemies(g, 1);
+    const dealt = before - e.hp;
+    const waterThroughArmor = 10 * (1 - e.def.armor);
+    expect(dealt).toBeCloseTo(10, 0);
+    expect(dealt).toBeGreaterThan(waterThroughArmor + 3);
+  });
+
+  it('does not relabel or extend a stronger descaler effect with weak heat', () => {
+    const g = playJeff('jeff_melee');
+    g.mods.onHitHeat = 8;
+    g.deployHero({ ...g.map.jeffStart });
+    const e = g.spawnEnemy('sludge', 0, 320);
+    e.lane = 0; e.pos = { x: 340, y: 250 };
+    e.def = { ...e.def, dps: 0, speed: 0 };
+    e.hp = e.maxHp = 10000;
+    e.dotDps = 30; e.dotTime = 0.25; e.dotSource = 'descaler'; e.dotType = 'water';
+    landContactBasic(g);
+    expect([e.dotDps, e.dotTime, e.dotSource, e.dotType]).toEqual([30, 0.25, 'descaler', 'water']);
+    const before = e.hp;
+    updateEnemies(g, 1);
+    expect(before - e.hp).toBeCloseTo(30 * 0.25 * 1.5);
+    expect([e.dotDps, e.dotTime, e.dotSource, e.dotType]).toEqual([0, 0, null, null]);
   });
 
   it('counts Jeff pin cadence once per ranged basic', () => {
@@ -318,6 +374,103 @@ describe('kit combat', () => {
     expect(losses[0]).toBeGreaterThan(0);
     expect(losses[1]).toBeCloseTo(losses[0]!, 0);
     expect(losses[3]! / losses[0]!).toBeCloseTo(1.6, 1);
+  });
+
+  it('a missile that misses does not consume the next fourth-hit bonus', () => {
+    const g = new Game(CRAWLSPACE, { difficulty: DIFFICULTIES.apprentice, mods: neutralModifiers(), hero: 'jeff',
+      kit: { family: 'jeff_ranged', weapon: null, cards: ['jeff_pin', null] }, manualStart: true });
+    g.deployHero({ ...g.map.jeffStart });
+    const target = g.spawnEnemy('sludge', 0, 320);
+    target.hp = target.maxHp = 10000;
+    strikeFromProfile(g, target); updateHeroMissiles(g, 2);
+    const normal = 10000 - target.hp;
+    g.kitState.hitCounts.jeff_pin = 3;
+    strikeFromProfile(g, target);
+    expect(g.kitState.hitCounts.jeff_pin).toBe(3);
+    target.dead = true;
+    updateHeroMissiles(g, 2);
+    expect(g.kitState.hitCounts.jeff_pin).toBe(3);
+    const next = g.spawnEnemy('sludge', 0, 320);
+    next.hp = next.maxHp = 10000;
+    strikeFromProfile(g, next); updateHeroMissiles(g, 2);
+    expect(g.kitState.hitCounts.jeff_pin).toBe(4);
+    expect((10000 - next.hp) / normal).toBeCloseTo(1.6);
+  });
+
+  it('does not count pierce hops as extra pin basics (CORR-002)', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'jeff',
+      kit: {
+        family: 'jeff_ranged',
+        weapon: {
+          kind: 'weapon',
+          id: 'w-pierce',
+          family: 'jeff_ranged',
+          name: 'Relic Wand',
+          rarity: 'relic',
+          affixes: [],
+        },
+        cards: ['jeff_pin', null],
+      },
+      manualStart: true,
+    });
+    expect(g.attackProfile.pierce).toBe(2);
+    g.deployHero({ ...g.map.jeffStart });
+    const pack = [320, 360, 400].map((progress) => {
+      const e = g.spawnEnemy('sludge', 0, progress);
+      e.lane = 0;
+      e.pos = { x: 300 + (progress - 320), y: 250 };
+      e.def = { ...e.def, dps: 0, speed: 0 };
+      e.hp = e.maxHp = 10000;
+      return e;
+    });
+    updateHero(g, 0.01);
+    updateHero(g, g.heroDef.swingTime * 0.55);
+    expect(g.heroMissiles).toHaveLength(1);
+    updateHeroMissiles(g, 2);
+    updateHeroMissiles(g, 2);
+    updateHeroMissiles(g, 2);
+    expect(pack.filter((e) => e.hp < e.maxHp).length).toBeGreaterThan(1);
+    expect(g.kitState.hitCounts.jeff_pin).toBe(1);
+  });
+
+  it('does not count bounce hops as extra pin basics (CORR-002)', () => {
+    const g = new Game(CRAWLSPACE, {
+      difficulty: DIFFICULTIES.apprentice,
+      mods: neutralModifiers(),
+      hero: 'chris',
+      kit: {
+        family: 'chris_ranged',
+        weapon: {
+          kind: 'weapon',
+          id: 'w-bounce',
+          family: 'chris_ranged',
+          name: 'Relic Iron',
+          rarity: 'relic',
+          affixes: [],
+        },
+        cards: ['chris_pin', null],
+      },
+      manualStart: true,
+    });
+    expect(g.attackProfile.bounce).toBe(2);
+    g.deployHero({ ...g.map.jeffStart });
+    for (const progress of [320, 360, 400]) {
+      const e = g.spawnEnemy('sludge', 0, progress);
+      e.lane = 0;
+      e.pos = { x: 300 + (progress - 320), y: 250 };
+      e.def = { ...e.def, dps: 0, speed: 0 };
+      e.hp = e.maxHp = 10000;
+    }
+    updateHero(g, 0.01);
+    updateHero(g, g.heroDef.swingTime * 0.55);
+    expect(g.heroMissiles).toHaveLength(1);
+    updateHeroMissiles(g, 2);
+    updateHeroMissiles(g, 2);
+    updateHeroMissiles(g, 2);
+    expect(g.kitState.hitCounts.chris_pin).toBe(1);
   });
 
   it('splashes on a killing Basin Swing', () => {

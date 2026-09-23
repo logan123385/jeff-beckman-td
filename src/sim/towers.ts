@@ -571,6 +571,7 @@ export function applyDescaler(e: Enemy, shred: number, dot: number, dotTime: num
     e.dotDps = dps;
     e.dotTime = dotTime;
     e.dotSource = 'descaler';
+    e.dotType = 'water';
   }
 }
 

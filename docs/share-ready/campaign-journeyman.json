@@ -1,0 +1,436 @@
+{
+  "method": "Fixed active-play policy. CBJ, seed 7, legal kits, no gear/perks/extra money. Automated simulation; not human difficulty proof.",
+  "records": [
+    {
+      "map": "crawlspace",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 10,
+      "seconds": 207,
+      "kills": 167,
+      "money": 136,
+      "decisions": 830,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 3,
+          "tier": 3
+        },
+        {
+          "id": "washer",
+          "slot": 0,
+          "tier": 3
+        },
+        {
+          "id": "torch",
+          "slot": 6,
+          "tier": 3
+        },
+        {
+          "id": "barricade",
+          "slot": 5,
+          "tier": 3
+        },
+        {
+          "id": "torch",
+          "slot": 1,
+          "tier": 3
+        }
+      ]
+    },
+    {
+      "map": "boilerRoom",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 12,
+      "seconds": 206,
+      "kills": 293,
+      "money": 76,
+      "decisions": 823,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 0,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 3,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "barricade",
+          "slot": 8,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "torch",
+          "slot": 1,
+          "tier": 3,
+          "specialization": "power"
+        }
+      ]
+    },
+    {
+      "map": "radiantFloor",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 12,
+      "seconds": 341,
+      "kills": 344,
+      "money": 82,
+      "decisions": 1364,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "radiant"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 9,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 1,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 10,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "radiant",
+          "slot": 11,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "barricade",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "power"
+        }
+      ]
+    },
+    {
+      "map": "municipalMain",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 16,
+      "seconds": 440,
+      "kills": 522,
+      "money": 119,
+      "decisions": 1761,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "radiant",
+        "vent"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 9,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 4,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "radiant",
+          "slot": 6,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "vent",
+          "slot": 8,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "barricade",
+          "slot": 12,
+          "tier": 3,
+          "specialization": "power"
+        }
+      ]
+    },
+    {
+      "map": "snowmelt",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 12,
+      "seconds": 265,
+      "kills": 370,
+      "money": 44,
+      "decisions": 1058,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "radiant"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 0,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 10,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "radiant",
+          "slot": 7,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "barricade",
+          "slot": 11,
+          "tier": 3,
+          "specialization": "power"
+        }
+      ]
+    },
+    {
+      "map": "attic",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 12,
+      "seconds": 245,
+      "kills": 211,
+      "money": 189,
+      "decisions": 980,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "vent"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 10,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 0,
+          "tier": 3
+        },
+        {
+          "id": "vent",
+          "slot": 1,
+          "tier": 3
+        },
+        {
+          "id": "barricade",
+          "slot": 6,
+          "tier": 3
+        }
+      ]
+    },
+    {
+      "map": "liftStation",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "wave": 12,
+      "seconds": 241,
+      "kills": 248,
+      "money": 114,
+      "decisions": 964,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "hammerDrill",
+        "descaler"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 6,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 5,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "hammerDrill",
+          "slot": 9,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "descaler",
+          "slot": 8,
+          "tier": 3
+        },
+        {
+          "id": "barricade",
+          "slot": 12,
+          "tier": 3
+        }
+      ]
+    },
+    {
+      "map": "mechanicalRoom",
+      "difficulty": "journeyman",
+      "status": "won",
+      "lives": 20,
+      "wave": 10,
+      "seconds": 294,
+      "kills": 189,
+      "money": 262,
+      "decisions": 1175,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "radiant"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 9,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 8,
+          "tier": 3
+        },
+        {
+          "id": "torch",
+          "slot": 1,
+          "tier": 3
+        },
+        {
+          "id": "radiant",
+          "slot": 0,
+          "tier": 3
+        },
+        {
+          "id": "barricade",
+          "slot": 3,
+          "tier": 3
+        }
+      ]
+    },
+    {
+      "map": "heatPlant",
+      "difficulty": "journeyman",
+      "status": "lost",
+      "lives": 0,
+      "wave": 11,
+      "seconds": 232,
+      "kills": 188,
+      "money": 0,
+      "decisions": 929,
+      "kit": [
+        "torch",
+        "washer",
+        "barricade",
+        "glycol",
+        "vent"
+      ],
+      "towers": [
+        {
+          "id": "torch",
+          "slot": 6,
+          "tier": 3,
+          "specialization": "power"
+        },
+        {
+          "id": "washer",
+          "slot": 14,
+          "tier": 3,
+          "specialization": "control"
+        },
+        {
+          "id": "torch",
+          "slot": 3,
+          "tier": 3
+        },
+        {
+          "id": "glycol",
+          "slot": 0,
+          "tier": 3
+        },
+        {
+          "id": "vent",
+          "slot": 11,
+          "tier": 3
+        }
+      ]
+    }
+  ]
+}
